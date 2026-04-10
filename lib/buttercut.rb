@@ -18,7 +18,7 @@ require_relative 'buttercut/fcp7'
 class ButterCut
   SUPPORTED_EDITORS = [:fcpx, :fcp7].freeze
 
-  def self.new(clips, editor:)
+  def self.new(clips, editor:, markers: [])
     raise ArgumentError, "editor: parameter is required" if editor.nil?
 
     unless SUPPORTED_EDITORS.include?(editor)
@@ -29,7 +29,7 @@ class ButterCut
     when :fcpx
       ButterCut::FCPX.new(clips)
     when :fcp7
-      ButterCut::FCP7.new(clips)
+      ButterCut::FCP7.new(clips, markers: markers)
     else
       raise ArgumentError, "Editor #{editor.inspect} is not yet implemented."
     end

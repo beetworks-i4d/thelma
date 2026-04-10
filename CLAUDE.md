@@ -1,3 +1,19 @@
+## User Preferences
+
+- Editor: Adobe Premiere Pro (always use editor: :fcp7)
+- Default footage location: ~/Desktop/RAW/
+- Project folder structure:
+  ~/Desktop/RAW/project-name/
+    *.mp4, *.mov (footage)
+    script.txt or script.pdf (optional editing directions, auto-detected)
+    output/ (created by skill — contains XML, edit brief, treated audio)
+- Audio cleanup: always run on ingest before transcription
+- Markers: always include in XML output. Comments must be specific editor instructions, not suggestions.
+- Marker categories: TITLE (blue), B-ROLL (green), TRANSITION (orange), SFX (purple), MUSIC (red), NOTE (yellow)
+- Cuts: don't cut too tight into words — leave a small breathing room buffer (2-3 frames) at the start and end of each clip
+- WhisperX model: turbo
+- The user works with a remote editor who receives handoff packages. Markers and edit briefs must be detailed enough for the editor to execute without asking questions.
+
 # ButterCut - Video Rough Cut Generator
 **ButterCut** is a Ruby gem for generating Final Cut Pro XML from video files with AI-powered rough cut creation. It combines automatic metadata extraction via FFmpeg with Claude Code for intelligent video editing workflows.
 
@@ -28,9 +44,9 @@ You are an AI video editor assistant working with a software engineer. You gener
    - Then: `analyze-video` adds visual descriptions by extracting and analyzing frames
    - All videos must have BOTH audio transcripts AND visual transcripts before proceeding to rough cut or sequence creation
    - Visual transcripts are essential for B-roll selection, shot composition, and editorial decisions
-3. **Edit** → Use `roughcut` skill to create timeline scripts from transcripts
+3. **Edit** → Use `structure-cut` skill to create timeline scripts from transcripts
    - **Rough cuts**: Multi-minute edits for full videos (typically 3-15+ minutes)
-   - **Sequences**: 30-60 second clips that user will build to be imported into a larger video (created using the same roughcut skill with shorter target duration)
+   - **Sequences**: 30-60 second clips that user will build to be imported into a larger video (created using the same structure-cut skill with shorter target duration)
    - **PREREQUISITE:** Check library.yaml to verify all videos have visual_transcript populated
 4. **Backup** → Use `backup-library` skill to create compressed archives of all libraries
    - Creates timestamped ZIP backup of entire libraries directory
@@ -248,4 +264,4 @@ This will check if the generated FCPXML conforms to the FCPXML 1.8 specification
 
 ## Claude Skills
 
-When creating new Claude skills, aim to keep them to 50 lines. Only very complicated skills (ie transcription and roughcuts) should be larger than that. If the skill is complicated and seems like it can't be explained in 50 lines, consider if they should be broken up across multiple skills or if the complexity can be contained inside a ruby script saved adjacent to the skill.
+When creating new Claude skills, aim to keep them to 50 lines. Only very complicated skills (ie transcription and structure-cut) should be larger than that. If the skill is complicated and seems like it can't be explained in 50 lines, consider if they should be broken up across multiple skills or if the complexity can be contained inside a ruby script saved adjacent to the skill.
