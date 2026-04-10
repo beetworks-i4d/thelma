@@ -267,8 +267,8 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
    > "Structure check: [N issues found / structure is clean]. [Details of any issues]. Approve or adjust?"
 
 6. **Write YAML** — Include `speech_analysis` path. Save to `output/`.
-   - **Deep mode with sync_audio:** Set `time_domain: audio` and use the raw `t` / `e` values from `segments_classified.yaml` directly as clip `start` / `end`. Do NOT convert to video time — `build_structure_cut.rb` handles the conversion internally using the sync offset. This eliminates agent-side math errors.
-   - **Markers are unaffected** — marker `time` values are timeline positions (seconds from timeline start), not source times. Do not set `time_domain` on markers.
+   - The classification `t`/`e` values are in **video time** (because WhisperX transcribes the video's audio track). Use them directly as clip `start`/`end` in the YAML. Do NOT set `time_domain: audio` unless the transcript was generated from a separate WAV file (rare case — almost never needed).
+   - **Markers are unaffected** — marker `time` values are timeline positions (seconds from timeline start), not source times.
 
 7. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 
@@ -368,13 +368,12 @@ sync_audio:                       # optional — for dual-system audio
 
 speech_analysis: /path/to/speech_analysis.json  # optional — from audio_analysis.rb
 
-time_domain: audio                # optional: "audio" or "video" (default)
-                                  # When "audio", clip start/end are audio times
-                                  # and the script converts to video time using sync_offset
-                                  # Use "audio" in deep mode to pass raw t/e values from classification
+time_domain: video                # optional: "audio" or "video" (default: "video")
+                                  # "video" = times are video-relative (normal — WhisperX on video)
+                                  # "audio" = times are WAV-relative (only if transcript from WAV)
 
 clips:
-  - start: 121.73                 # source time in the specified time_domain (seconds)
+  - start: 121.73                 # video source time (seconds)
     end: 127.11
   - start: 130.80
     end: 146.91
@@ -391,8 +390,8 @@ markers:
 ```
 
 **Key conventions:**
-- `clips[].start/end` are source times in the domain specified by `time_domain` (default: video). When `time_domain: audio`, the script converts to video time internally using `video_time = audio_time - sync_offset`.
-- `markers[].time` is TIMELINE position (after clips are assembled sequentially). Markers are never affected by `time_domain`.
+- `clips[].start/end` are video source times by default. Only set `time_domain: audio` if the transcript was generated from the production WAV (rare). When `audio`, the script converts using `video_time = audio_time - sync_offset`.
+- `markers[].time` is TIMELINE position (after clips are assembled sequentially).
 - Breathing room buffer is applied automatically — don't pre-adjust clip times.
 - Offset sign: positive = audio started before video, negative = audio started after.
 - When `speech_analysis` is present, clip start/end times are snapped to the nearest VAD-detected speech boundary (±200ms tolerance). Adjustments logged to stderr.

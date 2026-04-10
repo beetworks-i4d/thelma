@@ -15,9 +15,11 @@
 #     path: /absolute/path/to/audio.wav
 #     offset: 50.41                   # positive=audio before video
 #
-#   time_domain: audio               # optional: "audio" or "video" (default)
-#                                    # When "audio", clip start/end are audio times
-#                                    # and the script converts to video time using sync_offset
+#   time_domain: video               # optional: "audio" or "video" (default: "video")
+#                                    # "video" = clip times are video-relative (normal case)
+#                                    # "audio" = clip times are WAV-relative, converted using sync_offset
+#                                    # Only use "audio" if transcript was generated from the production WAV,
+#                                    # not the video's audio track. WhisperX on video → use "video".
 #
 #   clips:
 #     - start: 121.73                 # source time in the specified time_domain (seconds)
