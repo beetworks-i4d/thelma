@@ -1,3 +1,22 @@
+## Git Auto-Save Rules (MANDATORY)
+
+Claude Code MUST handle git automatically without asking. The user is not a developer and should never need to think about commits.
+
+**At session start:** Run `git status`. If there are uncommitted changes, commit them immediately with message "auto-save: session start" before doing any other work.
+
+**After every successful tool run that modifies files:** commit with a message describing what changed. Examples:
+- "fix: time_domain conversion in build_structure_cut.rb"
+- "add: Tier 1 redundancy pruning pass"
+- "test: Dylan Shorts 1 Short 1 deep mode verification"
+
+**Before starting any multi-step refactor:** commit current state as a safety point with message "checkpoint: before [description of upcoming work]".
+
+**At session end:** commit with message "auto-save: session end — [one-line summary of what was accomplished]".
+
+**Never ask the user for permission to commit.** Just do it. The user wants git to be invisible infrastructure.
+
+**Never force-push, rebase, or rewrite history.** Only add new commits.
+
 ## User Preferences
 
 - Editor: Adobe Premiere Pro (always use editor: :fcp7)
