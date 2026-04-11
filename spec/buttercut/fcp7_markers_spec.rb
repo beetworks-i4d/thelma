@@ -144,18 +144,24 @@ RSpec.describe ButterCut::FCP7, 'markers' do
       expect(outs).to all(eq(-1))
     end
 
-    it 'assigns correct colors' do
+    it 'assigns correct colors as RGBA sub-elements' do
       color_map = doc.xpath('//sequence/marker').each_with_object({}) do |m, hash|
-        hash[m.at_xpath('name').text] = m.at_xpath('color').text
+        c = m.at_xpath('color')
+        hash[m.at_xpath('name').text] = {
+          red: c.at_xpath('red').text.to_i,
+          green: c.at_xpath('green').text.to_i,
+          blue: c.at_xpath('blue').text.to_i,
+          alpha: c.at_xpath('alpha').text.to_i
+        }
       end
 
       expect(color_map).to eq(
-        'TITLE' => 'blue',
-        'B-ROLL' => 'green',
-        'TRANSITION' => 'orange',
-        'SFX' => 'purple',
-        'MUSIC' => 'red',
-        'NOTE' => 'yellow'
+        'TITLE'      => { red: 0,   green: 63,  blue: 255, alpha: 255 },
+        'B-ROLL'     => { red: 0,   green: 196, blue: 0,   alpha: 255 },
+        'TRANSITION' => { red: 255, green: 132, blue: 0,   alpha: 255 },
+        'SFX'        => { red: 190, green: 73,  blue: 255, alpha: 255 },
+        'MUSIC'      => { red: 255, green: 38,  blue: 38,  alpha: 255 },
+        'NOTE'       => { red: 255, green: 255, blue: 0,   alpha: 255 }
       )
     end
   end
