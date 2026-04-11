@@ -311,14 +311,17 @@ shorts_to_process.each do |num|
     end
   end
 
-  # Expand forward from best match
+  # Expand forward from best match — stop if segment matches close better than hook
   forward_hook = [scope_segments[best_hook_idx]]
   if best_hook_idx
     (best_hook_idx + 1...scope_segments.length).each do |i|
       seg = scope_segments[i]
       break if seg['start'] - forward_hook.last['end'] > 3
-      overlap = word_overlap(hook_beat['text'], seg['text'])
-      if overlap > 0.1 || seg['start'] - forward_hook.last['end'] < 1.5
+      hook_overlap = word_overlap(hook_beat['text'], seg['text'])
+      close_overlap = word_overlap(close_beat['text'], seg['text'])
+      # Stop if this segment is a better match for the close than the hook
+      break if close_overlap > hook_overlap && close_overlap > 0.15
+      if hook_overlap > 0.1 || seg['start'] - forward_hook.last['end'] < 1.5
         forward_hook << seg
       else
         break
@@ -330,15 +333,33 @@ shorts_to_process.each do |num|
 
   $stderr.puts "  Hook: #{hook_segments.length} segments, #{fmt(hook_segments.first['start'])}-#{fmt(hook_segments.last['end'])}"
 
-  # --- Match CLOSE ---
-  close_candidates = scope_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.3 }
+  # --- Match CLOSE (excluding hook segments) ---
+  non_hook_segments = scope_segments.reject { |s| hook_segments.include?(s) }
+
+  close_candidates = non_hook_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.3 }
   if close_candidates.empty?
-    close_candidates = scope_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.15 }
+    close_candidates = non_hook_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.15 }
   end
   if close_candidates.empty?
-    # Fall back to segments near the hook (close often recorded right after hook)
+    # Fall back: check if hook greedily absorbed close segments — try ALL scope segments
+    all_close_candidates = scope_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.25 }
+    if all_close_candidates.any?
+      # Steal the best close match from hook and re-trim hook
+      all_close_candidates.sort_by! { |s| -word_overlap(close_beat['text'], s['text']) }
+      stolen = all_close_candidates.first
+      close_candidates = [stolen]
+      # Remove stolen segment and everything after it from hook
+      stolen_idx = hook_segments.index(stolen)
+      if stolen_idx
+        hook_segments = hook_segments[0...stolen_idx]
+        $stderr.puts "  Close: reclaimed from hook — re-trimmed hook to #{hook_segments.length} segments"
+      end
+    end
+  end
+  if close_candidates.empty?
+    # Last resort: segments right after hook
     hook_end = hook_segments.last['end']
-    close_candidates = scope_segments.select { |s| s['start'] > hook_end && s['start'] < hook_end + 30 }
+    close_candidates = non_hook_segments.select { |s| s['start'] > hook_end && s['start'] < hook_end + 30 }
   end
 
   # Prefer the best overlap
@@ -348,7 +369,7 @@ shorts_to_process.each do |num|
     best_close = close_candidates.first
     best_close_idx = scope_segments.index { |s| s['start'] == best_close['start'] }
 
-    # Build close cluster bidirectionally from best match
+    # Build close cluster bidirectionally from best match (excluding hook segments)
     backward_close = []
     if best_close_idx && best_close_idx > 0
       (best_close_idx - 1).downto(0) do |i|
