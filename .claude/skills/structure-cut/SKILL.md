@@ -158,7 +158,7 @@ stumbles:
 
 When writing the structure cut YAML markers, emit a NOTE marker for each stumble at the stumble's timeline position with comment: `"Internal stumble — check manually"`.
 
-Note: `build_structure_cut.rb` also auto-generates NOTE markers for internal long pauses (>300ms) detected via Silero VAD. These appear automatically in the XML without needing to be specified in the YAML.
+Note: `build_structure_cut.rb` automatically removes internal long pauses (default >500ms) from clips by splitting them into sub-clips placed back-to-back, with a yellow NOTE marker at each join point. Controlled by `auto_remove_pauses_above` in the YAML (default 500ms, set to 0 or false to disable). Pauses below the threshold still get "tighten manually" NOTE markers.
 
 **Caching:** If `segments_classified.yaml` already exists and `transcript_hash` matches the current transcript's MD5, skip re-classifying. If the transcript has changed, re-run.
 
@@ -368,6 +368,10 @@ sync_audio:                       # optional — for dual-system audio
 
 speech_analysis: /path/to/speech_analysis.json  # optional — from audio_analysis.rb
 
+auto_remove_pauses_above: 500     # optional, milliseconds (default 500)
+                                  # Long pauses above this threshold inside clips are
+                                  # removed by splitting into sub-clips. Set to 0 or false to disable.
+
 time_domain: video                # optional: "audio" or "video" (default: "video")
                                   # "video" = times are video-relative (normal — WhisperX on video)
                                   # "audio" = times are WAV-relative (only if transcript from WAV)
@@ -395,6 +399,7 @@ markers:
 - Breathing room buffer is applied automatically — don't pre-adjust clip times.
 - Offset sign: positive = audio started before video, negative = audio started after.
 - When `speech_analysis` is present, clip start/end times are snapped to the nearest VAD-detected speech boundary (±200ms tolerance). Adjustments logged to stderr.
+- When `speech_analysis` is present, internal pauses above `auto_remove_pauses_above` (default 500ms) are automatically removed. Clips are split at pause boundaries, sub-clips placed back-to-back, yellow NOTE markers added at each join point. Dual-system audio is split in sync.
 
 ## Editorial Principles
 
