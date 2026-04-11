@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 # Cleans a WhisperX transcript JSON by removing duplicate takes, false starts,
-# single-word filler segments, and trailing-off patterns.
+# single-word filler segments, trailing-off patterns, and within-segment stutters.
 #
 # Usage: ruby scripts/transcript_cleanup.rb <transcript.json>
 # Output: <transcript_basename>_cleaned.json in the same directory
@@ -10,12 +10,14 @@
 #   2. False starts: segment ends mid-sentence, next starts with similar words → drop first
 #   3. Single-word filler: segments <1.5s with only filler words → drop entirely
 #   4. Trailing-off: repeated end words, partial words, "..." then clean restart → drop first
+#   5. Within-segment de-stutter: internal phrase repeats, partial restarts, word-level repeats
 #
 # Logs every removal to stderr. Output schema identical to input.
 
 require 'json'
 
 FILLER_WORDS = %w[um uh okay so right like well you\ know yeah ah oh hmm mhm].freeze
+FILLER_CONNECTORS = %w[um uh like you know so well okay and but].freeze
 CONJUNCTIONS_TRAILING = %w[and but the so or a an if that which when because].freeze
 TERMINAL_PUNCTUATION = /[.!?]$/
 
@@ -50,6 +52,119 @@ def opening_overlap(words_a, words_b, count = 3)
   return 0.0 if check == 0
   matches = (0...check).count { |i| words_a[i] == words_b[i] }
   matches.to_f / check
+end
+
+# Normalize a single word for comparison: lowercase, strip punctuation
+def norm(word)
+  word.to_s.downcase.gsub(/[^a-z0-9']/, '')
+end
+
+# Within-segment de-stutter: detect internal phrase repeats, partial restarts,
+# and consecutive word repeats. Returns [modified_seg, log_message] or nil.
+def destutter_segment(seg)
+  words = seg['words']
+  return nil unless words && words.size >= 4
+
+  norms = words.map { |w| norm(w['word']) }
+  keep = Array.new(words.size, true)
+  reasons = []
+
+  # --- Pass A: Phrase repeats (3+ words) ---
+  # Find longest repeated phrase first, working down
+  max_phrase = [norms.size / 2, 10].min
+  max_phrase.downto(3) do |plen|
+    i = 0
+    while i <= norms.size - plen
+      unless keep[i]
+        i += 1
+        next
+      end
+
+      phrase = norms[i, plen]
+      # Skip if phrase is all filler
+      if phrase.all? { |w| FILLER_CONNECTORS.include?(w) || w.empty? }
+        i += 1
+        next
+      end
+
+      # Look for matching phrase after position i, with gap handling:
+      # - 0-gap: always match (immediate repeat)
+      # - Filler-only gap (1-3 words): match any phrase >= 3
+      # - Non-filler gap (1-5 words): only match phrases >= 5
+      search_start = i + plen
+      match_at = nil
+      max_gap = [5, norms.size - search_start - plen].min
+      (0..max_gap).each do |gap|
+        try_start = search_start + gap
+        break if try_start + plen > norms.size
+        next unless norms[try_start, plen] == phrase
+
+        # Validate gap content
+        if gap == 0
+          match_at = try_start
+          break
+        else
+          gap_words = norms[search_start, gap]
+          all_filler = gap_words.all? { |w| FILLER_CONNECTORS.include?(w) || w.empty? }
+          if all_filler && gap <= 3
+            match_at = try_start
+            break
+          elsif plen >= 5
+            match_at = try_start
+            break
+          end
+        end
+      end
+
+      if match_at
+        # Check if second occurrence continues longer (partial restart)
+        # Keep the second occurrence, remove first occurrence + gap
+        removed_text = words[i...match_at].map { |w| w['word'] }.join(' ')
+        reasons << "removed '#{removed_text}' (phrase repeat)"
+        (i...match_at).each { |j| keep[j] = false }
+        i = match_at + plen
+      else
+        i += 1
+      end
+    end
+  end
+
+  # --- Pass B: Consecutive word repeats (1-2 words) ---
+  # "no no", "$850 $850", "is is is"
+  i = 0
+  while i < norms.size - 1
+    unless keep[i] && keep[i + 1]
+      i += 1
+      next
+    end
+
+    if !norms[i].empty? && norms[i] == norms[i + 1]
+      # Check for triple+ repeat
+      run_end = i + 1
+      run_end += 1 while run_end + 1 < norms.size && keep[run_end + 1] && norms[run_end + 1] == norms[i]
+      # Keep only the last one in the run
+      removed = words[i...run_end].map { |w| w['word'] }.join(' ')
+      reasons << "removed '#{removed}' (word repeat)"
+      (i...run_end).each { |j| keep[j] = false }
+      i = run_end + 1
+    else
+      i += 1
+    end
+  end
+
+  return nil if reasons.empty?
+
+  # Rebuild segment from kept words
+  kept_words = words.each_with_index.select { |_, j| keep[j] }.map(&:first)
+  return nil if kept_words.empty?
+
+  new_seg = seg.dup
+  new_seg['words'] = kept_words
+  new_seg['text'] = kept_words.map { |w| w['word'] }.join(' ')
+  new_seg['start'] = kept_words.first['start'].to_f if kept_words.first['start']
+  new_seg['end'] = kept_words.last['end'].to_f if kept_words.last['end']
+
+  [new_seg, reasons]
 end
 
 path = ARGV[0]
@@ -137,6 +252,22 @@ segments.each_with_index do |seg, i|
   end
 end
 
+# Rule 5: Within-segment de-stutter
+destutter_count = 0
+cleaned_segments = cleaned_segments.map do |seg|
+  result = destutter_segment(seg)
+  if result
+    new_seg, reasons = result
+    destutter_count += 1
+    reasons.each do |reason|
+      $stderr.puts "trimmed #{time_range(seg)} — #{reason}"
+    end
+    new_seg
+  else
+    seg
+  end
+end
+
 # Rebuild output with same schema
 output = data.dup
 output['segments'] = cleaned_segments
@@ -154,6 +285,6 @@ output_path = File.join(dir, "#{base}_cleaned.json")
 File.write(output_path, JSON.pretty_generate(output))
 
 $stderr.puts "---"
-$stderr.puts "Input: #{segments.size} segments → Output: #{cleaned_segments.size} segments (#{drops.size} removed)"
+$stderr.puts "Input: #{segments.size} segments → Output: #{cleaned_segments.size} segments (#{drops.size} dropped, #{destutter_count} de-stuttered)"
 $stderr.puts "Saved: #{output_path}"
 puts output_path
