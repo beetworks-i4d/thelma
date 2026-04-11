@@ -2,7 +2,7 @@
 # branch_a_batch.rb — Batch Branch A (script-driven) processing for Dylan Shorts Batch 1
 #
 # Usage: ruby scripts/branch_a_batch.rb [short_numbers...]
-#   No args = process all shorts 2-27 (skip 1, already done)
+#   No args = process all shorts 2-30 (skip 1, already done)
 #   Args = process specific shorts, e.g.: ruby scripts/branch_a_batch.rb 2 3 4
 
 require 'yaml'
@@ -33,13 +33,13 @@ def tc(t)
   '%02d:%02d:%05.2f' % [h, m, s]
 end
 
-def word_overlap(text_a, text_b)
-  return 0.0 if text_a.nil? || text_b.nil? || text_a.empty? || text_b.empty?
-  words_a = text_a.downcase.gsub(/[^a-z0-9\s]/, '').split.reject { |w| w.length < 3 }
-  words_b = text_b.downcase.gsub(/[^a-z0-9\s]/, '').split.reject { |w| w.length < 3 }
-  return 0.0 if words_a.empty? || words_b.empty?
-  intersection = (words_a & words_b).length
-  intersection.to_f / [words_a.length, words_b.length].min
+def word_overlap(script_text, transcript_text)
+  return 0.0 if script_text.nil? || transcript_text.nil? || script_text.empty? || transcript_text.empty?
+  words_script = script_text.downcase.gsub(/[^a-z0-9\s]/, '').split.reject { |w| w.length < 3 }
+  words_transcript = transcript_text.downcase.gsub(/[^a-z0-9\s]/, '').split.reject { |w| w.length < 3 }
+  return 0.0 if words_script.empty? || words_transcript.empty?
+  intersection = (words_script & words_transcript).length
+  intersection.to_f / words_script.length
 end
 
 def segment_quality(seg)
@@ -167,7 +167,7 @@ end
 # Determine which shorts to process
 requested = ARGV.map(&:to_i)
 shorts_to_process = if requested.empty?
-  (2..27).to_a
+  (2..30).to_a
 else
   requested
 end
@@ -212,29 +212,67 @@ shorts_to_process.each do |num|
   padded = '%02d' % num
   $stderr.puts "\n=== Short ##{padded}: #{short_def['title']} ==="
 
-  # Load existing fast mode YAML for scope reference
+  # Load scope: from fast mode YAML if available, else search transcripts
   fast_path = File.join(OUTPUT_DIR, "Short_#{padded}.yaml")
-  unless File.exist?(fast_path)
-    $stderr.puts "  WARNING: No fast mode YAML at #{fast_path}, skipping"
-    next
-  end
-  fast_yaml = YAML.load_file(fast_path)
-  video_path = fast_yaml['video_path']
-  video_basename = File.basename(video_path)
-  video_info = video_lookup[video_basename]
+  fast_yaml = File.exist?(fast_path) ? YAML.load_file(fast_path) : nil
 
-  # Load transcript
-  transcript = load_transcript(video_basename, TRANSCRIPTS_DIR, transcript_cache)
-  unless transcript
-    $stderr.puts "  SKIP: no transcript"
-    next
-  end
-  all_segments = transcript['segments']
+  if fast_yaml
+    video_path = fast_yaml['video_path']
+    video_basename = File.basename(video_path)
+    video_info = video_lookup[video_basename]
 
-  # Get scope from fast mode clips
-  fast_clips = fast_yaml['clips']
-  scope_start = fast_clips.first['start']
-  scope_end = fast_clips.last['end']
+    transcript = load_transcript(video_basename, TRANSCRIPTS_DIR, transcript_cache)
+    unless transcript
+      $stderr.puts "  SKIP: no transcript"
+      next
+    end
+    all_segments = transcript['segments']
+
+    fast_clips = fast_yaml['clips']
+    scope_start = fast_clips.first['start']
+    scope_end = fast_clips.last['end']
+  else
+    # No fast-mode YAML — search all video transcripts for best hook match
+    $stderr.puts "  No fast mode YAML — searching transcripts for hook text..."
+    hook_text = short_def['beats'].find { |b| b['role'] == 'hook' }['text']
+    close_text = short_def['beats'].find { |b| b['role'] == 'close' }['text']
+
+    best_video = nil
+    best_score = 0
+    best_seg_idx = nil
+
+    library['videos'].each do |v|
+      vbase = File.basename(v['path'])
+      t = load_transcript(vbase, TRANSCRIPTS_DIR, transcript_cache)
+      next unless t
+      t['segments'].each_with_index do |seg, idx|
+        score = word_overlap(hook_text, seg['text'])
+        if score > best_score
+          best_score = score
+          best_video = v
+          best_seg_idx = idx
+        end
+      end
+    end
+
+    unless best_video && best_score > 0.1
+      $stderr.puts "  SKIP: could not match hook text to any transcript (best score: #{best_score.round(3)})"
+      next
+    end
+
+    video_path = best_video['path']
+    video_basename = File.basename(video_path)
+    video_info = best_video
+    $stderr.puts "  Matched to #{video_basename} (score: #{best_score.round(3)})"
+
+    transcript = load_transcript(video_basename, TRANSCRIPTS_DIR, transcript_cache)
+    all_segments = transcript['segments']
+
+    # Build scope: from 30s before best hook match to end of video (or +5min, whichever is less)
+    hook_seg = all_segments[best_seg_idx]
+    scope_start = [hook_seg['start'] - 30, 0].max
+    scope_end = [hook_seg['start'] + 300, all_segments.last['end']].min
+  end
 
   # Get segments in scope
   scope_segments = all_segments.select { |s| s['start'] >= scope_start - 1 && s['end'] <= scope_end + 1 }
@@ -255,25 +293,40 @@ shorts_to_process.each do |num|
   hook_candidates.sort_by! { |s| -word_overlap(hook_beat['text'], s['text']) }
   best_hook_start = hook_candidates.first['start']
 
-  # Find all segments near the best hook that form a continuous cluster
-  hook_segments = scope_segments.select { |s|
-    s['start'] >= best_hook_start - 0.5 &&
-    s['start'] < best_hook_start + 30 &&
-    (word_overlap(hook_beat['text'], s['text']) > 0.15 || s['start'] - best_hook_start < 2)
-  }
-  # Trim to just the hook content — stop at first segment with no overlap that's > 3s after start
-  trimmed_hook = [hook_segments.first]
-  hook_segments[1..].each do |seg|
-    break if seg['start'] - trimmed_hook.last['end'] > 3
-    overlap = word_overlap(hook_beat['text'], seg['text'])
-    # Keep if it overlaps with hook text OR is a natural continuation (< 1s gap)
-    if overlap > 0.1 || seg['start'] - trimmed_hook.last['end'] < 1.5
-      trimmed_hook << seg
-    else
-      break
+  # Build hook cluster bidirectionally from best match
+  best_hook_idx = scope_segments.index { |s| s['start'] == best_hook_start }
+
+  # Expand backward from best match
+  backward_hook = []
+  if best_hook_idx && best_hook_idx > 0
+    (best_hook_idx - 1).downto(0) do |i|
+      seg = scope_segments[i]
+      break if best_hook_start - seg['end'] > 3
+      overlap = word_overlap(hook_beat['text'], seg['text'])
+      if overlap > 0.1 || best_hook_start - seg['end'] < 1.5
+        backward_hook.unshift(seg)
+      else
+        break
+      end
     end
   end
-  hook_segments = trimmed_hook
+
+  # Expand forward from best match
+  forward_hook = [scope_segments[best_hook_idx]]
+  if best_hook_idx
+    (best_hook_idx + 1...scope_segments.length).each do |i|
+      seg = scope_segments[i]
+      break if seg['start'] - forward_hook.last['end'] > 3
+      overlap = word_overlap(hook_beat['text'], seg['text'])
+      if overlap > 0.1 || seg['start'] - forward_hook.last['end'] < 1.5
+        forward_hook << seg
+      else
+        break
+      end
+    end
+  end
+
+  hook_segments = backward_hook + forward_hook
 
   $stderr.puts "  Hook: #{hook_segments.length} segments, #{fmt(hook_segments.first['start'])}-#{fmt(hook_segments.last['end'])}"
 
@@ -290,16 +343,45 @@ shorts_to_process.each do |num|
 
   # Prefer the best overlap
   close_candidates.sort_by! { |s| -word_overlap(close_beat['text'], s['text']) }
-  close_segments = close_candidates.empty? ? [] : [close_candidates.first]
 
-  # If close is multi-sentence, grab adjacent segments
-  if close_segments.any? && word_overlap(close_beat['text'], close_segments.first['text']) < 0.6
-    close_start = close_segments.first['start']
-    nearby = scope_segments.select { |s|
-      s['start'] >= close_start - 1 && s['end'] <= close_start + 15 &&
-      !hook_segments.include?(s) && word_overlap(close_beat['text'], s['text']) > 0.1
-    }
-    close_segments = nearby.sort_by { |s| s['start'] } if nearby.length > close_segments.length
+  if close_candidates.any?
+    best_close = close_candidates.first
+    best_close_idx = scope_segments.index { |s| s['start'] == best_close['start'] }
+
+    # Build close cluster bidirectionally from best match
+    backward_close = []
+    if best_close_idx && best_close_idx > 0
+      (best_close_idx - 1).downto(0) do |i|
+        seg = scope_segments[i]
+        break if best_close['start'] - seg['end'] > 3
+        break if hook_segments.include?(seg)
+        overlap = word_overlap(close_beat['text'], seg['text'])
+        if overlap > 0.1 || best_close['start'] - seg['end'] < 1.5
+          backward_close.unshift(seg)
+        else
+          break
+        end
+      end
+    end
+
+    forward_close = [best_close]
+    if best_close_idx
+      (best_close_idx + 1...scope_segments.length).each do |i|
+        seg = scope_segments[i]
+        break if seg['start'] - forward_close.last['end'] > 3
+        break if hook_segments.include?(seg)
+        overlap = word_overlap(close_beat['text'], seg['text'])
+        if overlap > 0.1 || seg['start'] - forward_close.last['end'] < 1.5
+          forward_close << seg
+        else
+          break
+        end
+      end
+    end
+
+    close_segments = backward_close + forward_close
+  else
+    close_segments = []
   end
 
   if close_segments.any?
@@ -449,11 +531,11 @@ shorts_to_process.each do |num|
     'breathing_room_frames' => 3
   }
 
-  if fast_yaml['sync_audio']
+  if fast_yaml && fast_yaml['sync_audio']
     yaml_data['sync_audio'] = fast_yaml['sync_audio']
   end
 
-  if fast_yaml['speech_analysis']
+  if fast_yaml && fast_yaml['speech_analysis']
     yaml_data['speech_analysis'] = fast_yaml['speech_analysis']
   elsif video_info && video_info['speech_analysis']
     yaml_data['speech_analysis'] = File.join(TRANSCRIPTS_DIR, video_info['speech_analysis'])
