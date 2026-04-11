@@ -90,23 +90,33 @@ Scan the project folder for script files. This determines which deep-mode branch
 ### Phase 1: Ingest and Analyze (both modes)
 
 1. Check if a library already exists for this footage. If not, create one.
-2. Run audio cleanup on source files using `ruby scripts/audio_cleanup.rb`
-3. Transcribe all footage using the transcribe-audio skill
-4. Generate visual transcripts using the analyze-video skill
-5. **Run transcript cleanup** on each completed transcript:
+2. **Detect source format:** Run `ffprobe` on each video to get resolution, frame rate, aspect ratio. Cache in `library.yaml` under `videos[].source_format`:
+   ```yaml
+   source_format:
+     width: 3840
+     height: 2160
+     fps: "25/1"
+   ```
+   This only needs to run once — skip if `source_format` is already populated for that video.
+3. Run audio cleanup on source files using `ruby scripts/audio_cleanup.rb`
+4. Transcribe all footage using the transcribe-audio skill
+5. Generate visual transcripts using the analyze-video skill
+6. **Run transcript cleanup** on each completed transcript:
    ```bash
    ruby scripts/transcript_cleanup.rb <transcript.json>
    ```
    This removes duplicate takes, false starts, single-word filler, and trailing-off segments. Cache the cleaned path in library.yaml under `videos[].cleaned_transcript` (filename only).
-6. Read the completed transcripts (use cleaned versions for editorial review)
-7. **Detect external audio**: Check the project folder for WAV/FLAC/MP3 files that are NOT extracted from the video (e.g., a separate recorder like a Zoom). If found, ask the user to confirm which is the production audio, then run sync detection:
+7. Read the completed transcripts (use cleaned versions for editorial review)
+8. **Detect external audio**: Check the project folder for WAV/FLAC/MP3 files that are NOT extracted from the video (e.g., a separate recorder like a Zoom). If found, ask the user to confirm which is the production audio, then run sync detection:
    ```bash
    ruby scripts/audio_sync_offset.rb <video_path> <audio_path> [library.yaml]
    ```
-8. **Run speech analysis**: Run Silero VAD on the production audio source (the external WAV if dual-system, otherwise the video file itself):
+9. **Run speech analysis**: Run Silero VAD on the production audio source (the external WAV if dual-system, otherwise the video file itself):
    ```bash
    ruby scripts/audio_analysis.rb <audio_or_video_path> [library.yaml]
    ```
+
+**Note:** `build_structure_cut.rb` auto-detects source format via ffprobe at build time and prints format confirmation to stderr. The `source_format` cache in library.yaml is for agent reference when choosing output format — not required by the build script.
 
 ### Phase 1.5: Segment Classification (deep mode only)
 
@@ -488,6 +498,11 @@ auto_remove_pauses_above: 500     # optional, milliseconds (default 500)
                                   # Long pauses above this threshold inside clips are
                                   # removed by splitting into sub-clips. Set to 0 or false to disable.
 
+output_format: match_source       # optional: "match_source" (default) or "vertical_short"
+                                  # "vertical_short" swaps width/height, adds center-crop scale.
+                                  # Auto-detected if project folder name contains "short".
+output_resolution: 1080x1920     # optional: explicit WxH override for output sequence
+
 time_domain: video                # optional: "audio" or "video" (default: "video")
                                   # "video" = times are video-relative (normal — WhisperX on video)
                                   # "audio" = times are WAV-relative (only if transcript from WAV)
@@ -516,6 +531,7 @@ markers:
 - Offset sign: positive = audio started before video, negative = audio started after.
 - When `speech_analysis` is present, clip start/end times are snapped to the nearest VAD-detected speech boundary (±200ms tolerance). Adjustments logged to stderr.
 - When `speech_analysis` is present, internal pauses above `auto_remove_pauses_above` (default 500ms) are automatically removed. Clips are split at pause boundaries, sub-clips placed back-to-back, yellow NOTE markers added at each join point. Dual-system audio is split in sync.
+- **Output format matching:** The generated XML sequence matches the source video format by default (resolution + frame rate). If `output_format: vertical_short` is set (or auto-detected from folder name containing "short"), the sequence swaps to vertical (e.g., 3840x2160 → 2160x3840) and each clipitem gets a center-crop scale transform. Format confirmation is printed to stderr at start of build.
 
 ## Editorial Principles
 
