@@ -177,6 +177,8 @@ segments:
     dur: identity
     roles: [secondary, tertiary]
     notes: "Strong reframe moment"
+    rationale: "Reframes 'system rigged' from victim to vindication. Strong identity payload."
+    confidence: high
   - t: 56.00
     e: 63.00
     scope: short_01
@@ -185,6 +187,8 @@ segments:
     dur: identity
     roles: [primary, secondary]
     notes: "Clean cold-viable hook"
+    rationale: "Framework reveal creates competence anticipation. Works cold — no context needed."
+    confidence: high
 ```
 
 **Classification fields:**
@@ -195,6 +199,8 @@ segments:
 - `dur`: spike, mood, or identity
 - `roles`: array of content roles this segment could serve — primary, secondary, tertiary
 - `notes`: short editorial note (10 words max)
+- `rationale`: 5-15 word explanation of WHY these states were chosen. Written DURING classification, not post-hoc. If uncertain, say so.
+- `confidence`: high/medium/low — how certain the classification is. High = clear signal, single interpretation. Medium = reasonable but other states possible. Low = ambiguous, judgment call.
 
 **Pass 3 — Stumble detection:** During Pass 1 filtering, when a stumble pattern is detected (repeated words, false start followed by clean retake) that falls INSIDE a content segment's boundaries and can't be cleanly cut without splitting the clip, record it:
 
@@ -292,6 +298,7 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
 5. **Write YAML** — Include `speech_analysis` path for snap-to-boundary.
 6. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 7. **Generate edit brief** (see edit brief section below)
+8. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For fast mode, log is minimal: hook choice (if cold open), segments cut with reasons, overall structure rationale. Use the same file format as deep mode but with fewer entries.
 
 #### Branch A — script-locked arrangement
 
@@ -318,6 +325,7 @@ States ARE used for: marker type selection, pacing, edit brief.
 7. **Write YAML** — Include `speech_analysis` path. Save to `output/`.
 8. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 9. **Generate edit brief** — Include the Script Fidelity section (see below).
+10. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For Branch A, the log documents beat matching decisions instead of state-based arrangement. Include: which transcript segments matched each beat, confidence of matches, unmatched beats, unused segments.
 
 **Edge cases:**
 - Script beat has no transcript match → Log warning, add NOTE marker: "Script beat not covered: [beat text]"
@@ -363,6 +371,57 @@ States ARE used for: marker type selection, pacing, edit brief.
 7. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 
 8. **Generate edit brief** — Include the State Architecture section (see below).
+
+9. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output YAML. Log DURING arrangement decisions, not post-hoc. If a decision was default behavior, log "no specific reason — default behavior" rather than inventing rationale.
+
+```yaml
+# output/arrangement_log.yaml
+arrangement_log:
+  source_classification: segments_classified.yaml
+  structure_cut: dylan-004_deep_v2.yaml
+  timestamp: "2026-04-10T16:00:00"
+  branch: B  # or A
+
+  hook:
+    chosen: 121.73
+    alternatives_considered: [545.02, 179.87]
+    reason: "Strongest cold-viable aspiration spike. $10K claim is specific, works without context."
+
+  close:
+    chosen: 791.22
+    reason: "Curiosity spike teasing next video. CTA position after principle delivery."
+
+  reorders:
+    - segment: 422.93
+      from_position: 8
+      to_position: 5
+      reason: "Curiosity reset before model section"
+    # Empty list if no reorders (transcript order preserved)
+
+  cuts:
+    - segment: 164.93
+      reason: "Weaker take — same setup as 179.87 with stronger delivery"
+    # Every classified segment NOT in the final arrangement must be listed with reason
+
+  curiosity_resets: [190.81, 290.21, 387.01]
+    # Segments used as retention glue between sections
+
+  pacing_shifts:
+    - position: 5
+      from_state: aspiration
+      to_state: vindication
+      reason: "Hook energy drops into slow-path critique. Contrast is intentional."
+    - position: 19
+      from_state: vindication
+      to_state: belonging
+      reason: "Personal admission breaks intensity before fast path."
+```
+
+**Rules for arrangement logging:**
+- Log happens DURING the decision, not as post-hoc reconstruction
+- Every cut must have a reason — "redundant", "wrong state for position", "pacing", "over-explanation", "weaker delivery of same point"
+- Confidence ratings in classification must be honest, not optimistic
+- Both `segments_classified.yaml` and `arrangement_log.yaml` get cached and versioned with the rest of the project
 
 ### Marker Reference (both modes)
 
