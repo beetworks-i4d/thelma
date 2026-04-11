@@ -103,9 +103,9 @@ Scan the project folder for script files. This determines which deep-mode branch
 5. Generate visual transcripts using the analyze-video skill
 6. **Run transcript cleanup** on each completed transcript:
    ```bash
-   ruby scripts/transcript_cleanup.rb <transcript.json>
+   ruby scripts/transcript_cleanup.rb <transcript.json> [--speech-analysis <path>] [--protect-rhetorical]
    ```
-   This removes duplicate takes, false starts, single-word filler, and trailing-off segments. Cache the cleaned path in library.yaml under `videos[].cleaned_transcript` (filename only).
+   This removes duplicate takes, false starts, single-word filler, trailing-off segments, and all within-segment repeats. By default all repeats are cut. Add `--protect-rhetorical` with `--speech-analysis` to preserve phrase repeats separated by >250ms silence (rhetorical repetition). Cache the cleaned path in library.yaml under `videos[].cleaned_transcript` (filename only).
 7. Read the completed transcripts (use cleaned versions for editorial review)
 8. **Detect external audio**: Check the project folder for WAV/FLAC/MP3 files that are NOT extracted from the video (e.g., a separate recorder like a Zoom). If found, ask the user to confirm which is the production audio, then run sync detection:
    ```bash
