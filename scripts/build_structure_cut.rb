@@ -11,6 +11,11 @@
 #   breathing_room_frames: 3          # optional, default 3
 #   fps: 25                           # optional, auto-detected from video
 #
+#   output_format: match_source       # optional: "match_source" (default) or "vertical_short"
+#                                    # "vertical_short" swaps width/height and adds center-crop scale.
+#                                    # Auto-detected if project folder name contains "short".
+#   output_resolution: 1080x1920     # optional: explicit WxH override for output sequence
+#
 #   sync_audio:                       # optional
 #     path: /absolute/path/to/audio.wav
 #     offset: 50.41                   # positive=audio before video
@@ -44,6 +49,31 @@ require 'nokogiri'
 require 'fileutils'
 require 'shellwords'
 
+# === Format helpers ===
+def res_label(w, h)
+  long_side = [w, h].max
+  if long_side >= 3840 then '4K'
+  elsif long_side >= 1920 then '1080p'
+  elsif long_side >= 1280 then '720p'
+  else "#{w}x#{h}"
+  end
+end
+
+def fps_display(fps_str)
+  num, denom = fps_str.split('/').map(&:to_f)
+  exact = denom > 0 ? num / denom : 25.0
+  if (exact - 23.976).abs < 0.01 then '23.976'
+  elsif (exact - 29.97).abs < 0.01 then '29.97'
+  elsif (exact - 59.94).abs < 0.01 then '59.94'
+  elsif exact == exact.round then exact.round.to_s
+  else '%.3f' % exact
+  end
+end
+
+def orient_label(w, h)
+  w > h ? 'horizontal' : (h > w ? 'vertical' : 'square')
+end
+
 yaml_path = ARGV[0]
 abort "Usage: ruby scripts/build_structure_cut.rb <yaml_path>" unless yaml_path
 abort "YAML not found: #{yaml_path}" unless File.exist?(yaml_path)
@@ -61,15 +91,61 @@ abort "Video not found: #{video_path}" unless File.exist?(video_path)
 output_dir = config['output_dir']
 editor = (config['editor'] || 'fcp7').to_sym
 
-# Auto-detect FPS from video if not specified
+# === Source format detection ===
+source_probe = JSON.parse(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of json #{Shellwords.escape(video_path)}`)
+source_stream = source_probe['streams']&.first || {}
+source_width = (source_stream['width'] || 1920).to_i
+source_height = (source_stream['height'] || 1080).to_i
+source_fps_str = source_stream['r_frame_rate'] || '25/1'
+source_fps_num, source_fps_denom = source_fps_str.split('/').map(&:to_f)
+source_fps_exact = source_fps_denom > 0 ? source_fps_num / source_fps_denom : 25.0
+source_vertical = source_height > source_width
+
+# FPS for buffer and WAV frame calculations (timebase integer)
 if config['fps']
   fps = config['fps'].to_f
 else
-  rate_str = `ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of default=noprint_wrappers=1:nokey=1 #{Shellwords.escape(video_path)}`.strip
-  num, denom = rate_str.split('/').map(&:to_f)
-  fps = (num / denom).round
-  $stderr.puts "Auto-detected FPS: #{fps}"
+  fps = source_fps_exact.round
 end
+
+# === Output format determination ===
+# Auto-detect shorts from project folder name only when output_format is not explicitly set
+output_format = config['output_format']
+if output_format.nil?
+  project_folder = File.basename(File.dirname(config['output_dir'] || File.dirname(yaml_path)))
+  output_format = project_folder.downcase.include?('short') ? 'vertical_short' : 'match_source'
+end
+
+# Determine output dimensions
+if config['output_resolution']
+  out_w, out_h = config['output_resolution'].split('x').map(&:to_i)
+elsif output_format == 'vertical_short'
+  if source_vertical
+    out_w, out_h = source_width, source_height
+  else
+    out_w, out_h = source_height, source_width
+  end
+else
+  out_w, out_h = source_width, source_height
+end
+
+needs_crop_scale = output_format == 'vertical_short' && !source_vertical
+crop_scale = needs_crop_scale ? (out_h.to_f / source_height * 100).round(2) : nil
+
+# === Format confirmation ===
+fps_label = fps_display(source_fps_str)
+source_desc = "#{source_width}x#{source_height} @ #{fps_label}fps (#{res_label(source_width, source_height)} #{orient_label(source_width, source_height)})"
+out_desc = "#{out_w}x#{out_h} @ #{fps_label}fps"
+if needs_crop_scale
+  out_desc += " (#{res_label(out_w, out_h)} vertical short, center crop)"
+elsif output_format == 'vertical_short' && source_vertical
+  out_desc += " (#{res_label(out_w, out_h)} vertical, source already vertical)"
+else
+  out_desc += " (#{res_label(out_w, out_h)} #{orient_label(out_w, out_h)})"
+end
+
+$stderr.puts "Source: #{File.basename(video_path)} — #{source_desc}"
+$stderr.puts "Output: #{out_desc}"
 
 breathing_room_frames = config['breathing_room_frames'] || 3
 buffer = breathing_room_frames.to_f / fps
@@ -417,6 +493,47 @@ if has_sync
   final_xml = doc.to_xml
 else
   final_xml = base_xml
+end
+
+# === Output format override — sequence dimensions + center-crop scale ===
+if needs_crop_scale || out_w != source_width || out_h != source_height
+  doc = Nokogiri::XML(final_xml)
+
+  # Override sequence samplecharacteristics dimensions
+  seq_sc = doc.at_xpath('//sequence/media/video/format/samplecharacteristics')
+  if seq_sc
+    seq_sc.at_xpath('width').content = out_w.to_s
+    seq_sc.at_xpath('height').content = out_h.to_s
+  end
+
+  # Add center-crop scale to each video clipitem
+  if needs_crop_scale
+    video_clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+    video_clipitems.each do |clipitem|
+      filter = Nokogiri::XML::Node.new('filter', doc)
+      effect = Nokogiri::XML::Node.new('effect', doc)
+      effect.add_child('<name>Basic Motion</name>')
+      effect.add_child('<effectid>basic</effectid>')
+      effect.add_child('<effectcategory>motion</effectcategory>')
+      effect.add_child('<effecttype>motion</effecttype>')
+      effect.add_child('<mediatype>video</mediatype>')
+
+      param = Nokogiri::XML::Node.new('parameter', doc)
+      param['authoringApp'] = 'PremierePro'
+      param.add_child('<parameterid>scale</parameterid>')
+      param.add_child('<name>Scale</name>')
+      param.add_child('<valuemin>0</valuemin>')
+      param.add_child('<valuemax>600</valuemax>')
+      param.add_child("<value>#{crop_scale}</value>")
+
+      effect.add_child(param)
+      filter.add_child(effect)
+      clipitem.add_child(filter)
+    end
+    $stderr.puts "Applied center-crop scale: #{crop_scale}% to #{video_clipitems.size} clips"
+  end
+
+  final_xml = doc.to_xml
 end
 
 # === Save with timestamp ===

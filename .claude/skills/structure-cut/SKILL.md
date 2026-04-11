@@ -18,27 +18,35 @@ You are an experienced video editor. You analyze raw footage, make editorial dec
 - Video style/format (short, long-form, tutorial, interview, etc.)
 
 **Auto-detection:**
-- Check the project folder for `script.txt` or `script.pdf`. If found, use as editing directions and skip most editorial questions. Only ask clarifying questions.
+- Check the project folder for script files (`.txt`, `.pdf`, `.md`, `.docx`). Exclude generated files in `output/` and treated audio files. If found, parse with `ruby scripts/parse_script.rb <path> <transcripts_dir>` and store result in `library.yaml` under `script_parsed` (filename only). The script becomes the editorial source of truth for clip order (Branch A deep mode).
 - Check for `project_config.yaml` in the project folder. If it has `analysis_depth: deep` or `analysis_depth: fast`, use that and skip the mode question.
 
 **Output location:**
 - Create an `output/` subfolder inside the project folder: `~/Desktop/RAW/project-name/output/`
-- All outputs go here: XML, edit brief, treated audio
+- All outputs go here: XML, arrangement log, treated audio
 
 ## Analysis Depth
 
 Two modes control the editorial pipeline:
 
 - **fast** — Transcript-order cuts, generic editorial questions, no state classification. Use for quick turnarounds.
-- **deep** — Framework-driven. Segment classification against the Content Psychopharmacology framework, state-aware editorial questions grounded in actual footage, structural arrangement based on emotional state architecture. Use for high-quality client work.
+- **deep** — Framework-driven. Segment classification against the Content Psychopharmacology framework. Two branches:
+  - **Branch A (script-driven):** When a parsed script exists (`script_parsed.yaml`). Clip ORDER is locked to the script's beat sequence. Classification still runs for markers and pacing, but arrangement follows the script — not state architecture.
+  - **Branch B (state-architected):** No script. Full state-aware editorial questions, structural arrangement based on emotional state architecture. Original deep mode behavior.
 
 **The mode question is always the FIRST question asked**, before any editorial questions — unless `analysis_depth` is set in `project_config.yaml`.
+
+**Branch assignment** (determined automatically in Phase 0):
+- Script detected + deep mode → **Branch A**
+- No script + deep mode → **Branch B**
+- Fast mode → unchanged (no branches)
 
 ## Orchestration Model — CRITICAL
 
 This skill runs across MULTIPLE phases, some autonomous (Task agents) and some interactive (main conversation). You MUST NOT wrap the entire skill in a single Task call.
 
 **Autonomous phases (CAN run as Task subagents):**
+- Phase 0: Branch Detection (script parsing)
 - Phase 1: Ingest and Analyze
 - Phase 1.5: Segment Classification
 - Phase 3: Structure Cut arrangement + YAML + XML generation
@@ -48,37 +56,67 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 - Phase 4: Present to User — summary generated from final YAML, presented directly
 
 **Orchestration flow:**
-1. Run Phase 1 (ingest) — can be Task agent(s)
-2. Run Phase 1.5 (classification, deep mode) — can be Task agent
-3. Return to main conversation → Run Phase 2 (editorial questions) directly
-4. Pass user answers into Phase 3 Task agent prompt
-5. Run Phase 3 (arrangement + XML) — Task agent with user answers as input
-6. Run Phase 3.5 + Phase 4 (summary + present) in main conversation using final YAML
+1. Run Phase 0 (branch detection) — scan for script, parse if found
+2. Run Phase 1 (ingest) — can be Task agent(s)
+3. Run Phase 1.5 (classification, deep mode) — can be Task agent
+4. Return to main conversation → Run Phase 2 (editorial questions) directly
+5. Pass user answers + branch assignment into Phase 3 Task agent prompt
+6. Run Phase 3 (arrangement + XML) — Task agent with user answers as input
+7. Run Phase 3.5 + Phase 4 (summary + present) in main conversation using final YAML
 
 **WARNING:** If you launch a single Task agent for the entire skill, Phase 2 questions will be silently skipped. The agent will make its own editorial choices without user input.
 
 ## Process
 
+### Phase 0: Branch Detection (before ingest)
+
+Scan the project folder for script files. This determines which deep-mode branch to use.
+
+1. **Scan for scripts:** Look for `.txt`, `.pdf`, `.md`, `.docx` files in the project folder root. Exclude:
+   - Files inside `output/` (generated XMLs, arrangement logs, treated audio)
+   - Files matching `*_treated.*`, `*_cleaned.*` patterns
+   - `project_config.yaml`, `library.yaml`
+2. **If script found:** Parse it:
+   ```bash
+   ruby scripts/parse_script.rb <script_path> <library_transcripts_dir>
+   ```
+   This outputs `script_parsed.yaml` in the library's `transcripts/` directory. Update `library.yaml` with `script_parsed: script_parsed.yaml`.
+3. **Branch assignment:**
+   - Script parsed + deep mode → **Branch A** (script-driven arrangement)
+   - No script + deep mode → **Branch B** (state-architected arrangement)
+   - Fast mode → no branch (unchanged behavior)
+4. **Log the branch:** Report to user: "Found script: [filename]. Using Branch A (script-driven) for deep mode." or "No script detected. Using Branch B (state-architected) for deep mode."
+
 ### Phase 1: Ingest and Analyze (both modes)
 
 1. Check if a library already exists for this footage. If not, create one.
-2. Run audio cleanup on source files using `ruby scripts/audio_cleanup.rb`
-3. Transcribe all footage using the transcribe-audio skill
-4. Generate visual transcripts using the analyze-video skill
-5. **Run transcript cleanup** on each completed transcript:
+2. **Detect source format:** Run `ffprobe` on each video to get resolution, frame rate, aspect ratio. Cache in `library.yaml` under `videos[].source_format`:
+   ```yaml
+   source_format:
+     width: 3840
+     height: 2160
+     fps: "25/1"
+   ```
+   This only needs to run once — skip if `source_format` is already populated for that video.
+3. Run audio cleanup on source files using `ruby scripts/audio_cleanup.rb`
+4. Transcribe all footage using the transcribe-audio skill
+5. Generate visual transcripts using the analyze-video skill
+6. **Run transcript cleanup** on each completed transcript:
    ```bash
    ruby scripts/transcript_cleanup.rb <transcript.json>
    ```
    This removes duplicate takes, false starts, single-word filler, and trailing-off segments. Cache the cleaned path in library.yaml under `videos[].cleaned_transcript` (filename only).
-6. Read the completed transcripts (use cleaned versions for editorial review)
-7. **Detect external audio**: Check the project folder for WAV/FLAC/MP3 files that are NOT extracted from the video (e.g., a separate recorder like a Zoom). If found, ask the user to confirm which is the production audio, then run sync detection:
+7. Read the completed transcripts (use cleaned versions for editorial review)
+8. **Detect external audio**: Check the project folder for WAV/FLAC/MP3 files that are NOT extracted from the video (e.g., a separate recorder like a Zoom). If found, ask the user to confirm which is the production audio, then run sync detection:
    ```bash
    ruby scripts/audio_sync_offset.rb <video_path> <audio_path> [library.yaml]
    ```
-8. **Run speech analysis**: Run Silero VAD on the production audio source (the external WAV if dual-system, otherwise the video file itself):
+9. **Run speech analysis**: Run Silero VAD on the production audio source (the external WAV if dual-system, otherwise the video file itself):
    ```bash
    ruby scripts/audio_analysis.rb <audio_or_video_path> [library.yaml]
    ```
+
+**Note:** `build_structure_cut.rb` auto-detects source format via ffprobe at build time and prints format confirmation to stderr. The `source_format` cache in library.yaml is for agent reference when choosing output format — not required by the build script.
 
 ### Phase 1.5: Segment Classification (deep mode only)
 
@@ -89,6 +127,14 @@ cat docs/content_psychopharmacology.md
 
 **Multi-short scope detection:** Before classification, check if the recording contains multiple shorts/segments (e.g., a single take with 7 back-to-back shorts). Indicators: user says "Short #1", library.yaml mentions multiple shorts, transcript has long pauses or topic shifts between sections.
 
+**Branch A scope detection:** When `script_parsed.yaml` exists with `format: multi_short`, use the script's short titles to define scopes instead of asking the user or detecting pauses. For each short in the script:
+1. Read the hook text from `script_parsed.yaml`
+2. Search the cleaned transcript for a near-verbatim match of the hook text
+3. The matching segment's start time becomes the scope's range start
+4. The scope's range end is the start of the next short's hook (or end of transcript for the last short)
+5. Define scopes in `segments_classified.yaml` using the script's short numbers and titles
+
+**Branch B scope detection (no script):**
 If multi-short:
 1. Ask the user for the audio time range of each short, OR detect natural boundaries (long pauses >5s, topic shifts, explicit markers like "okay next one")
 2. Define scopes in `segments_classified.yaml` (see schema below)
@@ -131,6 +177,8 @@ segments:
     dur: identity
     roles: [secondary, tertiary]
     notes: "Strong reframe moment"
+    rationale: "Reframes 'system rigged' from victim to vindication. Strong identity payload."
+    confidence: high
   - t: 56.00
     e: 63.00
     scope: short_01
@@ -139,6 +187,8 @@ segments:
     dur: identity
     roles: [primary, secondary]
     notes: "Clean cold-viable hook"
+    rationale: "Framework reveal creates competence anticipation. Works cold — no context needed."
+    confidence: high
 ```
 
 **Classification fields:**
@@ -149,6 +199,8 @@ segments:
 - `dur`: spike, mood, or identity
 - `roles`: array of content roles this segment could serve — primary, secondary, tertiary
 - `notes`: short editorial note (10 words max)
+- `rationale`: 5-15 word explanation of WHY these states were chosen. Written DURING classification, not post-hoc. If uncertain, say so.
+- `confidence`: high/medium/low — how certain the classification is. High = clear signal, single interpretation. Medium = reasonable but other states possible. Low = ambiguous, judgment call.
 
 **Pass 3 — Stumble detection:** During Pass 1 filtering, when a stumble pattern is detected (repeated words, false start followed by clean retake) that falls INSIDE a content segment's boundaries and can't be cleanly cut without splitting the clip, record it:
 
@@ -171,6 +223,14 @@ Note: `build_structure_cut.rb` automatically removes internal long pauses (defau
 
 **This phase runs in the main conversation, NOT inside a Task agent.** Use AskUserQuestion tool directly. The classified segments from Phase 1.5 inform the questions asked here. Do NOT delegate this phase to a subagent.
 
+#### Branch A (script-driven) — minimal questions
+
+The script IS the editorial direction. Skip standard deep-mode questions (hook candidates, closing state, arrival context). Only ask:
+
+1. **"Which short(s) to build?"** — Present the list of shorts from `script_parsed.yaml` with numbers and titles. Options: specific short number(s), a section name, or "all".
+2. **"Target duration?"** — Options: 30s, 45s, 60s, Let the script decide.
+3. **Low-confidence beat clarification** — Only if a script beat couldn't be matched to any transcript segment during Phase 1.5 scope detection. Ask: "I couldn't find footage matching this script beat: '[beat text]'. Should I skip it or is there a specific part of the recording where this was covered?"
+
 #### Fast mode — generic questions
 
 Ask ONE AT A TIME. Adapt based on previous answers.
@@ -188,7 +248,7 @@ Ask ONE AT A TIME. Adapt based on previous answers.
 
 If the user provided a script or editing directions, use those as the primary guide and only ask clarifying questions.
 
-#### Deep mode — framework-aware questions
+#### Branch B (state-architected) — framework-aware questions
 
 Read the classified segments. Each question proposes specific options from the actual footage with reasoning. No generic questions.
 
@@ -237,9 +297,40 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
 4. **Add markers** (see marker reference below)
 5. **Write YAML** — Include `speech_analysis` path for snap-to-boundary.
 6. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
-7. **Generate edit brief** (see edit brief section below)
+7. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For fast mode, log is minimal: hook choice (if cold open), segments cut with reasons, overall structure rationale. Use the same file format as deep mode but with fewer entries.
 
-#### Deep mode — state-architected arrangement
+#### Branch A — script-locked arrangement
+
+**SOURCE-OF-TRUTH:** ORDER from `script_parsed.yaml`, TIMING from `segments_classified.yaml`.
+Post-tertiary cutoff does NOT apply (script order is authoritative).
+State-based ordering rules do NOT apply.
+States ARE used for: marker type selection, pacing, arrangement log.
+
+**Algorithm:**
+
+1. **Read script beats:** Read `script_parsed.yaml` for the target short's beats (hook → talking_points → close).
+2. **Read transcript:** Read the cleaned transcript via `ruby scripts/read_transcript.rb <cleaned_transcript.json>`.
+3. **Read classification:** Read `segments_classified.yaml` for timing and state data.
+4. **Match beats to segments:** For each script beat, find the best matching transcript segment(s):
+   - **Hook / Close:** Near-verbatim match — the script text should closely match the spoken transcript text. Search for the highest word overlap within the short's scope range.
+   - **Talking points:** Thematic match — the script contains the question, the transcript contains the speaker's answer. Find the segment where the speaker responds to or addresses the talking point topic.
+   - **Multiple takes:** If the cleaned transcript has multiple matches, prefer the longer segment (more complete delivery).
+5. **Assemble clips in beat order:** Hook → talking points (in script order) → close. This is the final clip order. Do NOT rearrange based on states.
+6. **Add markers** using classified states:
+   - TITLE at timeline start (with short title from script)
+   - TRANSITION at each beat boundary
+   - B-ROLL, SFX, MUSIC from state signals in `segments_classified.yaml`
+   - NOTE for any unmatched script beats: "Script beat not covered: [text]"
+7. **Write YAML** — Include `speech_analysis` path. Save to `output/`.
+8. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
+9. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For Branch A, the log documents beat matching decisions instead of state-based arrangement. Include: which transcript segments matched each beat, confidence of matches, unmatched beats, unused segments.
+
+**Edge cases:**
+- Script beat has no transcript match → Log warning, add NOTE marker: "Script beat not covered: [beat text]"
+- Transcript content not in script → List as "unused segments" in arrangement log
+- Script mentions unrecorded content (e.g., `[$ AMOUNT]` placeholders) → NOTE marker on timeline, no clip generated for that specific placeholder
+
+#### Branch B — state-architected arrangement
 
 **HARD RULE — Source-of-truth lock:** Deep mode arrangement may ONLY use segments present in `segments_classified.yaml`. No segments may be pulled from the raw transcript. No segments may be invented or improvised because they "fit the narrative." If the available classified segments are insufficient to build the requested arc, arrangement must fail loudly and request re-classification with expanded scope. Reference every clip in the output YAML by its `t` value from `segments_classified.yaml`.
 
@@ -277,7 +368,56 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
 
 7. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 
-8. **Generate edit brief** — Include the State Architecture section (see below).
+8. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output YAML. Log DURING arrangement decisions, not post-hoc. If a decision was default behavior, log "no specific reason — default behavior" rather than inventing rationale.
+
+```yaml
+# output/arrangement_log.yaml
+arrangement_log:
+  source_classification: segments_classified.yaml
+  structure_cut: dylan-004_deep_v2.yaml
+  timestamp: "2026-04-10T16:00:00"
+  branch: B  # or A
+
+  hook:
+    chosen: 121.73
+    alternatives_considered: [545.02, 179.87]
+    reason: "Strongest cold-viable aspiration spike. $10K claim is specific, works without context."
+
+  close:
+    chosen: 791.22
+    reason: "Curiosity spike teasing next video. CTA position after principle delivery."
+
+  reorders:
+    - segment: 422.93
+      from_position: 8
+      to_position: 5
+      reason: "Curiosity reset before model section"
+    # Empty list if no reorders (transcript order preserved)
+
+  cuts:
+    - segment: 164.93
+      reason: "Weaker take — same setup as 179.87 with stronger delivery"
+    # Every classified segment NOT in the final arrangement must be listed with reason
+
+  curiosity_resets: [190.81, 290.21, 387.01]
+    # Segments used as retention glue between sections
+
+  pacing_shifts:
+    - position: 5
+      from_state: aspiration
+      to_state: vindication
+      reason: "Hook energy drops into slow-path critique. Contrast is intentional."
+    - position: 19
+      from_state: vindication
+      to_state: belonging
+      reason: "Personal admission breaks intensity before fast path."
+```
+
+**Rules for arrangement logging:**
+- Log happens DURING the decision, not as post-hoc reconstruction
+- Every cut must have a reason — "redundant", "wrong state for position", "pacing", "over-explanation", "weaker delivery of same point"
+- Confidence ratings in classification must be honest, not optimistic
+- Both `segments_classified.yaml` and `arrangement_log.yaml` get cached and versioned with the rest of the project
 
 ### Marker Reference (both modes)
 
@@ -288,40 +428,6 @@ At every point where secondary editing is needed, add a marker. Comments must be
 - SFX (purple) — "Add [specific sound: whoosh, ding, impact, etc.]"
 - MUSIC (red) — "Music cue: [start/stop/fade/swell], mood: [description]"
 - NOTE (yellow) — General editor instruction
-
-### Edit Brief (both modes)
-
-Create a markdown file alongside the XML in `output/` containing:
-- One-sentence summary of the video
-- Structure outline with timecodes
-- Checklist of all markers (what the editor needs to do)
-- List of assets needed (B-roll descriptions, music mood, title text)
-- Delivery specs
-
-#### Deep mode addition — State Architecture section
-
-Add a "State Architecture" section to the edit brief:
-
-```markdown
-## State Architecture
-
-**Primary spine:** [state] + [horizontal companions]
-- Induction signal: [what triggers it]
-- Arrival context: [cold/niche/subscribed]
-
-**Secondary states:** [states used in body]
-**Tertiary residue:** [identity-durable state used for close]
-
-**Vertical stack:** [Primary] → [Secondary] → [Tertiary]
-**Spine integrity:** [clean / issues noted]
-
-**Failure pivot:** If the [primary state] promise misses, viewer pivots to [specific negative state]. Risk level: [recoverable/moderate/catastrophic].
-
-**Integrity notes:**
-- [Any horizontal incompatibilities flagged]
-- [Any arrival context mismatches]
-- [Any spine discontinuities]
-```
 
 ### Phase 3.5: Post-Hoc Summary Generation (both modes)
 
@@ -344,10 +450,16 @@ Show the user:
 - **Actual closing line:** "...[last 10-15 words of last clip's transcript text]"
 - Total duration, clip count, marker count (from YAML)
 - Structure outline: "Here's how I arranged it: [outline]"
-- Path to XML and edit brief
+- Path to XML
 - Instruction: "Import into Premiere via File > Import"
 
-**Deep mode additions:**
+**Branch A additions:**
+- Script fidelity summary: "[N/M] beats matched ([X]% coverage)"
+- Beat order: "Arranged in script order: hook → [N] talking points → close"
+- Any unmatched beats or unused segments flagged
+- Classification states used for markers and pacing notes
+
+**Branch B additions:**
 - State architecture summary: "Primary: [state], Secondary: [states], Tertiary: [state]"
 - Hook reasoning: "I led with [segment] because [framework reason]"
 - Close reasoning: "I closed with [segment] for [durability] residue"
@@ -377,6 +489,11 @@ auto_remove_pauses_above: 500     # optional, milliseconds (default 500)
                                   # Long pauses above this threshold inside clips are
                                   # removed by splitting into sub-clips. Set to 0 or false to disable.
 
+output_format: match_source       # optional: "match_source" (default) or "vertical_short"
+                                  # "vertical_short" swaps width/height, adds center-crop scale.
+                                  # Auto-detected if project folder name contains "short".
+output_resolution: 1080x1920     # optional: explicit WxH override for output sequence
+
 time_domain: video                # optional: "audio" or "video" (default: "video")
                                   # "video" = times are video-relative (normal — WhisperX on video)
                                   # "audio" = times are WAV-relative (only if transcript from WAV)
@@ -405,6 +522,7 @@ markers:
 - Offset sign: positive = audio started before video, negative = audio started after.
 - When `speech_analysis` is present, clip start/end times are snapped to the nearest VAD-detected speech boundary (±200ms tolerance). Adjustments logged to stderr.
 - When `speech_analysis` is present, internal pauses above `auto_remove_pauses_above` (default 500ms) are automatically removed. Clips are split at pause boundaries, sub-clips placed back-to-back, yellow NOTE markers added at each join point. Dual-system audio is split in sync.
+- **Output format matching:** The generated XML sequence matches the source video format by default (resolution + frame rate). If `output_format: vertical_short` is set (or auto-detected from folder name containing "short"), the sequence swaps to vertical (e.g., 3840x2160 → 2160x3840) and each clipitem gets a center-crop scale transform. Format confirmation is printed to stderr at start of build.
 
 ## Editorial Principles
 

@@ -25,13 +25,13 @@ Claude Code MUST handle git automatically without asking. The user is not a deve
   ~/Desktop/RAW/project-name/
     *.mp4, *.mov (footage)
     script.txt or script.pdf (optional editing directions, auto-detected)
-    output/ (created by skill — contains XML, edit brief, treated audio)
+    output/ (created by skill — contains XML, arrangement log, treated audio)
 - Audio cleanup: always run on ingest before transcription
 - Markers: always include in XML output. Comments must be specific editor instructions, not suggestions.
 - Marker categories: TITLE (blue), B-ROLL (green), TRANSITION (orange), SFX (purple), MUSIC (red), NOTE (yellow)
 - Cuts: don't cut too tight into words — leave a small breathing room buffer (2-3 frames) at the start and end of each clip
 - WhisperX model: turbo
-- The user works with a remote editor who receives handoff packages. Markers and edit briefs must be detailed enough for the editor to execute without asking questions.
+- The user works with a remote editor who receives handoff packages. Markers must be detailed enough for the editor to execute without asking questions.
 
 # ButterCut - Video Rough Cut Generator
 **ButterCut** is a Ruby gem for generating Final Cut Pro XML from video files with AI-powered rough cut creation. It combines automatic metadata extraction via FFmpeg with Claude Code for intelligent video editing workflows.
