@@ -23,7 +23,7 @@ You are an experienced video editor. You analyze raw footage, make editorial dec
 
 **Output location:**
 - Create an `output/` subfolder inside the project folder: `~/Desktop/RAW/project-name/output/`
-- All outputs go here: XML, edit brief, treated audio
+- All outputs go here: XML, arrangement log, treated audio
 
 ## Analysis Depth
 
@@ -73,7 +73,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 Scan the project folder for script files. This determines which deep-mode branch to use.
 
 1. **Scan for scripts:** Look for `.txt`, `.pdf`, `.md`, `.docx` files in the project folder root. Exclude:
-   - Files inside `output/` (generated edit briefs, treated audio)
+   - Files inside `output/` (generated XMLs, arrangement logs, treated audio)
    - Files matching `*_treated.*`, `*_cleaned.*` patterns
    - `project_config.yaml`, `library.yaml`
 2. **If script found:** Parse it:
@@ -297,15 +297,14 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
 4. **Add markers** (see marker reference below)
 5. **Write YAML** — Include `speech_analysis` path for snap-to-boundary.
 6. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
-7. **Generate edit brief** (see edit brief section below)
-8. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For fast mode, log is minimal: hook choice (if cold open), segments cut with reasons, overall structure rationale. Use the same file format as deep mode but with fewer entries.
+7. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For fast mode, log is minimal: hook choice (if cold open), segments cut with reasons, overall structure rationale. Use the same file format as deep mode but with fewer entries.
 
 #### Branch A — script-locked arrangement
 
 **SOURCE-OF-TRUTH:** ORDER from `script_parsed.yaml`, TIMING from `segments_classified.yaml`.
 Post-tertiary cutoff does NOT apply (script order is authoritative).
 State-based ordering rules do NOT apply.
-States ARE used for: marker type selection, pacing, edit brief.
+States ARE used for: marker type selection, pacing, arrangement log.
 
 **Algorithm:**
 
@@ -324,13 +323,12 @@ States ARE used for: marker type selection, pacing, edit brief.
    - NOTE for any unmatched script beats: "Script beat not covered: [text]"
 7. **Write YAML** — Include `speech_analysis` path. Save to `output/`.
 8. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
-9. **Generate edit brief** — Include the Script Fidelity section (see below).
-10. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For Branch A, the log documents beat matching decisions instead of state-based arrangement. Include: which transcript segments matched each beat, confidence of matches, unmatched beats, unused segments.
+9. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For Branch A, the log documents beat matching decisions instead of state-based arrangement. Include: which transcript segments matched each beat, confidence of matches, unmatched beats, unused segments.
 
 **Edge cases:**
 - Script beat has no transcript match → Log warning, add NOTE marker: "Script beat not covered: [beat text]"
-- Transcript content not in script → List as "unused segments" at end of edit brief
-- Script mentions unrecorded content (e.g., `[$ AMOUNT]` placeholders) → Warning in edit brief, no clip generated for that specific placeholder
+- Transcript content not in script → List as "unused segments" in arrangement log
+- Script mentions unrecorded content (e.g., `[$ AMOUNT]` placeholders) → NOTE marker on timeline, no clip generated for that specific placeholder
 
 #### Branch B — state-architected arrangement
 
@@ -370,9 +368,7 @@ States ARE used for: marker type selection, pacing, edit brief.
 
 7. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 
-8. **Generate edit brief** — Include the State Architecture section (see below).
-
-9. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output YAML. Log DURING arrangement decisions, not post-hoc. If a decision was default behavior, log "no specific reason — default behavior" rather than inventing rationale.
+8. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output YAML. Log DURING arrangement decisions, not post-hoc. If a decision was default behavior, log "no specific reason — default behavior" rather than inventing rationale.
 
 ```yaml
 # output/arrangement_log.yaml
@@ -433,70 +429,6 @@ At every point where secondary editing is needed, add a marker. Comments must be
 - MUSIC (red) — "Music cue: [start/stop/fade/swell], mood: [description]"
 - NOTE (yellow) — General editor instruction
 
-### Edit Brief (both modes)
-
-Create a markdown file alongside the XML in `output/` containing:
-- One-sentence summary of the video
-- Structure outline with timecodes
-- Checklist of all markers (what the editor needs to do)
-- List of assets needed (B-roll descriptions, music mood, title text)
-- Delivery specs
-
-#### Branch A addition — Script Fidelity section
-
-Replace the "State Architecture" section with a "Script Fidelity" section when using Branch A:
-
-```markdown
-## Script Fidelity
-
-**Script:** [source filename]
-**Short:** #[N] "[title]"
-**Format:** [multi_short / single]
-
-### Beat Coverage
-
-| # | Role | Script Text (first 30 chars) | Matched Segment | Confidence |
-|---|------|------------------------------|-----------------|------------|
-| 1 | hook | "...and that's when it hit..." | 38.28–57.05 | high |
-| 2 | talking_point | "What did you catch yourself..." | 321.40–345.20 | medium |
-| 3 | talking_point | "Waiting for permission?..." | 345.20–380.50 | medium |
-| ... | ... | ... | ... | ... |
-| 7 | close | "The system trained you..." | 65.34–78.50 | high |
-
-**Coverage:** [N/M] beats matched ([X]% coverage)
-**Unmatched beats:** [list any script beats with no transcript match]
-
-### Unused Segments
-
-Transcript segments within this short's scope that were not matched to any script beat:
-- [timestamp range]: "[first 30 chars of text]..." — [reason not used: off-topic / filler / duplicate]
-```
-
-#### Branch B addition — State Architecture section
-
-Add a "State Architecture" section to the edit brief:
-
-```markdown
-## State Architecture
-
-**Primary spine:** [state] + [horizontal companions]
-- Induction signal: [what triggers it]
-- Arrival context: [cold/niche/subscribed]
-
-**Secondary states:** [states used in body]
-**Tertiary residue:** [identity-durable state used for close]
-
-**Vertical stack:** [Primary] → [Secondary] → [Tertiary]
-**Spine integrity:** [clean / issues noted]
-
-**Failure pivot:** If the [primary state] promise misses, viewer pivots to [specific negative state]. Risk level: [recoverable/moderate/catastrophic].
-
-**Integrity notes:**
-- [Any horizontal incompatibilities flagged]
-- [Any arrival context mismatches]
-- [Any spine discontinuities]
-```
-
 ### Phase 3.5: Post-Hoc Summary Generation (both modes)
 
 After `build_structure_cut.rb` completes, generate the summary from the ACTUAL output, not from arrangement intent:
@@ -518,7 +450,7 @@ Show the user:
 - **Actual closing line:** "...[last 10-15 words of last clip's transcript text]"
 - Total duration, clip count, marker count (from YAML)
 - Structure outline: "Here's how I arranged it: [outline]"
-- Path to XML and edit brief
+- Path to XML
 - Instruction: "Import into Premiere via File > Import"
 
 **Branch A additions:**
