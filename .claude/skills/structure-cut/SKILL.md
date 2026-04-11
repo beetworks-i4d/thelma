@@ -49,6 +49,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 - Phase 0: Branch Detection (script parsing)
 - Phase 1: Ingest and Analyze
 - Phase 1.5: Segment Classification
+- Phase 1.6: Storyline Discovery
 - Phase 3: Structure Cut arrangement + YAML + XML generation
 
 **Interactive phases (MUST run in main conversation):**
@@ -59,10 +60,11 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 1. Run Phase 0 (branch detection) — scan for script, parse if found
 2. Run Phase 1 (ingest) — can be Task agent(s)
 3. Run Phase 1.5 (classification, deep mode) — can be Task agent
-4. Return to main conversation → Run Phase 2 (editorial questions) directly
-5. Pass user answers + branch assignment into Phase 3 Task agent prompt
-6. Run Phase 3 (arrangement + XML) — Task agent with user answers as input
-7. Run Phase 3.5 + Phase 4 (summary + present) in main conversation using final YAML
+4. Run Phase 1.6 (storyline discovery) — can be Task agent
+5. Return to main conversation → Run Phase 2 (editorial questions) directly
+6. Pass user answers + branch assignment into Phase 3 Task agent prompt
+7. Run Phase 3 (arrangement + XML) — Task agent with user answers as input
+8. Run Phase 3.5 + Phase 4 (summary + present) in main conversation using final YAML
 
 **WARNING:** If you launch a single Task agent for the entire skill, Phase 2 questions will be silently skipped. The agent will make its own editorial choices without user input.
 
@@ -218,6 +220,31 @@ When writing the structure cut YAML markers, emit a NOTE marker for each stumble
 Note: `build_structure_cut.rb` automatically removes internal long pauses (default >500ms) from clips by splitting them into sub-clips placed back-to-back, with a yellow NOTE marker at each join point. Controlled by `auto_remove_pauses_above` in the YAML (default 500ms, set to 0 or false to disable). Pauses below the threshold still get "tighten manually" NOTE markers.
 
 **Caching:** If `segments_classified.yaml` already exists and `transcript_hash` matches the current transcript's MD5, skip re-classifying. If the transcript has changed, re-run.
+
+### Phase 1.6: Storyline Discovery (deep mode only)
+
+After classification, run storyline discovery to surface candidate arcs from the classified segments. This produces `storylines.yaml` with ranked storyline candidates for Phase 2 editorial questions.
+
+```bash
+ruby scripts/discover_storylines.rb <segments_classified.yaml> [--library <library.yaml>]
+```
+
+**Branch B:** Runs by default after classification. The top-ranked storylines inform hook/close suggestions in Phase 2.
+
+**Branch A:** Only runs when `--discover-alternatives` flag is passed or `discover_alternatives: true` is set in `project_config.yaml`. Reports alternative storyline candidates at the end of the build alongside the script-aligned cut. Useful for discovering non-script arcs in the footage.
+
+**What it does:**
+1. Finds all primary-role segments (confidence != low) as potential hooks
+2. For each hook, builds a hypothetical arc: hook → secondary body → tertiary close
+3. Scores each arc on 7 criteria (100 points): spine continuity, arc completeness, state density, cold viability, closing durability, reference integrity, structural integrity
+4. Ranks arcs descending, filters to score >= 70, caps at top 3
+5. If library has `script_parsed`, includes a script-aligned candidate regardless of threshold
+
+**Caching:** Skips if `storylines.yaml` exists with matching `transcript_hash`.
+
+**Output:** `storylines.yaml` in same directory as `segments_classified.yaml`. Each storyline includes: id, score breakdown, hook/close segments, duration estimate, arc summary, and pitch string.
+
+**Phase 2 integration:** Phase 2 is not yet wired to consume `storylines.yaml` automatically — it is generated for reference but Phase 2 still runs as before.
 
 ### Phase 2: Editorial Questions — MAIN CONVERSATION ONLY
 
