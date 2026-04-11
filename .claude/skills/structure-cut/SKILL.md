@@ -65,12 +65,17 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 2. Run audio cleanup on source files using `ruby scripts/audio_cleanup.rb`
 3. Transcribe all footage using the transcribe-audio skill
 4. Generate visual transcripts using the analyze-video skill
-5. Read the completed transcripts
-6. **Detect external audio**: Check the project folder for WAV/FLAC/MP3 files that are NOT extracted from the video (e.g., a separate recorder like a Zoom). If found, ask the user to confirm which is the production audio, then run sync detection:
+5. **Run transcript cleanup** on each completed transcript:
+   ```bash
+   ruby scripts/transcript_cleanup.rb <transcript.json>
+   ```
+   This removes duplicate takes, false starts, single-word filler, and trailing-off segments. Cache the cleaned path in library.yaml under `videos[].cleaned_transcript` (filename only).
+6. Read the completed transcripts (use cleaned versions for editorial review)
+7. **Detect external audio**: Check the project folder for WAV/FLAC/MP3 files that are NOT extracted from the video (e.g., a separate recorder like a Zoom). If found, ask the user to confirm which is the production audio, then run sync detection:
    ```bash
    ruby scripts/audio_sync_offset.rb <video_path> <audio_path> [library.yaml]
    ```
-7. **Run speech analysis**: Run Silero VAD on the production audio source (the external WAV if dual-system, otherwise the video file itself):
+8. **Run speech analysis**: Run Silero VAD on the production audio source (the external WAV if dual-system, otherwise the video file itself):
    ```bash
    ruby scripts/audio_analysis.rb <audio_or_video_path> [library.yaml]
    ```
@@ -93,7 +98,7 @@ If the user runs deep mode without specifying a scope on a scoped recording, ask
 
 **Two-pass classification to minimize tokens:**
 
-**Pass 1 — Filter:** Read the transcript via `ruby scripts/read_transcript.rb`. If scoped, only process the transcript within the requested scope's time range. Quickly scan and discard:
+**Pass 1 — Filter:** Read the cleaned transcript via `ruby scripts/read_transcript.rb <cleaned_transcript.json>` (fall back to raw transcript if cleaned version unavailable). If scoped, only process the transcript within the requested scope's time range. Quickly scan and discard:
 - Segments under 3 seconds
 - Obvious filler (false starts, repeated sentences, "um/uh" sections)
 - Technical interruptions (camera adjustments, off-topic asides)
@@ -158,7 +163,7 @@ stumbles:
 
 When writing the structure cut YAML markers, emit a NOTE marker for each stumble at the stumble's timeline position with comment: `"Internal stumble — check manually"`.
 
-Note: `build_structure_cut.rb` also auto-generates NOTE markers for internal long pauses (>300ms) detected via Silero VAD. These appear automatically in the XML without needing to be specified in the YAML.
+Note: `build_structure_cut.rb` automatically removes internal long pauses (default >500ms) from clips by splitting them into sub-clips placed back-to-back, with a yellow NOTE marker at each join point. Controlled by `auto_remove_pauses_above` in the YAML (default 500ms, set to 0 or false to disable). Pauses below the threshold still get "tighten manually" NOTE markers.
 
 **Caching:** If `segments_classified.yaml` already exists and `transcript_hash` matches the current transcript's MD5, skip re-classifying. If the transcript has changed, re-run.
 
@@ -226,8 +231,8 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
 
 #### Fast mode — transcript-order arrangement
 
-1. **Read transcripts** — `ruby scripts/read_transcript.rb <transcript.json>`
-2. **Select clips** — Choose strongest segments. Cut filler, false starts, tangents, repeated points.
+1. **Read transcripts** — Use the cleaned transcript if available (`cleaned_transcript` in library.yaml), falling back to raw transcript: `ruby scripts/read_transcript.rb <cleaned_transcript.json>`
+2. **Select clips** — Choose strongest segments. Cut filler, false starts, tangents, repeated points. (The cleaned transcript has already removed duplicate takes and obvious filler, so focus on editorial selection.)
 3. **Arrange structure** — Order clips in the chosen format. If cold open: pick the single most emotionally compelling moment and place it first.
 4. **Add markers** (see marker reference below)
 5. **Write YAML** — Include `speech_analysis` path for snap-to-boundary.
@@ -240,7 +245,7 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
 
 **Scope filtering (multi-short recordings):** If `segments_classified.yaml` has `scopes` defined and the user requested a specific scope (e.g., "Short #1"), filter segments to ONLY those with the matching `scope` field before arrangement. No segments from other scopes are eligible.
 
-1. **Read classification** — Read `segments_classified.yaml`. If scoped, filter to the requested scope. This is the ONLY source of segment data for arrangement.
+1. **Read classification** — Read `segments_classified.yaml`. If scoped, filter to the requested scope. This is the ONLY source of segment data for arrangement. When reading transcript text for context, use the cleaned transcript (`cleaned_transcript` in library.yaml) if available.
 
 2. **Select clips** — Choose segments from the filtered classification. Reference segments by their `t` value. Keep segments that serve the chosen state architecture.
 
@@ -267,8 +272,8 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
    > "Structure check: [N issues found / structure is clean]. [Details of any issues]. Approve or adjust?"
 
 6. **Write YAML** — Include `speech_analysis` path. Save to `output/`.
-   - **Deep mode with sync_audio:** Set `time_domain: audio` and use the raw `t` / `e` values from `segments_classified.yaml` directly as clip `start` / `end`. Do NOT convert to video time — `build_structure_cut.rb` handles the conversion internally using the sync offset. This eliminates agent-side math errors.
-   - **Markers are unaffected** — marker `time` values are timeline positions (seconds from timeline start), not source times. Do not set `time_domain` on markers.
+   - The classification `t`/`e` values are in **video time** (because WhisperX transcribes the video's audio track). Use them directly as clip `start`/`end` in the YAML. Do NOT set `time_domain: audio` unless the transcript was generated from a separate WAV file (rare case — almost never needed).
+   - **Markers are unaffected** — marker `time` values are timeline positions (seconds from timeline start), not source times.
 
 7. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 
@@ -368,13 +373,16 @@ sync_audio:                       # optional — for dual-system audio
 
 speech_analysis: /path/to/speech_analysis.json  # optional — from audio_analysis.rb
 
-time_domain: audio                # optional: "audio" or "video" (default)
-                                  # When "audio", clip start/end are audio times
-                                  # and the script converts to video time using sync_offset
-                                  # Use "audio" in deep mode to pass raw t/e values from classification
+auto_remove_pauses_above: 500     # optional, milliseconds (default 500)
+                                  # Long pauses above this threshold inside clips are
+                                  # removed by splitting into sub-clips. Set to 0 or false to disable.
+
+time_domain: video                # optional: "audio" or "video" (default: "video")
+                                  # "video" = times are video-relative (normal — WhisperX on video)
+                                  # "audio" = times are WAV-relative (only if transcript from WAV)
 
 clips:
-  - start: 121.73                 # source time in the specified time_domain (seconds)
+  - start: 121.73                 # video source time (seconds)
     end: 127.11
   - start: 130.80
     end: 146.91
@@ -391,11 +399,12 @@ markers:
 ```
 
 **Key conventions:**
-- `clips[].start/end` are source times in the domain specified by `time_domain` (default: video). When `time_domain: audio`, the script converts to video time internally using `video_time = audio_time - sync_offset`.
-- `markers[].time` is TIMELINE position (after clips are assembled sequentially). Markers are never affected by `time_domain`.
+- `clips[].start/end` are video source times by default. Only set `time_domain: audio` if the transcript was generated from the production WAV (rare). When `audio`, the script converts using `video_time = audio_time - sync_offset`.
+- `markers[].time` is TIMELINE position (after clips are assembled sequentially).
 - Breathing room buffer is applied automatically — don't pre-adjust clip times.
 - Offset sign: positive = audio started before video, negative = audio started after.
 - When `speech_analysis` is present, clip start/end times are snapped to the nearest VAD-detected speech boundary (±200ms tolerance). Adjustments logged to stderr.
+- When `speech_analysis` is present, internal pauses above `auto_remove_pauses_above` (default 500ms) are automatically removed. Clips are split at pause boundaries, sub-clips placed back-to-back, yellow NOTE markers added at each join point. Dual-system audio is split in sync.
 
 ## Editorial Principles
 

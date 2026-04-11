@@ -8,6 +8,16 @@ class ButterCut
   class FCP7 < EditorBase
     MARKER_COLORS = %w[blue green orange purple red yellow].freeze
 
+    # FCP7 xmeml uses RGBA sub-elements (0-255) for marker colors
+    MARKER_COLOR_RGB = {
+      'blue'   => { red: 0,   green: 63,  blue: 255, alpha: 255 },
+      'green'  => { red: 0,   green: 196, blue: 0,   alpha: 255 },
+      'orange' => { red: 255, green: 132, blue: 0,   alpha: 255 },
+      'purple' => { red: 190, green: 73,  blue: 255, alpha: 255 },
+      'red'    => { red: 255, green: 38,  blue: 38,  alpha: 255 },
+      'yellow' => { red: 255, green: 255, blue: 0,   alpha: 255 },
+    }.freeze
+
     MARKER_CATEGORIES = {
       'TITLE' => 'blue',
       'B-ROLL' => 'green',
@@ -371,12 +381,18 @@ class ButterCut
 
     def build_marker(xml, marker, timeline_frame_duration)
       frame = marker_frame(marker, timeline_frame_duration)
+      rgb = MARKER_COLOR_RGB[marker[:color]]
       xml.marker do
         xml.name marker[:name]
         xml.comment_ marker[:comment]
         xml.in_ frame
         xml.out(-1)
-        xml.color marker[:color]
+        xml.color do
+          xml.alpha rgb[:alpha]
+          xml.red rgb[:red]
+          xml.green rgb[:green]
+          xml.blue rgb[:blue]
+        end
       end
     end
 
