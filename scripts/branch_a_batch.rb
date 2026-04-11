@@ -2,7 +2,7 @@
 # branch_a_batch.rb — Batch Branch A (script-driven) processing for Dylan Shorts Batch 1
 #
 # Usage: ruby scripts/branch_a_batch.rb [short_numbers...]
-#   No args = process all shorts 2-30 (skip 1, already done)
+#   No args = process all shorts 1-30
 #   Args = process specific shorts, e.g.: ruby scripts/branch_a_batch.rb 2 3 4
 
 require 'yaml'
@@ -167,7 +167,7 @@ end
 # Determine which shorts to process
 requested = ARGV.map(&:to_i)
 shorts_to_process = if requested.empty?
-  (2..30).to_a
+  (1..30).to_a
 else
   requested
 end
