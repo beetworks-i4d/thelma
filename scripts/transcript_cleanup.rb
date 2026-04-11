@@ -11,6 +11,9 @@
 #   3. Single-word filler: segments <1.5s with only filler words → drop entirely
 #   4. Trailing-off: repeated end words, partial words, "..." then clean restart → drop first
 #   5. Within-segment de-stutter: internal phrase repeats, partial restarts, word-level repeats
+#      Pause-aware: if Silero speech analysis is provided (--speech-analysis <path>),
+#      phrase repeats separated by >250ms silence are treated as rhetorical repetition
+#      and kept. Under 250ms or no speech data → remove first occurrence as stutter.
 #
 # Logs every removal to stderr. Output schema identical to input.
 
@@ -59,9 +62,39 @@ def norm(word)
   word.to_s.downcase.gsub(/[^a-z0-9']/, '')
 end
 
+# Check pause duration between two audio times using Silero speech segments.
+# Returns the longest silence gap (seconds) between t1 and t2.
+# If no speech data, returns 0.0 (assume no pause → allow removal).
+PAUSE_THRESHOLD = 0.250
+
+def silence_between(t1, t2, speech_segs)
+  return 0.0 unless speech_segs && !speech_segs.empty?
+  return 0.0 if t2 <= t1
+
+  # Find speech segments overlapping [t1, t2]
+  relevant = speech_segs.select { |s| s['end'].to_f > t1 && s['start'].to_f < t2 }
+
+  # If no speech segments span this range, the entire range is silence
+  return t2 - t1 if relevant.empty?
+
+  relevant.sort_by! { |s| s['start'].to_f }
+
+  max_gap = relevant.first['start'].to_f - t1
+  relevant.each_cons(2) do |a, b|
+    gap = b['start'].to_f - a['end'].to_f
+    max_gap = gap if gap > max_gap
+  end
+  trailing = t2 - relevant.last['end'].to_f
+  max_gap = trailing if trailing > max_gap
+
+  [max_gap, 0.0].max
+end
+
 # Within-segment de-stutter: detect internal phrase repeats, partial restarts,
 # and consecutive word repeats. Returns [modified_seg, log_message] or nil.
-def destutter_segment(seg)
+# When speech_segs is provided, phrase repeats separated by >250ms silence
+# are treated as rhetorical repetition and kept.
+def destutter_segment(seg, speech_segs = nil)
   words = seg['words']
   return nil unless words && words.size >= 4
 
@@ -117,7 +150,17 @@ def destutter_segment(seg)
       end
 
       if match_at
-        # Check if second occurrence continues longer (partial restart)
+        # Pause-aware protection: check silence between end of first occurrence
+        # (or gap) and start of second occurrence. If >250ms, it's rhetorical.
+        phrase1_end = words[match_at - 1]['end'].to_f
+        phrase2_start = words[match_at]['start'].to_f
+        pause = silence_between(phrase1_end, phrase2_start, speech_segs)
+        if pause > PAUSE_THRESHOLD
+          $stderr.puts "kept #{time_range(seg)} — rhetorical repeat (#{(pause * 1000).round}ms pause): '#{words[i, plen].map { |w| w['word'] }.join(' ')}'"
+          i += 1
+          next
+        end
+
         # Keep the second occurrence, remove first occurrence + gap
         removed_text = words[i...match_at].map { |w| w['word'] }.join(' ')
         reasons << "removed '#{removed_text}' (phrase repeat)"
@@ -142,6 +185,13 @@ def destutter_segment(seg)
       # Check for triple+ repeat
       run_end = i + 1
       run_end += 1 while run_end + 1 < norms.size && keep[run_end + 1] && norms[run_end + 1] == norms[i]
+      # Pause-aware: check silence between first and last in run
+      pause = silence_between(words[i]['end'].to_f, words[run_end]['start'].to_f, speech_segs)
+      if pause > PAUSE_THRESHOLD
+        $stderr.puts "kept #{time_range(seg)} — rhetorical repeat (#{(pause * 1000).round}ms pause): '#{words[i, run_end - i + 1].map { |w| w['word'] }.join(' ')}'"
+        i = run_end + 1
+        next
+      end
       # Keep only the last one in the run
       removed = words[i...run_end].map { |w| w['word'] }.join(' ')
       reasons << "removed '#{removed}' (word repeat)"
@@ -167,9 +217,25 @@ def destutter_segment(seg)
   [new_seg, reasons]
 end
 
-path = ARGV[0]
-abort "Usage: ruby scripts/transcript_cleanup.rb <transcript.json>" unless path
+# Parse arguments: transcript path + optional --speech-analysis <path>
+args = ARGV.dup
+speech_analysis_path = nil
+if (sa_idx = args.index('--speech-analysis'))
+  speech_analysis_path = args[sa_idx + 1]
+  args.slice!(sa_idx, 2)
+end
+
+path = args[0]
+abort "Usage: ruby scripts/transcript_cleanup.rb <transcript.json> [--speech-analysis <path>]" unless path
 abort "File not found: #{path}" unless File.exist?(path)
+
+speech_segs = nil
+if speech_analysis_path
+  abort "Speech analysis not found: #{speech_analysis_path}" unless File.exist?(speech_analysis_path)
+  sa_data = JSON.parse(File.read(speech_analysis_path))
+  speech_segs = sa_data['speech_segments'] || []
+  $stderr.puts "Loaded speech analysis: #{speech_segs.size} segments"
+end
 
 data = JSON.parse(File.read(path))
 segments = data['segments'] || []
@@ -252,10 +318,10 @@ segments.each_with_index do |seg, i|
   end
 end
 
-# Rule 5: Within-segment de-stutter
+# Rule 5: Within-segment de-stutter (pause-aware when speech analysis provided)
 destutter_count = 0
 cleaned_segments = cleaned_segments.map do |seg|
-  result = destutter_segment(seg)
+  result = destutter_segment(seg, speech_segs)
   if result
     new_seg, reasons = result
     destutter_count += 1
