@@ -65,12 +65,17 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 2. Run audio cleanup on source files using `ruby scripts/audio_cleanup.rb`
 3. Transcribe all footage using the transcribe-audio skill
 4. Generate visual transcripts using the analyze-video skill
-5. Read the completed transcripts
-6. **Detect external audio**: Check the project folder for WAV/FLAC/MP3 files that are NOT extracted from the video (e.g., a separate recorder like a Zoom). If found, ask the user to confirm which is the production audio, then run sync detection:
+5. **Run transcript cleanup** on each completed transcript:
+   ```bash
+   ruby scripts/transcript_cleanup.rb <transcript.json>
+   ```
+   This removes duplicate takes, false starts, single-word filler, and trailing-off segments. Cache the cleaned path in library.yaml under `videos[].cleaned_transcript` (filename only).
+6. Read the completed transcripts (use cleaned versions for editorial review)
+7. **Detect external audio**: Check the project folder for WAV/FLAC/MP3 files that are NOT extracted from the video (e.g., a separate recorder like a Zoom). If found, ask the user to confirm which is the production audio, then run sync detection:
    ```bash
    ruby scripts/audio_sync_offset.rb <video_path> <audio_path> [library.yaml]
    ```
-7. **Run speech analysis**: Run Silero VAD on the production audio source (the external WAV if dual-system, otherwise the video file itself):
+8. **Run speech analysis**: Run Silero VAD on the production audio source (the external WAV if dual-system, otherwise the video file itself):
    ```bash
    ruby scripts/audio_analysis.rb <audio_or_video_path> [library.yaml]
    ```
@@ -93,7 +98,7 @@ If the user runs deep mode without specifying a scope on a scoped recording, ask
 
 **Two-pass classification to minimize tokens:**
 
-**Pass 1 — Filter:** Read the transcript via `ruby scripts/read_transcript.rb`. If scoped, only process the transcript within the requested scope's time range. Quickly scan and discard:
+**Pass 1 — Filter:** Read the cleaned transcript via `ruby scripts/read_transcript.rb <cleaned_transcript.json>` (fall back to raw transcript if cleaned version unavailable). If scoped, only process the transcript within the requested scope's time range. Quickly scan and discard:
 - Segments under 3 seconds
 - Obvious filler (false starts, repeated sentences, "um/uh" sections)
 - Technical interruptions (camera adjustments, off-topic asides)
@@ -226,8 +231,8 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
 
 #### Fast mode — transcript-order arrangement
 
-1. **Read transcripts** — `ruby scripts/read_transcript.rb <transcript.json>`
-2. **Select clips** — Choose strongest segments. Cut filler, false starts, tangents, repeated points.
+1. **Read transcripts** — Use the cleaned transcript if available (`cleaned_transcript` in library.yaml), falling back to raw transcript: `ruby scripts/read_transcript.rb <cleaned_transcript.json>`
+2. **Select clips** — Choose strongest segments. Cut filler, false starts, tangents, repeated points. (The cleaned transcript has already removed duplicate takes and obvious filler, so focus on editorial selection.)
 3. **Arrange structure** — Order clips in the chosen format. If cold open: pick the single most emotionally compelling moment and place it first.
 4. **Add markers** (see marker reference below)
 5. **Write YAML** — Include `speech_analysis` path for snap-to-boundary.
@@ -240,7 +245,7 @@ Ask this if multiple curiosity-classified segments exist that could serve as tra
 
 **Scope filtering (multi-short recordings):** If `segments_classified.yaml` has `scopes` defined and the user requested a specific scope (e.g., "Short #1"), filter segments to ONLY those with the matching `scope` field before arrangement. No segments from other scopes are eligible.
 
-1. **Read classification** — Read `segments_classified.yaml`. If scoped, filter to the requested scope. This is the ONLY source of segment data for arrangement.
+1. **Read classification** — Read `segments_classified.yaml`. If scoped, filter to the requested scope. This is the ONLY source of segment data for arrangement. When reading transcript text for context, use the cleaned transcript (`cleaned_transcript` in library.yaml) if available.
 
 2. **Select clips** — Choose segments from the filtered classification. Reference segments by their `t` value. Keep segments that serve the chosen state architecture.
 
