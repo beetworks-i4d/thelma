@@ -485,17 +485,19 @@ Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyli
 
    Log any violations as warnings. If running a single candidate, present to user. If batch (multi-output), log and continue.
 
-6. **Write YAML** — Name file after candidate ID: `[library]_[candidate_id].yaml`
-   - Example: `dylan-004_single_longform_threeitem_framework_led.yaml`
+6. **Write YAML** — Save to the **project folder's `output/` directory** (e.g., `~/Desktop/RAW/project-name/output/`). This is the same location used by all other pipeline outputs (Branch A, fast mode, earlier builds). Name file after candidate ID: `[library]_[candidate_id].yaml`
+   - Example: `~/Desktop/RAW/Dylan 004/output/dylan-004_single_longform_threeitem_framework_led.yaml`
+   - Set `output_dir` in the YAML to this same project output folder — this controls where `build_structure_cut.rb` writes the XML
+   - **Do NOT use `libraries/[library-name]/roughcuts/`** — that directory is for internal library data, not deliverable outputs
    - Include `speech_analysis` path for snap-to-boundary
    - The classification `t`/`e` values are in **video time** — use them directly as clip `start`/`end`
    - **Output format by profile:**
      - `best_short` → set `output_format: vertical_short` (unless source is already vertical)
      - `best_medium` / `best_single_longform` → `output_format: match_source`
 
-7. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
+7. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>` — XML lands in the same `output/` directory
 
-8. **Write arrangement log** — Save `[candidate_id]_arrangement_log.yaml` alongside the output. Log DURING arrangement decisions, not post-hoc.
+8. **Write arrangement log** — Save `[candidate_id]_arrangement_log.yaml` alongside the YAML in the project's `output/` directory. Log DURING arrangement decisions, not post-hoc.
 
 ```yaml
 # output/single_longform_threeitem_framework_led_arrangement_log.yaml
