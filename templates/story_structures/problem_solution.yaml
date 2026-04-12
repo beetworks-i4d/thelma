@@ -1,0 +1,23 @@
+name: problem_solution
+description: "Present a problem, show evidence, reveal solution, prove it works"
+beats:
+  - id: problem_statement
+    description: "Name the problem or pain point"
+    keywords: [waste, stuck, spend, months, wrong, problem, fail, fear, struggling, losing]
+    position: early
+  - id: evidence
+    description: "Show the problem is real or widespread"
+    keywords: [most people, everyone, years, list, tasks, busy, hours, percent, majority]
+    position: early_mid
+  - id: solution_reveal
+    description: "Reveal the fix or framework"
+    keywords: [three things, instead, simple, actually, just, secret, key, answer, method]
+    position: mid
+  - id: proof
+    description: "Concrete results proving the solution works"
+    keywords: ["$", sales, leads, first, month, revenue, results, clients, revenue, made]
+    position: late
+  - id: takeaway
+    description: "Principle or action item to carry away"
+    keywords: [focus, start, go, principle, apply, results, remember, lesson, takeaway]
+    position: late

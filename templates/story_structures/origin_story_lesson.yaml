@@ -1,0 +1,23 @@
+name: origin_story_lesson
+description: "Tell a personal origin story that delivers a universal principle"
+beats:
+  - id: personal_context
+    description: "Set the scene — who, when, where, what situation"
+    keywords: [was, had, started, years, ago, time, when, back, first, young, job]
+    position: early
+  - id: struggle
+    description: "The challenge or obstacle faced"
+    keywords: [stuck, failed, couldn't, hard, difficult, months, struggling, lost, broke, wrong]
+    position: early_mid
+  - id: discovery
+    description: "The breakthrough moment or key insight"
+    keywords: [realized, found, discovered, saw, learned, noticed, clicked, tried, figured]
+    position: mid
+  - id: result
+    description: "What happened after applying the insight"
+    keywords: ["$", made, first, sale, client, month, revenue, worked, grew, built, earned]
+    position: late_mid
+  - id: universal_principle
+    description: "The lesson that applies to everyone"
+    keywords: [principle, lesson, applies, beyond, everyone, you, focus, start, truth, key]
+    position: late

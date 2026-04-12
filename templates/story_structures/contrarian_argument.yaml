@@ -1,0 +1,23 @@
+name: contrarian_argument
+description: "Make a bold claim against common behavior, diagnose why it fails, offer alternative"
+beats:
+  - id: bold_claim
+    description: "Provocative statement that challenges the audience"
+    keywords: [wrong, stop, don't, waste, killing, destroying, ruining, mistake, worst]
+    position: early
+  - id: target_behavior
+    description: "Name the specific behavior being criticized"
+    keywords: [spend, build, buy, create, design, plan, prepare, research, study, learn]
+    position: early_mid
+  - id: diagnosis
+    description: "Explain why the behavior is counterproductive"
+    keywords: [because, reason, why, fear, safe, comfortable, avoids, feels, protects, excuse]
+    position: mid
+  - id: alternative
+    description: "Present the better approach"
+    keywords: [instead, just, simple, only, skip, straight, directly, focus, do, start]
+    position: late_mid
+  - id: proof
+    description: "Evidence the alternative works"
+    keywords: ["$", made, sales, clients, results, worked, proof, first, month, revenue]
+    position: late
