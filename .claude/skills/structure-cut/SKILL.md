@@ -50,21 +50,25 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 - Phase 1: Ingest and Analyze
 - Phase 1.5: Segment Classification
 - Phase 1.6: Storyline Discovery
+- Phase 1.7: Template Matching
+- Phase 1.8: Coherence Scoring
 - Phase 3: Structure Cut arrangement + YAML + XML generation
 
 **Interactive phases (MUST run in main conversation):**
-- Phase 2: Editorial Questions — requires direct user interaction via AskUserQuestion
+- Phase 2: Storyline Selection (deep mode) / Editorial Questions (fast mode) — requires direct user interaction via AskUserQuestion
 - Phase 4: Present to User — summary generated from final YAML, presented directly
 
 **Orchestration flow:**
 1. Run Phase 0 (branch detection) — scan for script, parse if found
 2. Run Phase 1 (ingest) — can be Task agent(s)
 3. Run Phase 1.5 (classification, deep mode) — can be Task agent
-4. Run Phase 1.6 (storyline discovery) — can be Task agent
-5. Return to main conversation → Run Phase 2 (editorial questions) directly
-6. Pass user answers + branch assignment into Phase 3 Task agent prompt
-7. Run Phase 3 (arrangement + XML) — Task agent with user answers as input
-8. Run Phase 3.5 + Phase 4 (summary + present) in main conversation using final YAML
+4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb`
+5. Run Phase 1.7 (template matching) — can be Task agent: `ruby scripts/match_templates.rb`
+6. Run Phase 1.8 (coherence scoring) — can be Task agent: `ruby scripts/score_coherence.rb --prepare` → agent evaluates each candidate → `ruby scripts/score_coherence.rb --apply`
+7. Return to main conversation → Run Phase 2 (storyline selection) directly via AskUserQuestion
+8. Pass selected storyline(s) + branch assignment into Phase 3 Task agent prompt
+9. Run Phase 3 (arrangement + XML) — Task agent builds one output per selected candidate
+10. Run Phase 3.5 + Phase 4 (summary + present) in main conversation using final YAML(s)
 
 **WARNING:** If you launch a single Task agent for the entire skill, Phase 2 questions will be silently skipped. The agent will make its own editorial choices without user input.
 
@@ -247,11 +251,49 @@ ruby scripts/discover_storylines.rb <segments_classified.yaml> [--library <libra
 
 **Output:** `storylines.yaml` in same directory as `segments_classified.yaml`. Each storyline includes: id, score breakdown, hook/close segments, duration estimate, arc summary, and pitch string.
 
-**Phase 2 integration:** Phase 2 is not yet wired to consume `storylines.yaml` automatically — it is generated for reference but Phase 2 still runs as before.
+### Phase 1.7: Template Matching (deep mode only)
 
-### Phase 2: Editorial Questions — MAIN CONVERSATION ONLY
+After storyline discovery, score each candidate against narrative templates.
 
-**This phase runs in the main conversation, NOT inside a Task agent.** Use AskUserQuestion tool directly. The classified segments from Phase 1.5 inform the questions asked here. Do NOT delegate this phase to a subagent.
+```bash
+ruby scripts/match_templates.rb <storylines.yaml> <segments_classified.yaml>
+```
+
+Loads 6 narrative templates from `templates/story_structures/` (problem_solution, personal_transformation, hidden_truth_reveal, three_item_framework, contrarian_argument, origin_story_lesson). For each storyline candidate, reconstructs the distillation sequence (hook → body → close) and scores keyword-based beat matches against each template. Picks the best-fitting template.
+
+**Output:** `storylines_matched.yaml` — same as storylines.yaml but with `template_match` appended to each candidate (template name, fit_score 0-100, completeness %, order_score, matched/missing beats).
+
+### Phase 1.8: Coherence Scoring (deep mode only)
+
+After template matching, add LLM-evaluated narrative coherence and compute combined ranking.
+
+**Step 1 — Prepare evaluation payloads:**
+```bash
+ruby scripts/score_coherence.rb --prepare <storylines_matched.yaml> <segments_classified.yaml>
+```
+Outputs `coherence_prep.yaml` with per-candidate distillation sequences and evaluation prompts.
+
+**Step 2 — Agent evaluates coherence:**
+For each candidate in `coherence_prep.yaml`, read the `evaluation_prompt` field and score narrative coherence 0-100. Write results to `coherence_scores.yaml`:
+```yaml
+scores:
+  - id: candidate_id
+    coherence_score: 78
+    issues:
+      - "Segments 3-5 repeat similar ideas"
+```
+
+**Step 3 — Apply scores and rank:**
+```bash
+ruby scripts/score_coherence.rb --apply <coherence_prep.yaml> <coherence_scores.yaml>
+```
+Computes `combined_score = state_score × 0.3 + template_fit × 0.4 + coherence_score × 0.3`. Applies quality floor (combined >= 60), ranks within each profile, caps at top 3. Outputs `storylines_scored.yaml`.
+
+**Output:** `storylines_scored.yaml` — each storyline has `coherence` (score + issues), `combined_score`, `quality_pass`, and `rank` (within profile). This is the input for Phase 2 storyline selection.
+
+### Phase 2: Storyline Selection — MAIN CONVERSATION ONLY
+
+**This phase runs in the main conversation, NOT inside a Task agent.** Use AskUserQuestion tool directly. Do NOT delegate this phase to a subagent.
 
 #### Branch A (script-driven) — minimal questions
 
@@ -260,6 +302,8 @@ The script IS the editorial direction. Skip standard deep-mode questions (hook c
 1. **"Which short(s) to build?"** — Present the list of shorts from `script_parsed.yaml` with numbers and titles. Options: specific short number(s), a section name, or "all".
 2. **"Target duration?"** — Options: 30s, 45s, 60s, Let the script decide.
 3. **Low-confidence beat clarification** — Only if a script beat couldn't be matched to any transcript segment during Phase 1.5 scope detection. Ask: "I couldn't find footage matching this script beat: '[beat text]'. Should I skip it or is there a specific part of the recording where this was covered?"
+
+If Branch A coexists with Branch B candidates (i.e., storyline discovery also ran), show the script-aligned candidate alongside Branch B options in the presentation below. User can mix: "Build the script version plus the top short."
 
 #### Fast mode — generic questions
 
@@ -278,44 +322,91 @@ Ask ONE AT A TIME. Adapt based on previous answers.
 
 If the user provided a script or editing directions, use those as the primary guide and only ask clarifying questions.
 
-#### Branch B (state-architected) — framework-aware questions
+#### Branch B (state-architected) — storyline selection from scored candidates
 
-Read the classified segments. Each question proposes specific options from the actual footage with reasoning. No generic questions.
+Read `storylines_scored.yaml` from the library's working directory. This file contains ranked storyline candidates produced by Phases 1.6-1.8. Present them to the user grouped by profile.
 
-**Question 1 — Primary state and hook candidates:**
+**Profile label mapping:**
+- `best_single_longform` → "LONGFORM (8-15 min)"
+- `best_medium` → "MEDIUM (3-8 min)"
+- `best_short` → "SHORTS (30-90s)"
 
-Identify the 2-3 strongest hook candidates from the classified segments. Present them with framework reasoning:
+**Presentation format:**
 
-> "I found these strong hook candidates in the footage:
->
-> 1. **Vindication-led** — [segment at MM:SS]: '[quote]'. Opens on [induction signal]. High compressibility, works cold. Best for audience growth.
-> 2. **Competence-led** — [segment at MM:SS]: '[quote]'. Opens on [framework reveal]. Best for retention from niche feed. Slower but higher-quality viewers.
-> 3. **Curiosity-led** — [segment at MM:SS]: '[quote]'. Opens on [open loop]. Identity-durable but slow to induce. Best for loyal audience.
->
-> Which direction?"
+Display all candidates with `quality_pass: true` as numbered options. For the top candidate per profile, include a 1-line editorial note. For lower-ranked candidates, a shorter summary is fine. Mention dropped candidates (quality_pass: false) at the bottom for transparency.
 
-Select candidates based on: axis scores matching likely arrival context, induction speed, signal compressibility.
+```
+I analyzed this footage and scored [N] storyline candidates.
 
-**Question 2 — Closing state and residue:**
+LONGFORM (8-15 min):
+  1. [id] — Score [combined_score]
+     Template: [template_match.template] ([template_match.completeness]% complete)
+     Arc: [arc field]
+     [1-line editorial note from coherence issues or pitch]
 
-> "Your strongest Identity-durable moments are at [timestamps]. These create the best closing for audience building. Want to use [best one] as the close, or keep a different ending?"
+  2. [id] — Score [combined_score]
+     Template: [template] ([completeness]% complete)
+     Arc: [arc]
 
-Identify segments classified with `dur: identity` and `roles` containing `tertiary`.
+MEDIUM (3-8 min):
+  3. [id] — Score [combined_score]
+     Template: [template] ([completeness]% complete)
+     Arc: [arc]
+     [editorial note if this candidate offers a different editorial frame]
 
-**Question 3 — Arrival context:**
+  4. [id] — Score [combined_score]
+  5. [id] — Score [combined_score]
 
-> "Where will this video live primarily?"
-> - Algorithmic feed (needs cold-viable primary)
-> - Niche feed (can tolerate more context)
-> - Subscribed audience (can use slower states)
+SHORTS (30-90s):
+  6. [id] — Score [combined_score]
+     Arc: [arc]
+     [duration_estimate formatted as MM:SS]
 
-This determines which primary states are viable per the framework's arrival context rules.
+  7. [id] — Score [combined_score] (borderline)
 
-**Question 4 — Only if relevant:**
+[If script_aligned candidate exists:]
+SCRIPT-ALIGNED:
+  S. script_aligned — Score [score]
+     Follows parsed script beat order. Always available regardless of score.
 
-> "The footage has natural Curiosity moments at [timestamps]. Want me to use them as retention resets in the middle section?"
+[If any candidates dropped:]
+Dropped: [id] (score [combined_score] — below quality floor of 60)
 
-Ask this if multiple curiosity-classified segments exist that could serve as transition glue.
+What do you want me to build? Pick one or more.
+You can mix profiles — longform plus a selection of shorts is a common package.
+```
+
+**Selection question** — use AskUserQuestion with multiSelect:
+
+Options:
+1. "Top pick per profile" — builds the #1-ranked candidate from each profile (typically 3 outputs)
+2. "Just the top longform" — builds only the highest-ranked longform candidate
+3. "Longform + shorts package" — builds top longform + all passing shorts
+4. "Custom selection" — user specifies which numbers
+
+If user picks "Custom selection", follow up: "Which numbers? (comma-separated)"
+
+**Edge cases:**
+- **0 passing candidates:** "No candidates passed the quality floor (combined score >= 60). The footage may need different classification scope or may not fit standard narrative templates. Want me to show all candidates anyway, or re-run classification?"
+- **Segment overlap:** After user picks, check if any two selected candidates share hook OR close segments. If so, flag: "Candidates [A] and [B] both use the [signal] moment at [t]. They'll produce similar edits. Build both anyway?"
+- **Script-aligned coexistence:** If `script_parsed` exists in library.yaml AND storyline discovery ran, show `script_aligned` candidate as option "S" regardless of score.
+
+**Output of Phase 2** — a list of selected storyline objects passed to Phase 3:
+```yaml
+selected_storylines:
+  - id: single_longform_threeitem_framework_led
+    profile: best_single_longform
+    hook_segment: 131.98
+    close_segment: 695.47
+    duration_estimate: 484
+    primary_state: competence
+  - id: short_results_reveal_led
+    profile: best_short
+    hook_segment: 545.02
+    close_segment: 566.01
+    duration_estimate: 32
+    primary_state: aspiration
+```
 
 ### Phase 3: Structure Cut
 
@@ -360,94 +451,103 @@ States ARE used for: marker type selection, pacing, arrangement log.
 - Transcript content not in script → List as "unused segments" in arrangement log
 - Script mentions unrecorded content (e.g., `[$ AMOUNT]` placeholders) → NOTE marker on timeline, no clip generated for that specific placeholder
 
-#### Branch B — state-architected arrangement
+#### Branch B — storyline-driven arrangement
 
-**HARD RULE — Source-of-truth lock:** Deep mode arrangement may ONLY use segments present in `segments_classified.yaml`. No segments may be pulled from the raw transcript. No segments may be invented or improvised because they "fit the narrative." If the available classified segments are insufficient to build the requested arc, arrangement must fail loudly and request re-classification with expanded scope. Reference every clip in the output YAML by its `t` value from `segments_classified.yaml`.
+Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyline defines hook, close, and the segment range for body content. Phase 3 builds one output per selected candidate.
 
-**Scope filtering (multi-short recordings):** If `segments_classified.yaml` has `scopes` defined and the user requested a specific scope (e.g., "Short #1"), filter segments to ONLY those with the matching `scope` field before arrangement. No segments from other scopes are eligible.
+**HARD RULE — Source-of-truth lock:** Deep mode arrangement may ONLY use segments present in `segments_classified.yaml`. No segments may be pulled from the raw transcript. No segments may be invented or improvised because they "fit the narrative." Reference every clip in the output YAML by its `t` value from `segments_classified.yaml`.
 
-1. **Read classification** — Read `segments_classified.yaml`. If scoped, filter to the requested scope. This is the ONLY source of segment data for arrangement. When reading transcript text for context, use the cleaned transcript (`cleaned_transcript` in library.yaml) if available.
+**Scope filtering (multi-short recordings):** If `segments_classified.yaml` has `scopes` defined, filter segments to ONLY those within the storyline's hook-to-close range. No segments from other scopes are eligible.
 
-2. **Select clips** — Choose segments from the filtered classification. Reference segments by their `t` value. Keep segments that serve the chosen state architecture.
+**For each selected storyline, build one output:**
 
-3. **Arrange by state architecture** — Clips follow structural logic, NOT recording chronology:
-   - **Primary spine state** goes first (hook position) — must match the chosen arrival context's axis requirements
-   - **Tertiary Identity-durable state** goes last (residue position) — the moment the viewer carries away
-   - **Secondary states** fill the middle with pacing variation
-   - **Curiosity moments** serve as transition glue between sections (retention resets)
+1. **Read classification** — Read `segments_classified.yaml`. This is the ONLY source of segment data. When reading transcript text for context, use the cleaned transcript (`cleaned_transcript` in library.yaml) if available.
+
+2. **Reconstruct segment list from storyline:**
+   - Hook = segment where `t == storyline.hook_segment`
+   - Close = segment where `t == storyline.close_segment`
+   - Body = all classified segments where `t > hook_t` and `t < close_t`, sorted by `t`
+   - This is the same reconstruction used by `match_templates.rb` and `score_coherence.rb`
+
+3. **Arrange clips** — Default order is chronological: hook → body segments sorted by `t` → close. The storyline discovery already selected segments that form a coherent arc. Agent may reorder body segments for pacing if it has specific framework reasons, but chronological is the default.
+   - **Post-tertiary cutoff** still applies — close segment is always the last clip
    - **Avoid adjacent horizontally incompatible states** (e.g., don't place sensual before calm, schadenfreude before awe)
    - **Maintain spine state** carrying across vertical layers
-   - **HARD RULE — Post-tertiary cutoff:** Once the tertiary Identity-durable residue segment is placed, the timeline ENDS. No clips may appear after it. Any remaining unplaced segments are discarded, regardless of quality or state. The tertiary segment is always the final clip.
+   - Agent may cut body segments that are redundant or weaken pacing — log every cut with reason
 
 4. **Add markers** (see marker reference below)
 
 5. **Integrity validation** — Before generating YAML, validate the structure:
-   - **Source-of-truth check:** For every clip in the proposed arrangement, verify the start audio time matches a `t` value in `segments_classified.yaml` (within the active scope if scoped). If any clip references an audio time not in the classification, the arrangement is INVALID — do not generate YAML. Fix by removing the unclassified clip or requesting re-classification.
-   - Does the primary match the chosen arrival context? (Check axis scores)
+   - **Source-of-truth check:** Every clip must match a `t` value in `segments_classified.yaml`
+   - No clips after the close segment (post-tertiary cutoff)
    - Are any horizontally incompatible states adjacent?
    - Does the spine carry top-to-bottom?
-   - What's the failure pivot if the primary promise misses?
-   - Is any clip placed after the tertiary residue position? (If yes: validation ERROR — must be resolved before XML generation. Move or remove the offending clips.)
 
-   Log any violations as warnings. Present to the user for approval:
-   > "Structure check: [N issues found / structure is clean]. [Details of any issues]. Approve or adjust?"
+   Log any violations as warnings. If running a single candidate, present to user. If batch (multi-output), log and continue.
 
-6. **Write YAML** — Include `speech_analysis` path. Save to `output/`.
-   - The classification `t`/`e` values are in **video time** (because WhisperX transcribes the video's audio track). Use them directly as clip `start`/`end` in the YAML. Do NOT set `time_domain: audio` unless the transcript was generated from a separate WAV file (rare case — almost never needed).
-   - **Markers are unaffected** — marker `time` values are timeline positions (seconds from timeline start), not source times.
+6. **Write YAML** — Name file after candidate ID: `[library]_[candidate_id].yaml`
+   - Example: `dylan-004_single_longform_threeitem_framework_led.yaml`
+   - Include `speech_analysis` path for snap-to-boundary
+   - The classification `t`/`e` values are in **video time** — use them directly as clip `start`/`end`
+   - **Output format by profile:**
+     - `best_short` → set `output_format: vertical_short` (unless source is already vertical)
+     - `best_medium` / `best_single_longform` → `output_format: match_source`
 
 7. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 
-8. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output YAML. Log DURING arrangement decisions, not post-hoc. If a decision was default behavior, log "no specific reason — default behavior" rather than inventing rationale.
+8. **Write arrangement log** — Save `[candidate_id]_arrangement_log.yaml` alongside the output. Log DURING arrangement decisions, not post-hoc.
 
 ```yaml
-# output/arrangement_log.yaml
+# output/single_longform_threeitem_framework_led_arrangement_log.yaml
 arrangement_log:
   source_classification: segments_classified.yaml
-  structure_cut: dylan-004_deep_v2.yaml
-  timestamp: "2026-04-10T16:00:00"
-  branch: B  # or A
+  storyline_id: single_longform_threeitem_framework_led
+  structure_cut: dylan-004_single_longform_threeitem_framework_led.yaml
+  timestamp: "2026-04-12T18:30:00"
+  branch: B
 
   hook:
-    chosen: 121.73
-    alternatives_considered: [545.02, 179.87]
-    reason: "Strongest cold-viable aspiration spike. $10K claim is specific, works without context."
+    chosen: 131.98
+    reason: "Selected by storyline discovery — Three-item framework reveal (competence-led)"
 
   close:
-    chosen: 791.22
-    reason: "Curiosity spike teasing next video. CTA position after principle delivery."
+    chosen: 695.47
+    reason: "Selected by storyline discovery — Core principle delivery"
 
   reorders:
-    - segment: 422.93
-      from_position: 8
-      to_position: 5
-      reason: "Curiosity reset before model section"
-    # Empty list if no reorders (transcript order preserved)
+    # Empty list if chronological order preserved (default for storyline-driven)
+    - segment: 387.01
+      from_position: 18
+      to_position: 15
+      reason: "Curiosity reset before framework delivery"
 
   cuts:
-    - segment: 164.93
-      reason: "Weaker take — same setup as 179.87 with stronger delivery"
-    # Every classified segment NOT in the final arrangement must be listed with reason
+    - segment: 464.55
+      reason: "Low confidence, single state — pitch template conclusion adds little"
+    # Every classified segment in hook-to-close range NOT in final arrangement
 
   curiosity_resets: [190.81, 290.21, 387.01]
-    # Segments used as retention glue between sections
 
   pacing_shifts:
-    - position: 5
-      from_state: aspiration
+    - position: 4
+      from_state: competence
       to_state: vindication
-      reason: "Hook energy drops into slow-path critique. Contrast is intentional."
-    - position: 19
-      from_state: vindication
-      to_state: belonging
-      reason: "Personal admission breaks intensity before fast path."
+      reason: "Framework intro drops into slow-path critique. Contrast is intentional."
 ```
+
+**Multi-output coordination:**
+When multiple candidates are selected:
+- Process sequentially (one YAML → one XML per candidate)
+- All outputs go to the same `output/` directory
+- Track all output paths for Phase 4 summary
+- If a candidate fails integrity validation, skip it and note in Phase 4 summary
+- Classification is cached — per-candidate cost is only arrangement + XML generation
 
 **Rules for arrangement logging:**
 - Log happens DURING the decision, not as post-hoc reconstruction
 - Every cut must have a reason — "redundant", "wrong state for position", "pacing", "over-explanation", "weaker delivery of same point"
-- Confidence ratings in classification must be honest, not optimistic
-- Both `segments_classified.yaml` and `arrangement_log.yaml` get cached and versioned with the rest of the project
+- Note which storyline candidate drove the arrangement — this is new context vs. the old freeform approach
+- Both `segments_classified.yaml` and arrangement logs get cached and versioned with the rest of the project
 
 ### Marker Reference (both modes)
 
@@ -475,13 +575,32 @@ Do NOT describe what you intended to build. Describe what was actually built.
 
 **Summary must be post-hoc.** Use data from Phase 3.5 — actual first/last clip text, actual counts from YAML. Do not summarize from memory of the arrangement plan.
 
-Show the user:
+**Single output** — show the user:
 - **Actual opening line:** "[first 10-15 words of first clip's transcript text]..."
 - **Actual closing line:** "...[last 10-15 words of last clip's transcript text]"
 - Total duration, clip count, marker count (from YAML)
 - Structure outline: "Here's how I arranged it: [outline]"
 - Path to XML
 - Instruction: "Import into Premiere via File > Import"
+
+**Multi-output (Branch B storyline-driven)** — when multiple candidates were built:
+```
+Built [N] structure cuts from [library]:
+
+1. [candidate_id] ([duration formatted MM:SS])
+   XML: output/[filename].xml
+   [clip count] clips, [marker count] markers
+   Opens: "[first 10-15 words]..."
+   Closes: "...[last 10-15 words]"
+
+2. [candidate_id] ([duration])
+   XML: output/[filename].xml
+   ...
+
+Import all into Premiere via File > Import. Each is a separate sequence.
+```
+
+If any candidate failed integrity validation during Phase 3, note it: "Skipped [candidate_id] — [reason]."
 
 **Branch A additions:**
 - Script fidelity summary: "[N/M] beats matched ([X]% coverage)"
@@ -491,8 +610,8 @@ Show the user:
 
 **Branch B additions:**
 - State architecture summary: "Primary: [state], Secondary: [states], Tertiary: [state]"
-- Hook reasoning: "I led with [segment] because [framework reason]"
-- Close reasoning: "I closed with [segment] for [durability] residue"
+- Storyline source: "Built from storyline candidate [id] (combined score: [score])"
+- Template: "[template_name] ([completeness]% beat coverage)"
 - Any integrity warnings from validation
 
 Ask: "Want me to adjust anything before you open it?"
