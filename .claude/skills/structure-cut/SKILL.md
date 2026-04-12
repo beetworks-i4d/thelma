@@ -175,6 +175,7 @@ segments:
     e: 52.14
     scope: short_01    # which scope this segment belongs to (omit if unscoped)
     states: [vindication, schadenfreude]
+    distillation: "system rigged but you win"
     signal: "named target, specific claim"
     dur: identity
     roles: [secondary, tertiary]
@@ -185,6 +186,7 @@ segments:
     e: 63.00
     scope: short_01
     states: [competence, curiosity]
+    distillation: "three-step framework reveal"
     signal: "framework reveal"
     dur: identity
     roles: [primary, secondary]
@@ -197,6 +199,7 @@ segments:
 - `t` / `e`: start/end time in seconds
 - `scope`: which scope this segment belongs to (required if scopes are defined, omit if unscoped)
 - `states`: primary state + up to 2 horizontal companions from the fifteen states (use lowercase names: vindication, outrage, awe, competence, fear, schadenfreude, amusement, catharsis, nostalgia, belonging, escape, calm, aspiration, sensual, curiosity)
+- `distillation`: 5-word maximum summary of what the segment SAYS (the idea, not the delivery). Specific enough to identify the segment from the distillation alone. Keep numbers literal ("$10K", "1500", "two months"). If a segment can't be distilled to 5 words, flag as `filler` and consider for removal. Generated in the same classification pass — no extra LLM call.
 - `signal`: short description of the induction signal — what visible/verbal element triggers the state
 - `dur`: spike, mood, or identity
 - `roles`: array of content roles this segment could serve — primary, secondary, tertiary
@@ -580,4 +583,5 @@ Deep mode is designed to minimize token cost:
 - **Compact YAML schema**: Short keys (`t`, `e`, `dur`), minimal prose in `notes` (10 words max)
 - **Cache aggressively**: Classification lives in `segments_classified.yaml`, never re-computed unless the transcript changes (checked via MD5 hash)
 - **Reference by ID**: When making structural decisions, reference segments by their `t` value, don't re-include full classification data
+- **Distillations as semantic proxy**: Downstream passes (coherence evaluation, packaging) can operate on distilled clip orders instead of raw transcripts — 80%+ token reduction
 - **Read framework once**: Read `docs/content_psychopharmacology.md` at the start of classification, reference from memory after
