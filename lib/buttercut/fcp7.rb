@@ -29,10 +29,11 @@ class ButterCut
 
     attr_reader :markers
 
-    def initialize(clips, markers: [])
+    def initialize(clips, markers: [], name: nil)
       super(clips)
       validate_markers!(markers)
       @markers = markers
+      @sequence_name_override = name
     end
 
     def to_xml
@@ -53,7 +54,7 @@ class ButterCut
       sequence_id = "sequence-#{sequence_uuid}"
 
       first_path = clips.first[:path]
-      sequence_name = "#{get_basename(get_filename(first_path))} #{timestamp_suffix}"
+      sequence_name = @sequence_name_override || "#{get_basename(get_filename(first_path))} #{timestamp_suffix}"
 
       clip_payloads = build_clip_payloads(timeline_clips, timeline_frame_duration)
       sequence_audio_rate = format_audio_rate || '48000'
