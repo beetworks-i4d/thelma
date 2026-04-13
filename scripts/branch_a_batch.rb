@@ -548,7 +548,7 @@ shorts_to_process.each do |num|
     'video_path' => video_path,
     'output_dir' => OUTPUT_DIR,
     'editor' => 'fcp7',
-    'name' => "Short_#{padded}_A",
+    'name' => "Dylan Shorts #{padded}",
     'breathing_room_frames' => 3
   }
 
