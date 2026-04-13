@@ -53,7 +53,9 @@ def segment_quality(seg)
   return 0 if text.length < 10
   return 0 if text =~ /^(okay|ok|yeah|so|um|uh|hmm|right)[.,]?\s*$/i
   words = text.scan(/\b(\w+)\b/).flatten
-  return 0 if words.group_by { |w| w.downcase }.any? { |w, occ| occ.length >= 4 && w.length > 2 }
+  # Only flag as bad if a single word dominates (>= 50% of all words) — avoids filtering rhetorical repetition
+  word_count = words.length
+  return 0 if word_count > 0 && words.group_by { |w| w.downcase }.any? { |w, occ| occ.length >= 4 && w.length > 2 && occ.length.to_f / word_count > 0.5 }
   penalty = (text[-1] !~ /[.!?"]/ && text.length < 40) ? 0.5 : 1.0
   penalty *= 0.7 if text =~ /\b(\w{3,})\s+\1\b/i
   dur = seg['end'] - seg['start']
@@ -387,55 +389,43 @@ shorts_to_process.each do |num|
   # Ensure hook has at least 1 segment
   hook_segments = [scope_segments.first] if hook_segments.empty?
 
-  # Body = segments strictly BETWEEN hook end and close start (not after close)
-  hook_end_t = hook_segments.last['end']
+  # Include ALL segments from hook start through close end — full short content
+  close_end_t = close_segments.last['end']
   close_start_t = close_segments.first['start']
-  hook_ids = hook_segments.map(&:object_id)
-  close_ids = close_segments.map(&:object_id)
-  body_segments = scope_segments.select do |s|
-    s['start'] >= hook_end_t - 0.1 &&
-      s['end'] <= close_start_t + 0.1 &&
-      !hook_ids.include?(s.object_id) &&
-      !close_ids.include?(s.object_id)
-  end
-  body_segments = body_segments.select { |s| segment_quality(s) > 0 }
-  body_segments.sort_by! { |s| s['start'] }
+  all_short_segments = scope_segments.select { |s| s['end'] <= close_end_t + 0.1 }
+  all_short_segments = all_short_segments.select { |s| segment_quality(s) > 0 }
+  all_short_segments.sort_by! { |s| s['start'] }
 
-  body_dur = body_segments.any? ? body_segments.sum { |s| s['end'] - s['start'] } : 0
+  total_content_dur = all_short_segments.sum { |s| s['end'] - s['start'] }
 
-  $stderr.puts "  Hook: #{hook_segments.length} segs, #{fmt(hook_segments.first['start'])}-#{fmt(hook_segments.last['end'])}"
-  $stderr.puts "  Close: #{close_segments.length} segs, #{fmt(close_segments.first['start'])}-#{fmt(close_segments.last['end'])} (score: #{best_close_score.round(3)})"
-  $stderr.puts "  Body: #{body_segments.length} segs, #{body_dur.round(1)}s" if body_segments.any?
+  $stderr.puts "  Hook: #{fmt(hook_segments.first['start'])}-#{fmt(hook_segments.last['end'])} (score: #{hook_pos[:score].round(3)})"
+  $stderr.puts "  Close: #{fmt(close_segments.first['start'])}-#{fmt(close_segments.last['end'])} (score: #{best_close_score.round(3)})"
+  $stderr.puts "  Content: #{all_short_segments.length} segs, #{total_content_dur.round(1)}s"
 
-  # --- Assemble clips in beat order: Hook → Body → Close ---
-  all_clip_groups = []
+  # --- Assemble clips: all content from hook through close ---
+  clips = merge_continuous_clips(all_short_segments)
 
-  # Hook
-  hook_clips = merge_continuous_clips(hook_segments)
-  all_clip_groups << { role: 'hook', clips: hook_clips, beat_text: hook_beat['text'] }
-
-  # Body (all content between hook and close, in recording order)
-  if body_segments.any?
-    body_clips = merge_continuous_clips(body_segments)
-    all_clip_groups << { role: 'talking_point', clips: body_clips, beat_text: tp_beats.map { |tp| tp['text'] }.join(' | ') }
-  end
-
-  # Close
-  close_clips = merge_continuous_clips(close_segments)
-  all_clip_groups << { role: 'close', clips: close_clips, beat_text: close_beat['text'] }
-
-  # Flatten to clip list
-  clips = []
-  beat_boundaries = []
+  # Track beat boundaries for markers (approximate timeline positions)
+  # Close boundary = cumulative duration up to where close starts
   timeline_pos = 0.0
-
-  all_clip_groups.each_with_index do |group, gi|
-    beat_boundaries << { time: timeline_pos, role: group[:role], index: gi }
-    group[:clips].each do |clip|
-      clips << clip
-      timeline_pos += clip['video_end'] - clip['video_start']
+  close_timeline_pos = nil
+  clips.each do |clip|
+    clip_start = clip['video_start']
+    clip_end = clip['video_end']
+    if close_start_t >= clip_start && close_start_t <= clip_end
+      close_timeline_pos = timeline_pos + (close_start_t - clip_start)
     end
+    timeline_pos += clip_end - clip_start
   end
+  close_timeline_pos ||= timeline_pos * 0.8  # fallback: 80% through
+
+  # For classification logging
+  all_clip_groups = []
+  all_clip_groups << { role: 'hook', clips: clips[0..0], beat_text: hook_beat['text'] }
+  if clips.length > 2
+    all_clip_groups << { role: 'talking_point', clips: clips[1..-2], beat_text: tp_beats.map { |tp| tp['text'] }.join(' | ') }
+  end
+  all_clip_groups << { role: 'close', clips: clips[-1..-1], beat_text: close_beat['text'] }
 
   total_duration = clips.sum { |c| c['video_end'] - c['video_start'] }
   scope_duration = scope_segments.last['end'] - scope_segments.first['start']
@@ -449,21 +439,14 @@ shorts_to_process.each do |num|
   markers << { 'name' => 'TITLE', 'comment' => "Title: '#{short_def['title']}' — display for 3 seconds.", 'time' => 0.0, 'color' => 'blue' }
   markers << { 'name' => 'MUSIC', 'comment' => 'Music cue: START — low background underscore. Fade in 1s.', 'time' => 0.0, 'color' => 'red' }
 
-  beat_boundaries.each_with_index do |bb, bi|
-    next if bi == 0
-    prev = beat_boundaries[bi - 1]
-    markers << {
-      'name' => 'TRANSITION',
-      'comment' => "#{prev[:role].gsub('_', ' ').capitalize} → #{bb[:role].gsub('_', ' ').capitalize}. Jump cut.",
-      'time' => bb[:time].round(2),
-      'color' => 'orange'
-    }
-  end
+  markers << {
+    'name' => 'TRANSITION',
+    'comment' => "Hook → Close. Jump cut.",
+    'time' => close_timeline_pos.round(2),
+    'color' => 'orange'
+  }
 
-  close_boundary = beat_boundaries.find { |b| b[:role] == 'close' }
-  if close_boundary
-    markers << { 'name' => 'MUSIC', 'comment' => 'Music cue: RESOLVE — sting on close. Hard stop.', 'time' => close_boundary[:time].round(2), 'color' => 'red' }
-  end
+  markers << { 'name' => 'MUSIC', 'comment' => 'Music cue: RESOLVE — sting on close. Hard stop.', 'time' => close_timeline_pos.round(2), 'color' => 'red' }
 
   # --- Write YAML ---
   yaml_data = {
@@ -553,8 +536,8 @@ shorts_to_process.each do |num|
       'script_fidelity' => {
         'hook_found' => hook_pos[:score] > 0.12,
         'close_found' => best_close_score > 0.12,
-        'body_segments' => body_segments.length,
-        'body_duration' => body_dur.round(1)
+        'total_content_segments' => all_short_segments.length,
+        'total_content_duration' => total_content_dur.round(1)
       },
       'metrics' => {
         'total_clips' => total_clips,
