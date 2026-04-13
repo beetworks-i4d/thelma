@@ -53,6 +53,9 @@ def segment_quality(seg)
   return 0 if text.length < 10
   return 0 if text =~ /^(okay|ok|yeah|so|um|uh|hmm|right)[.,]?\s*$/i
   words = text.scan(/\b(\w+)\b/).flatten
+  # TODO: De-duping is not aggressive enough — lots of duplication left in output.
+  #       Dupe matching should be on multi-word clusters (2-3 word ngrams), not individual words.
+  #       Single-word matching misses repeated phrases like "I can't design" / "I can't design websites".
   # Only flag as bad if a single word dominates (>= 50% of all words) — avoids filtering rhetorical repetition
   word_count = words.length
   return 0 if word_count > 0 && words.group_by { |w| w.downcase }.any? { |w, occ| occ.length >= 4 && w.length > 2 && occ.length.to_f / word_count > 0.5 }
