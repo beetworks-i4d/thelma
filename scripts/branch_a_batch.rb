@@ -554,6 +554,8 @@ shorts_to_process.each do |num|
 
   if fast_yaml && fast_yaml['sync_audio']
     yaml_data['sync_audio'] = fast_yaml['sync_audio']
+  elsif video_info && video_info['sync_audio']
+    yaml_data['sync_audio'] = video_info['sync_audio']
   end
 
   if fast_yaml && fast_yaml['speech_analysis']
