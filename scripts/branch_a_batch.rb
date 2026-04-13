@@ -106,12 +106,12 @@ def merge_continuous_clips(segments, gap_threshold: 1.5)
     if seg['start'] - current_end <= gap_threshold
       current_end = seg['end']
     else
-      clips << { 'start' => current_start, 'end' => current_end }
+      clips << { 'video_start' => current_start, 'video_end' => current_end }
       current_start = seg['start']
       current_end = seg['end']
     end
   end
-  clips << { 'start' => current_start, 'end' => current_end }
+  clips << { 'video_start' => current_start, 'video_end' => current_end }
   clips
 end
 
@@ -510,11 +510,11 @@ shorts_to_process.each do |num|
     beat_boundaries << { time: timeline_pos, role: group[:role], index: gi }
     group[:clips].each do |clip|
       clips << clip
-      timeline_pos += clip['end'] - clip['start']
+      timeline_pos += clip['video_end'] - clip['video_start']
     end
   end
 
-  total_duration = clips.sum { |c| c['end'] - c['start'] }
+  total_duration = clips.sum { |c| c['video_end'] - c['video_start'] }
   source_material = scope_end - scope_start
   total_clips = clips.length
 
@@ -587,13 +587,13 @@ shorts_to_process.each do |num|
     cl = classify_beat(group[:role], group[:beat_text])
     group[:clips].each do |clip|
       # Find the original transcript text for this clip range
-      matching_segs = scope_segments.select { |s| s['start'] >= clip['start'] - 0.5 && s['end'] <= clip['end'] + 0.5 }
+      matching_segs = scope_segments.select { |s| s['start'] >= clip['video_start'] - 0.5 && s['end'] <= clip['video_end'] + 0.5 }
       text = matching_segs.map { |s| s['text'].strip }.join(' ')
       text = text[0..150] if text.length > 150
 
       classification['segments_used'] << {
-        't' => clip['start'].round(2),
-        'e' => clip['end'].round(2),
+        't' => clip['video_start'].round(2),
+        'e' => clip['video_end'].round(2),
         'beat' => group[:role],
         'text' => text,
         'states' => cl[:states],
@@ -613,7 +613,7 @@ shorts_to_process.each do |num|
     beat_log << {
       'beat' => group[:role],
       'script_text' => group[:beat_text][0..100],
-      'matched_clips' => group[:clips].map { |c| "#{c['start'].round(2)}-#{c['end'].round(2)}" },
+      'matched_clips' => group[:clips].map { |c| "#{c['video_start'].round(2)}-#{c['video_end'].round(2)}" },
       'match_type' => (group[:role] == 'hook' || group[:role] == 'close') ? 'near_verbatim' : 'thematic',
       'confidence' => (group[:role] == 'hook' || group[:role] == 'close') ? 'high' : 'medium'
     }

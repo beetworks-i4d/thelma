@@ -200,7 +200,7 @@ segments:
 ```
 
 **Classification fields:**
-- `t` / `e`: start/end time in seconds
+- `t` / `e`: start/end time in seconds. **Time domain inherited from source transcript** — if WhisperX ran on the production WAV (dual-system audio), these are WAV-relative times. If WhisperX ran on video, these are video-relative times. When writing structure-cut YAMLs from classified segments, use `audio_start`/`audio_end` for WAV-sourced times, `video_start`/`video_end` for video-sourced times.
 - `scope`: which scope this segment belongs to (required if scopes are defined, omit if unscoped)
 - `states`: primary state + up to 2 horizontal companions from the fifteen states (use lowercase names: vindication, outrage, awe, competence, fear, schadenfreude, amusement, catharsis, nostalgia, belonging, escape, calm, aspiration, sensual, curiosity)
 - `distillation`: 5-word maximum summary of what the segment SAYS (the idea, not the delivery). Specific enough to identify the segment from the distillation alone. Keep numbers literal ("$10K", "1500", "two months"). If a segment can't be distilled to 5 words, flag as `filler` and consider for removal. Generated in the same classification pass — no extra LLM call.
@@ -416,7 +416,7 @@ selected_storylines:
 2. **Select clips** — Choose strongest segments. Cut filler, false starts, tangents, repeated points. (The cleaned transcript has already removed duplicate takes and obvious filler, so focus on editorial selection.)
 3. **Arrange structure** — Order clips in the chosen format. If cold open: pick the single most emotionally compelling moment and place it first.
 4. **Add markers** (see marker reference below)
-5. **Write YAML** — Include `speech_analysis` path for snap-to-boundary.
+5. **Write YAML** — Include `speech_analysis` path for snap-to-boundary. Use `video_start`/`video_end` for clip times (fast mode transcript comes from video audio). If dual-system audio and transcript was from WAV, use `audio_start`/`audio_end` instead.
 6. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 7. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For fast mode, log is minimal: hook choice (if cold open), segments cut with reasons, overall structure rationale. Use the same file format as deep mode but with fewer entries.
 
@@ -442,7 +442,7 @@ States ARE used for: marker type selection, pacing, arrangement log.
    - TRANSITION at each beat boundary
    - B-ROLL, SFX, MUSIC from state signals in `segments_classified.yaml`
    - NOTE for any unmatched script beats: "Script beat not covered: [text]"
-7. **Write YAML** — Include `speech_analysis` path. Save to `output/`.
+7. **Write YAML** — Include `speech_analysis` path. Save to `output/`. Use `video_start`/`video_end` for clip times (Branch A transcript comes from video audio). If dual-system audio and transcript was from WAV, use `audio_start`/`audio_end` instead.
 8. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 9. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For Branch A, the log documents beat matching decisions instead of state-based arrangement. Include: which transcript segments matched each beat, confidence of matches, unmatched beats, unused segments.
 
@@ -490,7 +490,7 @@ Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyli
    - Set `output_dir` in the YAML to this same project output folder — this controls where `build_structure_cut.rb` writes the XML
    - **Do NOT use `libraries/[library-name]/roughcuts/`** — that directory is for internal library data, not deliverable outputs
    - Include `speech_analysis` path for snap-to-boundary
-   - The classification `t`/`e` values are in **video time** — use them directly as clip `start`/`end`
+   - Classification `t`/`e` values inherit the time domain of the source transcript. If the transcript was generated from the production WAV (dual-system audio), use `audio_start`/`audio_end`. If from video audio, use `video_start`/`video_end`. Check `library.yaml` — if `sync_audio` exists AND the transcript filename matches the WAV (not the video), times are WAV-relative → use `audio_start`/`audio_end`.
    - **Output format by profile:**
      - `best_short` → set `output_format: vertical_short` (unless source is already vertical)
      - `best_medium` / `best_single_longform` → `output_format: match_source`
@@ -645,15 +645,14 @@ output_format: match_source       # optional: "match_source" (default) or "verti
                                   # Auto-detected if project folder name contains "short".
 output_resolution: 1080x1920     # optional: explicit WxH override for output sequence
 
-time_domain: video                # optional: "audio" or "video" (default: "video")
-                                  # "video" = times are video-relative (normal — WhisperX on video)
-                                  # "audio" = times are WAV-relative (only if transcript from WAV)
-
 clips:
-  - start: 121.73                 # video source time (seconds)
-    end: 127.11
-  - start: 130.80
-    end: 146.91
+  - audio_start: 179.87           # WAV time — build script converts to video time using sync_offset
+    audio_end: 190.63
+  - audio_start: 199.48
+    audio_end: 204.12
+  # OR for video-time clips (fast mode, no sync audio):
+  # - video_start: 48.35          # video time — no conversion needed
+  #   video_end: 58.73
 
 markers:
   - name: TITLE
@@ -667,7 +666,7 @@ markers:
 ```
 
 **Key conventions:**
-- `clips[].start/end` are video source times by default. Only set `time_domain: audio` if the transcript was generated from the production WAV (rare). When `audio`, the script converts using `video_time = audio_time - sync_offset`.
+- Clip times are self-describing: `audio_start`/`audio_end` for WAV-relative times (deep mode with dual-system audio classification), `video_start`/`video_end` for video-relative times (fast mode, or when transcript was from video audio). Never use bare `start`/`end` — the build script will reject them. The build script converts audio times to video times using `video_time = audio_time - sync_offset`.
 - `markers[].time` is TIMELINE position (after clips are assembled sequentially).
 - Breathing room buffer is applied automatically — don't pre-adjust clip times.
 - Offset sign: positive = audio started before video, negative = audio started after.

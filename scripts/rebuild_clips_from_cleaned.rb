@@ -20,6 +20,33 @@ def fmt(seconds)
   format("%02d:%05.2f", m, s)
 end
 
+# Extract start/end from a clip regardless of field name format.
+# Returns [start_value, end_value, format_type]
+# format_type: :audio, :video, or :legacy
+def clip_times(clip)
+  if clip['audio_start'] && clip['audio_end']
+    [clip['audio_start'].to_f, clip['audio_end'].to_f, :audio]
+  elsif clip['video_start'] && clip['video_end']
+    [clip['video_start'].to_f, clip['video_end'].to_f, :video]
+  elsif clip['start'] && clip['end']
+    [clip['start'].to_f, clip['end'].to_f, :legacy]
+  else
+    abort "Clip missing time fields: #{clip.inspect}"
+  end
+end
+
+# Create a clip hash in the given format
+def make_clip(start_val, end_val, format_type)
+  case format_type
+  when :audio
+    { 'audio_start' => start_val.round(2), 'audio_end' => end_val.round(2) }
+  when :video
+    { 'video_start' => start_val.round(2), 'video_end' => end_val.round(2) }
+  when :legacy
+    { 'start' => start_val.round(2), 'end' => end_val.round(2) }
+  end
+end
+
 yaml_path = ARGV[0]
 raw_path = ARGV[1]
 cleaned_path = ARGV[2]
@@ -46,8 +73,7 @@ new_clips = []
 changes = 0
 
 original_clips.each_with_index do |clip, idx|
-  cs = clip['start'].to_f
-  ce = clip['end'].to_f
+  cs, ce, fmt_type = clip_times(clip)
 
   # Find dropped segments that overlap with this clip
   overlapping = dropped_ranges.select { |d| d[:start] >= cs - 0.5 && d[:end] <= ce + 0.5 }
@@ -66,14 +92,14 @@ original_clips.each_with_index do |clip, idx|
   overlapping.each do |d|
     # Keep the portion before the dropped segment
     if current < d[:start] - 0.1
-      sub_ranges << { 'start' => current.round(2), 'end' => (d[:start] - 0.05).round(2) }
+      sub_ranges << make_clip(current, d[:start] - 0.05, fmt_type)
     end
     current = d[:end] + 0.05
     $stderr.puts "  Clip #{idx + 1}: excising #{fmt(d[:start])}-#{fmt(d[:end])} (\"#{d[:text][0..60]}\")"
   end
   # Keep the portion after the last dropped segment
   if current < ce - 0.1
-    sub_ranges << { 'start' => current.round(2), 'end' => ce.round(2) }
+    sub_ranges << make_clip(current, ce, fmt_type)
   end
 
   sub_ranges.each { |sr| new_clips << sr }
@@ -92,8 +118,8 @@ config['clips'] = new_clips
 # (markers are timeline positions — they'll be recomputed by build_structure_cut.rb)
 
 # Compute duration delta
-old_dur = original_clips.sum { |c| c['end'].to_f - c['start'].to_f }
-new_dur = new_clips.sum { |c| c['end'].to_f - c['start'].to_f }
+old_dur = original_clips.sum { |c| s, e, _ = clip_times(c); e - s }
+new_dur = new_clips.sum { |c| s, e, _ = clip_times(c); e - s }
 delta = old_dur - new_dur
 
 $stderr.puts "---"
