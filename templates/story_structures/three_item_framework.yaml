@@ -1,0 +1,27 @@
+name: three_item_framework
+description: "Promise a numbered framework, deliver each item, then show how to apply"
+beats:
+  - id: hook_claim
+    description: "Bold claim that sets up the framework"
+    keywords: ["$", made, first, month, results, secret, how, reveal, discovered, way]
+    position: early
+  - id: setup
+    description: "Preview or introduce the framework structure"
+    keywords: [three things, steps, framework, simple, just, need, only, items, parts, list]
+    position: early_mid
+  - id: item_1
+    description: "First framework element with explanation"
+    keywords: [first, one, service, freelancer, partner, find, get, start, step, number]
+    position: mid
+  - id: item_2
+    description: "Second framework element with explanation"
+    keywords: [second, two, niche, pick, choose, market, target, specific, focus, narrow]
+    position: mid
+  - id: item_3
+    description: "Third framework element with explanation"
+    keywords: [third, three, outreach, email, reach, contact, call, pitch, send, phone]
+    position: late_mid
+  - id: application
+    description: "How to apply the framework or CTA"
+    keywords: [go, start, now, today, apply, do, action, try, begin, first, step]
+    position: late

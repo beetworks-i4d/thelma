@@ -1,0 +1,23 @@
+name: personal_transformation
+description: "Share a personal before/after journey with a universal lesson"
+beats:
+  - id: before_state
+    description: "Where the speaker or subject started — the old way"
+    keywords: [used to, before, was, didn't know, struggled, wasted, lost, stuck, broke]
+    position: early
+  - id: turning_point
+    description: "The moment everything changed"
+    keywords: [realized, discovered, moment, changed, finally, clicked, saw, hit me, woke up]
+    position: early_mid
+  - id: action
+    description: "What was done differently after the realization"
+    keywords: [started, built, tried, decided, committed, focused, stopped, switched, did]
+    position: mid
+  - id: result
+    description: "The concrete outcome of the new approach"
+    keywords: ["$", made, earned, grew, clients, revenue, first, month, results, doubled]
+    position: late_mid
+  - id: lesson
+    description: "The universal principle drawn from the experience"
+    keywords: [lesson, principle, truth, realize, applies, beyond, universal, everyone, you]
+    position: late

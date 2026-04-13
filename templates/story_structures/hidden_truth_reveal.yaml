@@ -1,0 +1,23 @@
+name: hidden_truth_reveal
+description: "Challenge conventional wisdom and reveal what actually works"
+beats:
+  - id: conventional_wisdom
+    description: "State what most people believe or do"
+    keywords: [most people, everyone, supposed to, told, advice, common, typical, normal]
+    position: early
+  - id: challenge
+    description: "Question or undermine the conventional approach"
+    keywords: [wrong, doesn't work, lie, myth, actually, truth is, problem, broken, fake]
+    position: early_mid
+  - id: hidden_truth
+    description: "Reveal the real mechanism or overlooked insight"
+    keywords: [real, actually, truth, secret, what works, hidden, overlooked, nobody, missed]
+    position: mid
+  - id: evidence
+    description: "Back up the hidden truth with proof"
+    keywords: ["$", results, proof, example, showed, data, numbers, worked, case, story]
+    position: late_mid
+  - id: reframe
+    description: "Restate the world through the new lens"
+    keywords: [means, perspective, way, see, think, realize, changes, game, whole, focus]
+    position: late

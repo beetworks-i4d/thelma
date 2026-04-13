@@ -2,7 +2,7 @@
 # branch_a_batch.rb — Batch Branch A (script-driven) processing for Dylan Shorts Batch 1
 #
 # Usage: ruby scripts/branch_a_batch.rb [short_numbers...]
-#   No args = process all shorts 2-27 (skip 1, already done)
+#   No args = process all shorts 1-30
 #   Args = process specific shorts, e.g.: ruby scripts/branch_a_batch.rb 2 3 4
 
 require 'yaml'
@@ -33,13 +33,13 @@ def tc(t)
   '%02d:%02d:%05.2f' % [h, m, s]
 end
 
-def word_overlap(text_a, text_b)
-  return 0.0 if text_a.nil? || text_b.nil? || text_a.empty? || text_b.empty?
-  words_a = text_a.downcase.gsub(/[^a-z0-9\s]/, '').split.reject { |w| w.length < 3 }
-  words_b = text_b.downcase.gsub(/[^a-z0-9\s]/, '').split.reject { |w| w.length < 3 }
-  return 0.0 if words_a.empty? || words_b.empty?
-  intersection = (words_a & words_b).length
-  intersection.to_f / [words_a.length, words_b.length].min
+def word_overlap(script_text, transcript_text)
+  return 0.0 if script_text.nil? || transcript_text.nil? || script_text.empty? || transcript_text.empty?
+  words_script = script_text.downcase.gsub(/[^a-z0-9\s]/, '').split.reject { |w| w.length < 3 }
+  words_transcript = transcript_text.downcase.gsub(/[^a-z0-9\s]/, '').split.reject { |w| w.length < 3 }
+  return 0.0 if words_script.empty? || words_transcript.empty?
+  intersection = (words_script & words_transcript).length
+  intersection.to_f / words_script.length
 end
 
 def segment_quality(seg)
@@ -106,12 +106,12 @@ def merge_continuous_clips(segments, gap_threshold: 1.5)
     if seg['start'] - current_end <= gap_threshold
       current_end = seg['end']
     else
-      clips << { 'start' => current_start, 'end' => current_end }
+      clips << { 'video_start' => current_start, 'video_end' => current_end }
       current_start = seg['start']
       current_end = seg['end']
     end
   end
-  clips << { 'start' => current_start, 'end' => current_end }
+  clips << { 'video_start' => current_start, 'video_end' => current_end }
   clips
 end
 
@@ -167,7 +167,7 @@ end
 # Determine which shorts to process
 requested = ARGV.map(&:to_i)
 shorts_to_process = if requested.empty?
-  (2..27).to_a
+  (1..30).to_a
 else
   requested
 end
@@ -212,29 +212,67 @@ shorts_to_process.each do |num|
   padded = '%02d' % num
   $stderr.puts "\n=== Short ##{padded}: #{short_def['title']} ==="
 
-  # Load existing fast mode YAML for scope reference
+  # Load scope: from fast mode YAML if available, else search transcripts
   fast_path = File.join(OUTPUT_DIR, "Short_#{padded}.yaml")
-  unless File.exist?(fast_path)
-    $stderr.puts "  WARNING: No fast mode YAML at #{fast_path}, skipping"
-    next
-  end
-  fast_yaml = YAML.load_file(fast_path)
-  video_path = fast_yaml['video_path']
-  video_basename = File.basename(video_path)
-  video_info = video_lookup[video_basename]
+  fast_yaml = File.exist?(fast_path) ? YAML.load_file(fast_path) : nil
 
-  # Load transcript
-  transcript = load_transcript(video_basename, TRANSCRIPTS_DIR, transcript_cache)
-  unless transcript
-    $stderr.puts "  SKIP: no transcript"
-    next
-  end
-  all_segments = transcript['segments']
+  if fast_yaml
+    video_path = fast_yaml['video_path']
+    video_basename = File.basename(video_path)
+    video_info = video_lookup[video_basename]
 
-  # Get scope from fast mode clips
-  fast_clips = fast_yaml['clips']
-  scope_start = fast_clips.first['start']
-  scope_end = fast_clips.last['end']
+    transcript = load_transcript(video_basename, TRANSCRIPTS_DIR, transcript_cache)
+    unless transcript
+      $stderr.puts "  SKIP: no transcript"
+      next
+    end
+    all_segments = transcript['segments']
+
+    fast_clips = fast_yaml['clips']
+    scope_start = fast_clips.first['start']
+    scope_end = fast_clips.last['end']
+  else
+    # No fast-mode YAML — search all video transcripts for best hook match
+    $stderr.puts "  No fast mode YAML — searching transcripts for hook text..."
+    hook_text = short_def['beats'].find { |b| b['role'] == 'hook' }['text']
+    close_text = short_def['beats'].find { |b| b['role'] == 'close' }['text']
+
+    best_video = nil
+    best_score = 0
+    best_seg_idx = nil
+
+    library['videos'].each do |v|
+      vbase = File.basename(v['path'])
+      t = load_transcript(vbase, TRANSCRIPTS_DIR, transcript_cache)
+      next unless t
+      t['segments'].each_with_index do |seg, idx|
+        score = word_overlap(hook_text, seg['text'])
+        if score > best_score
+          best_score = score
+          best_video = v
+          best_seg_idx = idx
+        end
+      end
+    end
+
+    unless best_video && best_score > 0.1
+      $stderr.puts "  SKIP: could not match hook text to any transcript (best score: #{best_score.round(3)})"
+      next
+    end
+
+    video_path = best_video['path']
+    video_basename = File.basename(video_path)
+    video_info = best_video
+    $stderr.puts "  Matched to #{video_basename} (score: #{best_score.round(3)})"
+
+    transcript = load_transcript(video_basename, TRANSCRIPTS_DIR, transcript_cache)
+    all_segments = transcript['segments']
+
+    # Build scope: from 30s before best hook match to end of video (or +5min, whichever is less)
+    hook_seg = all_segments[best_seg_idx]
+    scope_start = [hook_seg['start'] - 30, 0].max
+    scope_end = [hook_seg['start'] + 300, all_segments.last['end']].min
+  end
 
   # Get segments in scope
   scope_segments = all_segments.select { |s| s['start'] >= scope_start - 1 && s['end'] <= scope_end + 1 }
@@ -255,51 +293,116 @@ shorts_to_process.each do |num|
   hook_candidates.sort_by! { |s| -word_overlap(hook_beat['text'], s['text']) }
   best_hook_start = hook_candidates.first['start']
 
-  # Find all segments near the best hook that form a continuous cluster
-  hook_segments = scope_segments.select { |s|
-    s['start'] >= best_hook_start - 0.5 &&
-    s['start'] < best_hook_start + 30 &&
-    (word_overlap(hook_beat['text'], s['text']) > 0.15 || s['start'] - best_hook_start < 2)
-  }
-  # Trim to just the hook content — stop at first segment with no overlap that's > 3s after start
-  trimmed_hook = [hook_segments.first]
-  hook_segments[1..].each do |seg|
-    break if seg['start'] - trimmed_hook.last['end'] > 3
-    overlap = word_overlap(hook_beat['text'], seg['text'])
-    # Keep if it overlaps with hook text OR is a natural continuation (< 1s gap)
-    if overlap > 0.1 || seg['start'] - trimmed_hook.last['end'] < 1.5
-      trimmed_hook << seg
-    else
-      break
+  # Build hook cluster bidirectionally from best match
+  best_hook_idx = scope_segments.index { |s| s['start'] == best_hook_start }
+
+  # Expand backward from best match
+  backward_hook = []
+  if best_hook_idx && best_hook_idx > 0
+    (best_hook_idx - 1).downto(0) do |i|
+      seg = scope_segments[i]
+      break if best_hook_start - seg['end'] > 3
+      overlap = word_overlap(hook_beat['text'], seg['text'])
+      if overlap > 0.1 || best_hook_start - seg['end'] < 1.5
+        backward_hook.unshift(seg)
+      else
+        break
+      end
     end
   end
-  hook_segments = trimmed_hook
+
+  # Expand forward from best match — stop if segment matches close better than hook
+  forward_hook = [scope_segments[best_hook_idx]]
+  if best_hook_idx
+    (best_hook_idx + 1...scope_segments.length).each do |i|
+      seg = scope_segments[i]
+      break if seg['start'] - forward_hook.last['end'] > 3
+      hook_overlap = word_overlap(hook_beat['text'], seg['text'])
+      close_overlap = word_overlap(close_beat['text'], seg['text'])
+      # Stop if this segment is a better match for the close than the hook
+      break if close_overlap > hook_overlap && close_overlap > 0.15
+      if hook_overlap > 0.1 || seg['start'] - forward_hook.last['end'] < 1.5
+        forward_hook << seg
+      else
+        break
+      end
+    end
+  end
+
+  hook_segments = backward_hook + forward_hook
 
   $stderr.puts "  Hook: #{hook_segments.length} segments, #{fmt(hook_segments.first['start'])}-#{fmt(hook_segments.last['end'])}"
 
-  # --- Match CLOSE ---
-  close_candidates = scope_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.3 }
+  # --- Match CLOSE (excluding hook segments) ---
+  non_hook_segments = scope_segments.reject { |s| hook_segments.include?(s) }
+
+  close_candidates = non_hook_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.3 }
   if close_candidates.empty?
-    close_candidates = scope_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.15 }
+    close_candidates = non_hook_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.15 }
   end
   if close_candidates.empty?
-    # Fall back to segments near the hook (close often recorded right after hook)
+    # Fall back: check if hook greedily absorbed close segments — try ALL scope segments
+    all_close_candidates = scope_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.25 }
+    if all_close_candidates.any?
+      # Steal the best close match from hook and re-trim hook
+      all_close_candidates.sort_by! { |s| -word_overlap(close_beat['text'], s['text']) }
+      stolen = all_close_candidates.first
+      close_candidates = [stolen]
+      # Remove stolen segment and everything after it from hook
+      stolen_idx = hook_segments.index(stolen)
+      if stolen_idx
+        hook_segments = hook_segments[0...stolen_idx]
+        $stderr.puts "  Close: reclaimed from hook — re-trimmed hook to #{hook_segments.length} segments"
+      end
+    end
+  end
+  if close_candidates.empty?
+    # Last resort: segments right after hook
     hook_end = hook_segments.last['end']
-    close_candidates = scope_segments.select { |s| s['start'] > hook_end && s['start'] < hook_end + 30 }
+    close_candidates = non_hook_segments.select { |s| s['start'] > hook_end && s['start'] < hook_end + 30 }
   end
 
   # Prefer the best overlap
   close_candidates.sort_by! { |s| -word_overlap(close_beat['text'], s['text']) }
-  close_segments = close_candidates.empty? ? [] : [close_candidates.first]
 
-  # If close is multi-sentence, grab adjacent segments
-  if close_segments.any? && word_overlap(close_beat['text'], close_segments.first['text']) < 0.6
-    close_start = close_segments.first['start']
-    nearby = scope_segments.select { |s|
-      s['start'] >= close_start - 1 && s['end'] <= close_start + 15 &&
-      !hook_segments.include?(s) && word_overlap(close_beat['text'], s['text']) > 0.1
-    }
-    close_segments = nearby.sort_by { |s| s['start'] } if nearby.length > close_segments.length
+  if close_candidates.any?
+    best_close = close_candidates.first
+    best_close_idx = scope_segments.index { |s| s['start'] == best_close['start'] }
+
+    # Build close cluster bidirectionally from best match (excluding hook segments)
+    backward_close = []
+    if best_close_idx && best_close_idx > 0
+      (best_close_idx - 1).downto(0) do |i|
+        seg = scope_segments[i]
+        break if best_close['start'] - seg['end'] > 3
+        break if hook_segments.include?(seg)
+        overlap = word_overlap(close_beat['text'], seg['text'])
+        if overlap > 0.1 || best_close['start'] - seg['end'] < 1.5
+          backward_close.unshift(seg)
+        else
+          break
+        end
+      end
+    end
+
+    forward_close = [best_close]
+    if best_close_idx
+      (best_close_idx + 1...scope_segments.length).each do |i|
+        seg = scope_segments[i]
+        break if seg['start'] - forward_close.last['end'] > 3
+        break if hook_segments.include?(seg)
+        overlap = word_overlap(close_beat['text'], seg['text'])
+        if overlap > 0.1 || seg['start'] - forward_close.last['end'] < 1.5
+          forward_close << seg
+        else
+          break
+        end
+      end
+    end
+
+    close_segments = backward_close + forward_close
+  else
+    close_segments = []
   end
 
   if close_segments.any?
@@ -407,11 +510,11 @@ shorts_to_process.each do |num|
     beat_boundaries << { time: timeline_pos, role: group[:role], index: gi }
     group[:clips].each do |clip|
       clips << clip
-      timeline_pos += clip['end'] - clip['start']
+      timeline_pos += clip['video_end'] - clip['video_start']
     end
   end
 
-  total_duration = clips.sum { |c| c['end'] - c['start'] }
+  total_duration = clips.sum { |c| c['video_end'] - c['video_start'] }
   source_material = scope_end - scope_start
   total_clips = clips.length
 
@@ -449,11 +552,11 @@ shorts_to_process.each do |num|
     'breathing_room_frames' => 3
   }
 
-  if fast_yaml['sync_audio']
+  if fast_yaml && fast_yaml['sync_audio']
     yaml_data['sync_audio'] = fast_yaml['sync_audio']
   end
 
-  if fast_yaml['speech_analysis']
+  if fast_yaml && fast_yaml['speech_analysis']
     yaml_data['speech_analysis'] = fast_yaml['speech_analysis']
   elsif video_info && video_info['speech_analysis']
     yaml_data['speech_analysis'] = File.join(TRANSCRIPTS_DIR, video_info['speech_analysis'])
@@ -484,13 +587,13 @@ shorts_to_process.each do |num|
     cl = classify_beat(group[:role], group[:beat_text])
     group[:clips].each do |clip|
       # Find the original transcript text for this clip range
-      matching_segs = scope_segments.select { |s| s['start'] >= clip['start'] - 0.5 && s['end'] <= clip['end'] + 0.5 }
+      matching_segs = scope_segments.select { |s| s['start'] >= clip['video_start'] - 0.5 && s['end'] <= clip['video_end'] + 0.5 }
       text = matching_segs.map { |s| s['text'].strip }.join(' ')
       text = text[0..150] if text.length > 150
 
       classification['segments_used'] << {
-        't' => clip['start'].round(2),
-        'e' => clip['end'].round(2),
+        't' => clip['video_start'].round(2),
+        'e' => clip['video_end'].round(2),
         'beat' => group[:role],
         'text' => text,
         'states' => cl[:states],
@@ -510,7 +613,7 @@ shorts_to_process.each do |num|
     beat_log << {
       'beat' => group[:role],
       'script_text' => group[:beat_text][0..100],
-      'matched_clips' => group[:clips].map { |c| "#{c['start'].round(2)}-#{c['end'].round(2)}" },
+      'matched_clips' => group[:clips].map { |c| "#{c['video_start'].round(2)}-#{c['video_end'].round(2)}" },
       'match_type' => (group[:role] == 'hook' || group[:role] == 'close') ? 'near_verbatim' : 'thematic',
       'confidence' => (group[:role] == 'hook' || group[:role] == 'close') ? 'high' : 'medium'
     }

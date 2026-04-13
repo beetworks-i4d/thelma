@@ -11,7 +11,8 @@
 #   3. Single-word filler: segments <1.5s with only filler words → drop entirely
 #   4. Trailing-off: repeated end words, partial words, "..." then clean restart → drop first
 #   5. Within-segment de-stutter: internal phrase repeats, partial restarts, word-level repeats
-#      Pause-aware: if Silero speech analysis is provided (--speech-analysis <path>),
+#      Default: all repeats are cut (no pause analysis).
+#      --protect-rhetorical: if Silero speech analysis is provided (--speech-analysis <path>),
 #      phrase repeats separated by >250ms silence are treated as rhetorical repetition
 #      and kept. Under 250ms or no speech data → remove first occurrence as stutter.
 #
@@ -217,24 +218,33 @@ def destutter_segment(seg, speech_segs = nil)
   [new_seg, reasons]
 end
 
-# Parse arguments: transcript path + optional --speech-analysis <path>
+# Parse arguments: transcript path + optional flags
 args = ARGV.dup
 speech_analysis_path = nil
+protect_rhetorical = false
+
 if (sa_idx = args.index('--speech-analysis'))
   speech_analysis_path = args[sa_idx + 1]
   args.slice!(sa_idx, 2)
 end
 
+if (pr_idx = args.index('--protect-rhetorical'))
+  protect_rhetorical = true
+  args.slice!(pr_idx, 1)
+end
+
 path = args[0]
-abort "Usage: ruby scripts/transcript_cleanup.rb <transcript.json> [--speech-analysis <path>]" unless path
+abort "Usage: ruby scripts/transcript_cleanup.rb <transcript.json> [--speech-analysis <path>] [--protect-rhetorical]" unless path
 abort "File not found: #{path}" unless File.exist?(path)
 
 speech_segs = nil
-if speech_analysis_path
+if speech_analysis_path && protect_rhetorical
   abort "Speech analysis not found: #{speech_analysis_path}" unless File.exist?(speech_analysis_path)
   sa_data = JSON.parse(File.read(speech_analysis_path))
   speech_segs = sa_data['speech_segments'] || []
-  $stderr.puts "Loaded speech analysis: #{speech_segs.size} segments"
+  $stderr.puts "Loaded speech analysis: #{speech_segs.size} segments (rhetorical protection enabled)"
+elsif speech_analysis_path && !protect_rhetorical
+  $stderr.puts "Speech analysis provided but --protect-rhetorical not set — all repeats will be cut"
 end
 
 data = JSON.parse(File.read(path))

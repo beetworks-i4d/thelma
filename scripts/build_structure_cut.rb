@@ -20,15 +20,15 @@
 #     path: /absolute/path/to/audio.wav
 #     offset: 50.41                   # positive=audio before video
 #
-#   time_domain: video               # optional: "audio" or "video" (default: "video")
-#                                    # "video" = clip times are video-relative (normal case)
-#                                    # "audio" = clip times are WAV-relative, converted using sync_offset
-#                                    # Only use "audio" if transcript was generated from the production WAV,
-#                                    # not the video's audio track. WhisperX on video → use "video".
+#   # time_domain: deprecated — use audio_start/audio_end or video_start/video_end instead.
+#   #   Legacy start/end + time_domain still works but logs deprecation warnings.
+#   #   Bare start/end WITHOUT time_domain will abort with an error.
 #
 #   clips:
-#     - start: 121.73                 # source time in the specified time_domain (seconds)
-#       end: 127.11
+#     - audio_start: 179.87           # WAV time — conversion mandatory (video_time = audio_time - sync_offset)
+#       audio_end: 190.63
+#     - video_start: 48.35            # video time — no conversion
+#       video_end: 58.73
 #
 #   auto_remove_pauses_above: 500    # optional, milliseconds (default 500)
 #                                    # Silero long pauses above this threshold inside a clip
@@ -224,25 +224,35 @@ pause_removal_markers = []
 removed_pause_count = 0
 total_removed_ms = 0
 
-# === Time domain conversion ===
-# When time_domain is "audio", clip start/end are audio times from the transcript/classification.
-# Convert to video time before all downstream processing.
-# Conversion: video_time = audio_time - sync_offset (offset sign: positive=audio before video, negative=audio after)
-audio_time_domain = config['time_domain'] == 'audio' && has_sync
-
-if audio_time_domain
-  $stderr.puts "Time domain: audio → converting to video time (offset: #{sync_offset}s)"
-end
-
+# === Per-clip time domain detection ===
+# Field names are self-describing:
+#   audio_start/audio_end → WAV time, convert to video time using sync_offset
+#   video_start/video_end → video time, use directly
+#   start/end (legacy) → requires time_domain flag, logs deprecation warning
 config['clips'].each_with_index do |c, idx|
-  start_time = c['start'].to_f
-  end_time = c['end'].to_f
-
-  # Convert audio time → video time if needed
-  if audio_time_domain
-    start_time = start_time - sync_offset
-    end_time = end_time - sync_offset
-    $stderr.puts "Clip #{idx + 1}: audio #{c['start']} → video #{'%.2f' % start_time}, audio #{c['end']} → video #{'%.2f' % end_time}"
+  if c['audio_start'] && c['audio_end']
+    abort "sync_audio required for audio_start/audio_end clips" unless has_sync
+    start_time = c['audio_start'].to_f - sync_offset
+    end_time = c['audio_end'].to_f - sync_offset
+    $stderr.puts "Clip #{idx + 1}: audio #{c['audio_start']} → video #{'%.2f' % start_time}, audio #{c['audio_end']} → video #{'%.2f' % end_time}"
+  elsif c['video_start'] && c['video_end']
+    start_time = c['video_start'].to_f
+    end_time = c['video_end'].to_f
+  elsif c['start'] && c['end']
+    if config['time_domain'] == 'audio'
+      abort "sync_audio required for time_domain: audio" unless has_sync
+      $stderr.puts "DEPRECATION: time_domain + start/end is deprecated. Use audio_start/audio_end instead." if idx == 0
+      start_time = c['start'].to_f - sync_offset
+      end_time = c['end'].to_f - sync_offset
+    elsif config.key?('time_domain')
+      $stderr.puts "DEPRECATION: time_domain + start/end is deprecated. Use video_start/video_end instead." if idx == 0
+      start_time = c['start'].to_f
+      end_time = c['end'].to_f
+    else
+      abort "ERROR: Clip #{idx + 1} uses bare 'start'/'end' without time_domain. Use audio_start/audio_end or video_start/video_end to specify time domain."
+    end
+  else
+    abort "ERROR: Clip #{idx + 1} missing time fields. Expected audio_start/audio_end or video_start/video_end."
   end
 
   abort "Clip end (#{end_time}) must be after start (#{start_time})" if end_time <= start_time
