@@ -228,6 +228,20 @@ Note: `build_structure_cut.rb` automatically removes internal long pauses (defau
 
 **Caching:** If `segments_classified.yaml` already exists and `transcript_hash` matches the current transcript's MD5, skip re-classifying. If the transcript has changed, re-run.
 
+**Validation (run automatically after classification):**
+
+After writing `segments_classified.yaml`, validate it:
+
+```bash
+ruby scripts/validate_classification.rb <segments_classified.yaml>
+```
+
+Exit codes: 0 = valid, 1 = structural errors, 2 = taxonomy violations, 3 = data errors. The JSON report on stdout lists every violation with segment ID and reason.
+
+**If validation fails:** Re-classify only the invalid segments — do NOT re-run the full classification. Read the JSON report, identify which segments have violations, and fix only those. Then re-validate. Repeat until exit 0.
+
+**Cache validation results:** The JSON report includes a `file_hash` (MD5 of the classified YAML). If the file hasn't changed since the last successful validation, skip re-validating.
+
 ### Phase 1.6: Storyline Discovery (deep mode only)
 
 After classification, run storyline discovery to surface candidate arcs from the classified segments. This produces `storylines.yaml` with ranked storyline candidates for Phase 2 editorial questions.
