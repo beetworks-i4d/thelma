@@ -64,7 +64,9 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 3. Run Phase 1.5 (classification, deep mode) — can be Task agent
 4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb`
 5. Run Phase 1.7 (template matching) — can be Task agent: `ruby scripts/match_templates.rb`
-6. Run Phase 1.8 (coherence scoring) — can be Task agent: `ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml>`
+6. Run Phase 1.8 (coherence scoring):
+   a. Run `ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml>`
+   b. If `llm_pass_pending: true` in output, run LLM coherence pass (see Phase 1.8 details below)
 7. Return to main conversation → Run Phase 2 (storyline selection) directly via AskUserQuestion
 8. Pass selected storyline(s) + branch assignment into Phase 3 Task agent prompt
 9. Run Phase 3 (arrangement + XML) — Task agent builds one output per selected candidate
@@ -299,6 +301,23 @@ ruby scripts/score_coherence.rb --no-llm <storylines_matched.yaml> <segments_cla
 **Output fields per storyline:** `algorithmic_coherence`, `llm_coherence` (nil until agent fills), `coherence_score` (= algorithmic until LLM pass), `coherence_issues`, `combined_score`, `passed_floor`, `rank` (within profile, top 3). Top-level: `scoring_mode` (`algorithmic_only` or `algorithmic_plus_llm`), `llm_pass_pending`.
 
 **`--no-llm` mode:** `coherence_score` = `algorithmic_coherence` (final). No prompts generated. Use for fast iteration or when LLM pass isn't needed.
+
+**LLM coherence pass (agent-executed):**
+After `score_coherence.rb` writes `storylines_scored.yaml`, check `llm_pass_pending`. If true:
+
+1. Read `storylines_scored.yaml`.
+2. For each storyline with an `llm_eval_prompt` field:
+   a. Read the prompt and evaluate the distilled clip order as a cold viewer.
+   b. Produce a score (0-100) and list specific issues (or empty list if none).
+   c. Set `llm_coherence` to the score.
+   d. Set `coherence_score` to the LLM score (replaces algorithmic placeholder).
+   e. Merge any LLM-identified issues into `coherence_issues` (prefix with "LLM: ").
+   f. Recompute `combined_score` = `(state_score × 0.3 + template_fit × 0.4 + coherence_score × 0.3).round`.
+   g. Recompute `passed_floor` = `combined_score >= 60`.
+3. Remove `llm_eval_prompt` from all storylines (consumed).
+4. Set `llm_pass_pending` to false.
+5. Re-rank within each profile (passing candidates, top 3 by combined_score).
+6. Write updated `storylines_scored.yaml` back.
 
 ### Phase 2: Storyline Selection — MAIN CONVERSATION ONLY
 
