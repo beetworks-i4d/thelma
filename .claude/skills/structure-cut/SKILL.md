@@ -496,6 +496,19 @@ States ARE used for: marker type selection, pacing, arrangement log.
 8. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 9. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For Branch A, the log documents beat matching decisions instead of state-based arrangement. Include: which transcript segments matched each beat, confidence of matches, unmatched beats, unused segments.
 
+**Batch processing (multi-short libraries):**
+
+For libraries with many shorts (e.g., 30 shorts from one recording session), use the batch script:
+
+```bash
+ruby scripts/branch_a_batch.rb --library <library-name> [--shorts 1..5]
+```
+
+- `--library` (required): library name, resolves to `libraries/<name>/library.yaml`
+- `--shorts` (optional): range of shorts to process (e.g., `1..10`). Defaults to all shorts in `script_parsed.yaml`.
+
+The batch script builds a unified timeline across all videos, finds hooks sequentially (forward-only), then processes each short through the Branch A algorithm above.
+
 **Edge cases:**
 - Script beat has no transcript match → Log warning, add NOTE marker: "Script beat not covered: [beat text]"
 - Transcript content not in script → List as "unused segments" in arrangement log

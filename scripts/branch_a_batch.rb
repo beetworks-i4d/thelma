@@ -1,15 +1,15 @@
 #!/usr/bin/env ruby
-# branch_a_batch.rb — Batch Branch A (script-driven) processing for Dylan Shorts Batch 1
+# branch_a_batch.rb — Batch Branch A (script-driven) processing
 #
 # Algorithm: Sequential forward-only hook discovery across ordered video transcripts.
 # 1. Build unified timeline from all video transcripts in library order
-# 2. Pass 1: Find all 30 hooks sequentially (forward-only, sliding window word overlap)
+# 2. Pass 1: Find all hooks sequentially (forward-only, sliding window word overlap)
 # 3. Scope = hook[i] to hook[i+1] (no fixed window, no global search)
 # 4. Per short: hook → all body content between hook and close → close
 #
-# Usage: ruby scripts/branch_a_batch.rb [short_numbers...]
-#   No args = process all shorts 1-30
-#   Args = process specific shorts, e.g.: ruby scripts/branch_a_batch.rb 2 3 4
+# Usage: ruby scripts/branch_a_batch.rb --library <library-name> [--shorts 1..5]
+#   --library  Library name (required). Resolves to libraries/<name>/library.yaml.
+#   --shorts   Range of shorts to process (optional). Defaults to all shorts in script.
 
 require 'yaml'
 require 'json'
@@ -18,11 +18,47 @@ require 'fileutils'
 require 'digest'
 require 'date'
 
-LIBRARY_DIR = File.expand_path('libraries/dylan-shorts-batch-1', __dir__.sub('/scripts', ''))
-PROJECT_DIR = '/Users/i4d/Desktop/RAW/Dylan Shorts Batch 1'
-OUTPUT_DIR = File.join(PROJECT_DIR, 'output')
+PROJECT_ROOT = ENV['BUTTERCUT_ROOT'] || File.expand_path('..', __dir__)
+BUILD_SCRIPT = File.join(PROJECT_ROOT, 'scripts', 'build_structure_cut.rb')
+
+# --- CLI parsing ---
+
+library_name = nil
+shorts_range = nil
+i = 0
+while i < ARGV.length
+  case ARGV[i]
+  when '--library'
+    library_name = ARGV[i + 1]
+    i += 2
+  when '--shorts'
+    shorts_range = ARGV[i + 1]
+    i += 2
+  else
+    abort "Unknown argument: #{ARGV[i]}\nUsage: ruby scripts/branch_a_batch.rb --library <library-name> [--shorts 1..5]"
+  end
+end
+
+abort "Usage: ruby scripts/branch_a_batch.rb --library <library-name> [--shorts 1..5]\n  --library is required" unless library_name
+
+# --- Derive paths from library.yaml ---
+
+LIBRARY_DIR = File.join(PROJECT_ROOT, 'libraries', library_name)
+library_yaml_path = File.join(LIBRARY_DIR, 'library.yaml')
+abort "Library not found: #{library_yaml_path}" unless File.exist?(library_yaml_path)
+
+library = YAML.load_file(library_yaml_path, permitted_classes: [Date])
+
+abort "No 'videos' in #{library_yaml_path}" unless library['videos'].is_a?(Array) && !library['videos'].empty?
+abort "No 'script_parsed' in #{library_yaml_path}. Branch A batch requires a parsed script." unless library['script_parsed']
+
 TRANSCRIPTS_DIR = File.join(LIBRARY_DIR, 'transcripts')
-BUILD_SCRIPT = File.expand_path('scripts/build_structure_cut.rb', __dir__.sub('/scripts', ''))
+script_parsed_path = File.join(TRANSCRIPTS_DIR, library['script_parsed'])
+abort "Script not found: #{script_parsed_path}" unless File.exist?(script_parsed_path)
+
+PROJECT_DIR = File.dirname(library['videos'].first['path'])
+OUTPUT_DIR = File.join(PROJECT_DIR, 'output')
+FileUtils.mkdir_p(OUTPUT_DIR)
 
 # --- Helpers ---
 
@@ -123,9 +159,8 @@ end
 
 # --- Load data ---
 
-$stderr.puts "Loading script and library..."
-script = YAML.load_file(File.join(TRANSCRIPTS_DIR, 'script_parsed.yaml'), permitted_classes: [Date])
-library = YAML.load_file(File.join(LIBRARY_DIR, 'library.yaml'), permitted_classes: [Date])
+$stderr.puts "Loading script and library (#{library_name})..."
+script = YAML.load_file(script_parsed_path, permitted_classes: [Date])
 
 # Build video lookup
 video_lookup = {}
@@ -135,11 +170,13 @@ library['videos'].each do |v|
 end
 
 # Determine which shorts to process
-requested = ARGV.map(&:to_i)
-shorts_to_process = if requested.empty?
-  (1..30).to_a
+all_short_numbers = script['shorts'].map { |s| s['number'] }.sort
+shorts_to_process = if shorts_range
+  match = shorts_range.match(/^(\d+)\.\.(\d+)$/)
+  abort "Invalid --shorts range: '#{shorts_range}'. Expected format: 1..5" unless match
+  (match[1].to_i..match[2].to_i).to_a
 else
-  requested
+  all_short_numbers
 end
 
 $stderr.puts "Processing #{shorts_to_process.length} shorts: #{shorts_to_process.join(', ')}"
