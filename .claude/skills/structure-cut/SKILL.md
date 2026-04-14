@@ -279,18 +279,26 @@ Loads 6 narrative templates from `templates/story_structures/` (problem_solution
 
 ### Phase 1.8: Coherence Scoring (deep mode only)
 
-After template matching, score narrative coherence and compute combined ranking in a single pass:
+Two-layer scoring: algorithmic pre-filter + LLM narrative judgment.
 
 ```bash
+# Default: algorithmic + LLM prompts for eligible candidates
 ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml>
+
+# Algorithmic-only (skip LLM layer):
+ruby scripts/score_coherence.rb --no-llm <storylines_matched.yaml> <segments_classified.yaml>
 ```
 
-Reads both files, reconstructs each candidate's distillation arc, scores coherence algorithmically (incompatible transitions, redundant state clusters, distillation diversity, arc completeness), computes combined score, applies quality floor, ranks, and writes `storylines_scored.yaml`. No intermediate files.
+**Layer 1 (algorithmic):** Reconstructs each candidate's distillation arc, scores coherence (incompatible transitions, redundant state clusters, distillation diversity, arc completeness). Fast, deterministic.
+
+**Layer 2 (LLM):** For candidates passing algorithmic threshold (≥ 50), the script embeds an `llm_eval_prompt` in the output. The agent reads each prompt, evaluates narrative coherence, and updates `llm_coherence` + `coherence_score` in place. This happens in the orchestrating conversation, not via API from Ruby.
 
 **Combined score:** `state_score × 0.3 + template_fit × 0.4 + coherence_score × 0.3`
 **Quality floor:** 60. Below = `passed_floor: false`.
 
-**Output:** `storylines_scored.yaml` — each storyline has `state_score`, `template_fit`, `coherence_score`, `coherence_issues`, `combined_score`, `passed_floor`, and `rank` (within profile, passing candidates only, top 3). This is the input for Phase 2 storyline selection.
+**Output fields per storyline:** `algorithmic_coherence`, `llm_coherence` (nil until agent fills), `coherence_score` (= algorithmic until LLM pass), `coherence_issues`, `combined_score`, `passed_floor`, `rank` (within profile, top 3). Top-level: `scoring_mode` (`algorithmic_only` or `algorithmic_plus_llm`), `llm_pass_pending`.
+
+**`--no-llm` mode:** `coherence_score` = `algorithmic_coherence` (final). No prompts generated. Use for fast iteration or when LLM pass isn't needed.
 
 ### Phase 2: Storyline Selection — MAIN CONVERSATION ONLY
 

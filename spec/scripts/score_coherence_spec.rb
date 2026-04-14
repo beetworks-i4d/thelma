@@ -5,13 +5,16 @@ require 'tmpdir'
 
 COHERENCE_SCRIPT = File.expand_path('../../scripts/score_coherence.rb', __dir__)
 
-def run_scorer(matched_yaml, classified_yaml)
+def run_scorer(matched_yaml, classified_yaml, no_llm: false)
   Dir.mktmpdir do |dir|
     matched_path = File.join(dir, 'storylines_matched.yaml')
     classified_path = File.join(dir, 'segments_classified.yaml')
     File.write(matched_path, matched_yaml.to_yaml)
     File.write(classified_path, classified_yaml.to_yaml)
-    stdout, stderr, status = Open3.capture3('ruby', COHERENCE_SCRIPT, matched_path, classified_path)
+    args = ['ruby', COHERENCE_SCRIPT]
+    args << '--no-llm' if no_llm
+    args += [matched_path, classified_path]
+    stdout, stderr, status = Open3.capture3(*args)
     output_path = File.join(dir, 'storylines_scored.yaml')
     scored = File.exist?(output_path) ? YAML.safe_load(File.read(output_path)) : nil
     { stdout: stdout.strip, stderr: stderr, exit_code: status.exitstatus, scored: scored }
@@ -114,7 +117,7 @@ RSpec.describe 'score_coherence.rb' do
     it 'includes all required output fields' do
       result = run_scorer(base_matched, base_classified)
       s = result[:scored]['storylines'].first
-      %w[id state_score template_fit coherence_score combined_score passed_floor].each do |field|
+      %w[id state_score template_fit algorithmic_coherence coherence_score combined_score passed_floor].each do |field|
         expect(s).to have_key(field), "missing field: #{field}"
       end
     end
@@ -194,6 +197,77 @@ RSpec.describe 'score_coherence.rb' do
       ranked = result[:scored]['storylines'].select { |s| s['rank'] }
       expect(ranked.size).to eq(2)
       expect(ranked.sort_by { |s| s['rank'] }.first['combined_score']).to be >= ranked.last['combined_score']
+    end
+  end
+
+  describe 'two-layer scoring schema' do
+    it 'includes algorithmic_coherence and llm_coherence fields' do
+      result = run_scorer(base_matched, base_classified)
+      s = result[:scored]['storylines'].first
+      expect(s).to have_key('algorithmic_coherence')
+      expect(s).to have_key('llm_coherence')
+      expect(s['algorithmic_coherence']).to be_a(Integer)
+      expect(s['llm_coherence']).to be_nil
+    end
+
+    it 'sets coherence_score equal to algorithmic_coherence (placeholder)' do
+      result = run_scorer(base_matched, base_classified)
+      s = result[:scored]['storylines'].first
+      expect(s['coherence_score']).to eq(s['algorithmic_coherence'])
+    end
+
+    it 'includes scoring_mode and llm_pass_pending in top-level output' do
+      result = run_scorer(base_matched, base_classified)
+      expect(result[:scored]['scoring_mode']).to eq('algorithmic_plus_llm')
+      expect(result[:scored]['llm_pass_pending']).to be true
+    end
+
+    it 'generates llm_eval_prompt for eligible candidates (algorithmic >= 50)' do
+      result = run_scorer(base_matched, base_classified)
+      s = result[:scored]['storylines'].first
+      expect(s['algorithmic_coherence']).to be >= 50
+      expect(s).to have_key('llm_eval_prompt')
+      expect(s['llm_eval_prompt']).to include('Score 0-100')
+      expect(s['llm_eval_prompt']).to include('Distilled clip order')
+    end
+
+    it 'skips llm_eval_prompt for sub-threshold candidates' do
+      matched = base_matched
+      # Force a storyline with no matching segments → algorithmic = 0
+      matched['storylines'][0]['hook_segment'] = 999.0
+      matched['storylines'][0]['close_segment'] = 999.9
+      result = run_scorer(matched, base_classified)
+      s = result[:scored]['storylines'].first
+      expect(s['algorithmic_coherence']).to be < 50
+      expect(s).not_to have_key('llm_eval_prompt')
+    end
+  end
+
+  describe '--no-llm mode' do
+    it 'sets scoring_mode to algorithmic_only' do
+      result = run_scorer(base_matched, base_classified, no_llm: true)
+      expect(result[:scored]['scoring_mode']).to eq('algorithmic_only')
+    end
+
+    it 'sets llm_pass_pending to false' do
+      result = run_scorer(base_matched, base_classified, no_llm: true)
+      expect(result[:scored]['llm_pass_pending']).to be false
+    end
+
+    it 'omits llm_eval_prompt from all storylines' do
+      result = run_scorer(base_matched, base_classified, no_llm: true)
+      result[:scored]['storylines'].each do |s|
+        expect(s).not_to have_key('llm_eval_prompt')
+      end
+    end
+
+    it 'still computes algorithmic_coherence and combined_score correctly' do
+      result = run_scorer(base_matched, base_classified, no_llm: true)
+      s = result[:scored]['storylines'].first
+      expect(s['algorithmic_coherence']).to be_a(Integer)
+      expect(s['coherence_score']).to eq(s['algorithmic_coherence'])
+      expected = (s['state_score'] * 0.3 + s['template_fit'] * 0.4 + s['coherence_score'] * 0.3).round
+      expect(s['combined_score']).to eq(expected)
     end
   end
 
