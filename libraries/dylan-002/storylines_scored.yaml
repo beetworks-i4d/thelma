@@ -1,0 +1,792 @@
+---
+generated_at: '2026-04-14T21:41:58+02:00'
+source: dylan-002
+transcript_hash: 828ae36f24c3ee4571fa82ef3e1303d7
+scoring_mode: algorithmic_plus_llm
+llm_pass_pending: true
+storylines:
+- id: single_longform_structural_business_led
+  profile: best_single_longform
+  state_score: 71
+  template_fit: 64
+  algorithmic_coherence: 60
+  llm_coherence:
+  coherence_score: 60
+  coherence_issues:
+  - No close segment — arc ends open
+  - 8-segment competence cluster (redundancy risk)
+  combined_score: 65
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - fear
+  - curiosity
+  hook_segment: 400.203
+  hook_signal: structural business weakness analysis
+  duration_estimate: 637
+  segment_count: 54
+  arc: Competence proof → vindication + fear → open
+  pitch: Opens on structural business weakness analysis, 53 body segments across 10:37.21,
+    closes on open end
+  template_match:
+    template: origin_story_lesson
+    fit_score: 64
+    completeness: 40
+    order_score: 100
+    missing_beats:
+    - personal_context
+    - discovery
+    - universal_principle
+    matched_beats:
+      struggle:
+        segment_t: 400.203
+        distillation: one-off sales no compounding — popular = hardest
+      result:
+        segment_t: 400.203
+        distillation: one-off sales no compounding — popular = hardest
+  llm_eval_prompt: |-
+    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
+
+    Score 0-100:
+    - 90-100: holds together completely, viewer can follow start to finish
+    - 70-89: mostly coherent, minor jumps or unclear transitions
+    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
+    - Below 50: fundamentally broken, doesn't work as a piece
+
+    List specific issues if any:
+    - Unexplained jumps in argument or topic
+    - Missing context for ideas the body assumes
+    - Conclusions that don't follow from what came before
+    - Lost threads
+    - Tonal or rhetorical shifts that break the frame
+
+    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
+
+    Template match: origin_story_lesson
+    Distilled clip order:
+    1. one-off sales no compounding
+    2. no moat million competitors
+    3. next model almost worked
+    4. dropshipping sell without touching
+    5. ads library killed margins
+    6. mannequin guy high-ticket pivot
+    7. high-ticket chairs and machines
+    8. high-ticket ad budget wall
+    9. 15-20% margins after all costs
+    10. payment processors hate dropshippers
+    11. Gymshark = branded dropshipping empire
+    12. brand manufacturing capital barrier
+    13. affiliate slow dropshipping costly
+    14. Amazon FBA most wasted
+    15. excited to sell journals
+    16. thousands upfront before single sale
+    17. $3-4k startup 10% margins
+    18. 3 months launch not sell
+    19. Amazon owns your customers
+    20. Google Trends shows oversaturation
+    21. no moat one exception
+    22. numbers prove permanent switch
+    23. drop servicing service arbitrage
+    24. freelancers sold to businesses
+    25. agency without delivery 50-90%
+    26. zero startup no inventory
+    27. freelancer portfolio reach businesses
+    28. first sale within days
+    29. source service close deals
+    30. massive digital services demand
+    31. 30% repeat client revenue
+    32. deeper reason beyond margins coming
+    33. all models moat problem
+    34. freelancer portfolios = free moat
+    35. proof from clients sells
+    36. each sale creates proof
+    37. fundamentally different from all others
+    38. year trying zero profit
+    39. kept silent no approval
+    40. only successful opinions valued
+    41. 3 months $850 then $10k
+    42. failures forgotten pain irrelevant
+    43. Steve London recruiter journey
+    44. Steve £300 to millions
+    45. brutal middle obvious hindsight
+    46. affiliate easiest start hardest
+    47. FBA costly platform dependent
+    48. dropshipping better needs capital
+    49. drop servicing cheap defensible
+    50. $100k/month current revenue
+    51. AI boom favors servicing
+    52. selling AI isn't profit
+    53. CTA to next video
+    54. CTA free training description link
+  rank: 1
+- id: single_longform_freetostart_trap_led
+  profile: best_single_longform
+  state_score: 71
+  template_fit: 64
+  algorithmic_coherence: 60
+  llm_coherence:
+  coherence_score: 60
+  coherence_issues:
+  - No close segment — arc ends open
+  - 8-segment competence cluster (redundancy risk)
+  combined_score: 65
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - fear
+  - curiosity
+  hook_segment: 382.267
+  hook_signal: free-to-start trap revealed with timeline
+  duration_estimate: 652
+  segment_count: 55
+  arc: Competence proof → vindication + fear → open
+  pitch: Opens on free-to-start trap revealed with timeline, 54 body segments across
+    10:51.94, closes on open end
+  template_match:
+    template: origin_story_lesson
+    fit_score: 64
+    completeness: 40
+    order_score: 100
+    missing_beats:
+    - personal_context
+    - discovery
+    - universal_principle
+    matched_beats:
+      struggle:
+        segment_t: 382.267
+        distillation: zero cost but 12 months to $1000/month
+      result:
+        segment_t: 382.267
+        distillation: zero cost but 12 months to $1000/month
+  llm_eval_prompt: |-
+    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
+
+    Score 0-100:
+    - 90-100: holds together completely, viewer can follow start to finish
+    - 70-89: mostly coherent, minor jumps or unclear transitions
+    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
+    - Below 50: fundamentally broken, doesn't work as a piece
+
+    List specific issues if any:
+    - Unexplained jumps in argument or topic
+    - Missing context for ideas the body assumes
+    - Conclusions that don't follow from what came before
+    - Lost threads
+    - Tonal or rhetorical shifts that break the frame
+
+    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
+
+    Template match: origin_story_lesson
+    Distilled clip order:
+    1. zero cost 12-month wait
+    2. one-off sales no compounding
+    3. no moat million competitors
+    4. next model almost worked
+    5. dropshipping sell without touching
+    6. ads library killed margins
+    7. mannequin guy high-ticket pivot
+    8. high-ticket chairs and machines
+    9. high-ticket ad budget wall
+    10. 15-20% margins after all costs
+    11. payment processors hate dropshippers
+    12. Gymshark = branded dropshipping empire
+    13. brand manufacturing capital barrier
+    14. affiliate slow dropshipping costly
+    15. Amazon FBA most wasted
+    16. excited to sell journals
+    17. thousands upfront before single sale
+    18. $3-4k startup 10% margins
+    19. 3 months launch not sell
+    20. Amazon owns your customers
+    21. Google Trends shows oversaturation
+    22. no moat one exception
+    23. numbers prove permanent switch
+    24. drop servicing service arbitrage
+    25. freelancers sold to businesses
+    26. agency without delivery 50-90%
+    27. zero startup no inventory
+    28. freelancer portfolio reach businesses
+    29. first sale within days
+    30. source service close deals
+    31. massive digital services demand
+    32. 30% repeat client revenue
+    33. deeper reason beyond margins coming
+    34. all models moat problem
+    35. freelancer portfolios = free moat
+    36. proof from clients sells
+    37. each sale creates proof
+    38. fundamentally different from all others
+    39. year trying zero profit
+    40. kept silent no approval
+    41. only successful opinions valued
+    42. 3 months $850 then $10k
+    43. failures forgotten pain irrelevant
+    44. Steve London recruiter journey
+    45. Steve £300 to millions
+    46. brutal middle obvious hindsight
+    47. affiliate easiest start hardest
+    48. FBA costly platform dependent
+    49. dropshipping better needs capital
+    50. drop servicing cheap defensible
+    51. $100k/month current revenue
+    52. AI boom favors servicing
+    53. selling AI isn't profit
+    54. CTA to next video
+    55. CTA free training description link
+  rank: 2
+- id: single_longform_concrete_math_led
+  profile: best_single_longform
+  state_score: 71
+  template_fit: 52
+  algorithmic_coherence: 60
+  llm_coherence:
+  coherence_score: 60
+  coherence_issues:
+  - No close segment — arc ends open
+  - 8-segment competence cluster (redundancy risk)
+  combined_score: 60
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - fear
+  - curiosity
+  hook_segment: 361.712
+  hook_signal: concrete math reveals brutal economics
+  duration_estimate: 670
+  segment_count: 57
+  arc: Competence proof → fear + vindication → open
+  pitch: Opens on concrete math reveals brutal economics, 56 body segments across
+    11:09.85, closes on open end
+  template_match:
+    template: hidden_truth_reveal
+    fit_score: 52
+    completeness: 20
+    order_score: 100
+    missing_beats:
+    - conventional_wisdom
+    - challenge
+    - hidden_truth
+    - reframe
+    matched_beats:
+      evidence:
+        segment_t: 361.712
+        distillation: 5-10% commission — $100 sale nets $5
+  llm_eval_prompt: |-
+    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
+
+    Score 0-100:
+    - 90-100: holds together completely, viewer can follow start to finish
+    - 70-89: mostly coherent, minor jumps or unclear transitions
+    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
+    - Below 50: fundamentally broken, doesn't work as a piece
+
+    List specific issues if any:
+    - Unexplained jumps in argument or topic
+    - Missing context for ideas the body assumes
+    - Conclusions that don't follow from what came before
+    - Lost threads
+    - Tonal or rhetorical shifts that break the frame
+
+    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
+
+    Template match: hidden_truth_reveal
+    Distilled clip order:
+    1. 5-10% commission tiny returns
+    2. no audience grinding pennies
+    3. zero cost 12-month wait
+    4. one-off sales no compounding
+    5. no moat million competitors
+    6. next model almost worked
+    7. dropshipping sell without touching
+    8. ads library killed margins
+    9. mannequin guy high-ticket pivot
+    10. high-ticket chairs and machines
+    11. high-ticket ad budget wall
+    12. 15-20% margins after all costs
+    13. payment processors hate dropshippers
+    14. Gymshark = branded dropshipping empire
+    15. brand manufacturing capital barrier
+    16. affiliate slow dropshipping costly
+    17. Amazon FBA most wasted
+    18. excited to sell journals
+    19. thousands upfront before single sale
+    20. $3-4k startup 10% margins
+    21. 3 months launch not sell
+    22. Amazon owns your customers
+    23. Google Trends shows oversaturation
+    24. no moat one exception
+    25. numbers prove permanent switch
+    26. drop servicing service arbitrage
+    27. freelancers sold to businesses
+    28. agency without delivery 50-90%
+    29. zero startup no inventory
+    30. freelancer portfolio reach businesses
+    31. first sale within days
+    32. source service close deals
+    33. massive digital services demand
+    34. 30% repeat client revenue
+    35. deeper reason beyond margins coming
+    36. all models moat problem
+    37. freelancer portfolios = free moat
+    38. proof from clients sells
+    39. each sale creates proof
+    40. fundamentally different from all others
+    41. year trying zero profit
+    42. kept silent no approval
+    43. only successful opinions valued
+    44. 3 months $850 then $10k
+    45. failures forgotten pain irrelevant
+    46. Steve London recruiter journey
+    47. Steve £300 to millions
+    48. brutal middle obvious hindsight
+    49. affiliate easiest start hardest
+    50. FBA costly platform dependent
+    51. dropshipping better needs capital
+    52. drop servicing cheap defensible
+    53. $100k/month current revenue
+    54. AI boom favors servicing
+    55. selling AI isn't profit
+    56. CTA to next video
+    57. CTA free training description link
+  rank: 3
+- id: short_freetostart_trap_led
+  profile: best_short
+  state_score: 94
+  template_fit: 44
+  algorithmic_coherence: 100
+  llm_coherence:
+  coherence_score: 100
+  combined_score: 76
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - fear
+  - vindication
+  - curiosity
+  hook_segment: 382.267
+  hook_signal: free-to-start trap revealed with timeline
+  close_segment: 455.093
+  close_signal: platform risk insight — moat destroyed
+  duration_estimate: 83
+  segment_count: 6
+  arc: Competence proof → vindication + fear → platform risk insight — moat destroyed
+  pitch: Opens on free-to-start trap revealed with timeline, 4 body segments across
+    1:23.26, closes on platform risk insight — moat destroyed
+  template_match:
+    template: problem_solution
+    fit_score: 44
+    completeness: 40
+    order_score: 50
+    missing_beats:
+    - evidence
+    - solution_reveal
+    - takeaway
+    matched_beats:
+      problem_statement:
+        segment_t: 382.267
+        distillation: zero cost but 12 months to $1000/month
+      proof:
+        segment_t: 382.267
+        distillation: zero cost but 12 months to $1000/month
+  llm_eval_prompt: |-
+    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
+
+    Score 0-100:
+    - 90-100: holds together completely, viewer can follow start to finish
+    - 70-89: mostly coherent, minor jumps or unclear transitions
+    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
+    - Below 50: fundamentally broken, doesn't work as a piece
+
+    List specific issues if any:
+    - Unexplained jumps in argument or topic
+    - Missing context for ideas the body assumes
+    - Conclusions that don't follow from what came before
+    - Lost threads
+    - Tonal or rhetorical shifts that break the frame
+
+    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
+
+    Template match: problem_solution
+    Distilled clip order:
+    1. zero cost 12-month wait
+    2. one-off sales no compounding
+    3. no moat million competitors
+    4. next model almost worked
+    5. dropshipping sell without touching
+    6. ads library killed margins
+  rank: 2
+- id: short_definitive_ranking_led
+  profile: best_short
+  state_score: 90
+  template_fit: 52
+  algorithmic_coherence: 97
+  llm_coherence:
+  coherence_score: 97
+  coherence_issues:
+  - 4-segment competence cluster (redundancy risk)
+  combined_score: 77
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - fear
+  - vindication
+  hook_segment: 988.757
+  hook_signal: definitive ranking with reasoning
+  close_segment: 1110.086
+  close_signal: contrarian AI take — differentiator
+  duration_estimate: 77
+  segment_count: 7
+  arc: Competence proof → fear + aspiration → contrarian ai take — differentiator
+  pitch: Opens on definitive ranking with reasoning, 5 body segments across 1:16.95,
+    closes on contrarian AI take — differentiator
+  template_match:
+    template: personal_transformation
+    fit_score: 52
+    completeness: 20
+    order_score: 100
+    missing_beats:
+    - before_state
+    - turning_point
+    - action
+    - lesson
+    matched_beats:
+      result:
+        segment_t: 1077.822
+        distillation: "$100k/month current revenue"
+  llm_eval_prompt: |-
+    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
+
+    Score 0-100:
+    - 90-100: holds together completely, viewer can follow start to finish
+    - 70-89: mostly coherent, minor jumps or unclear transitions
+    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
+    - Below 50: fundamentally broken, doesn't work as a piece
+
+    List specific issues if any:
+    - Unexplained jumps in argument or topic
+    - Missing context for ideas the body assumes
+    - Conclusions that don't follow from what came before
+    - Lost threads
+    - Tonal or rhetorical shifts that break the frame
+
+    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
+
+    Template match: personal_transformation
+    Distilled clip order:
+    1. affiliate easiest start hardest
+    2. FBA costly platform dependent
+    3. dropshipping better needs capital
+    4. drop servicing cheap defensible
+    5. $100k/month current revenue
+    6. AI boom favors servicing
+    7. selling AI isn't profit
+  rank: 1
+- id: short_nuanced_ranking_led
+  profile: best_short
+  state_score: 87
+  template_fit: 50
+  algorithmic_coherence: 90
+  llm_coherence:
+  coherence_score: 90
+  coherence_issues:
+  - Short body (1 segments) — limited narrative development
+  combined_score: 73
+  passed_floor: true
+  primary_state: competence
+  secondary_states: []
+  hook_segment: 997.625
+  hook_signal: nuanced ranking with tradeoffs
+  close_segment: 1064.815
+  close_signal: final ranking — drop servicing wins
+  duration_estimate: 31
+  segment_count: 3
+  arc: Competence proof → body → final ranking — drop servicing wins
+  pitch: Opens on nuanced ranking with tradeoffs, 1 body segments across 0:31.06,
+    closes on final ranking — drop servicing wins
+  template_match:
+    template: three_item_framework
+    fit_score: 50
+    completeness: 17
+    order_score: 100
+    missing_beats:
+    - hook_claim
+    - item_1
+    - item_2
+    - item_3
+    - application
+    matched_beats:
+      setup:
+        segment_t: 1054.41
+        distillation: dropshipping better — needs capital and stomach
+  llm_eval_prompt: |-
+    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
+
+    Score 0-100:
+    - 90-100: holds together completely, viewer can follow start to finish
+    - 70-89: mostly coherent, minor jumps or unclear transitions
+    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
+    - Below 50: fundamentally broken, doesn't work as a piece
+
+    List specific issues if any:
+    - Unexplained jumps in argument or topic
+    - Missing context for ideas the body assumes
+    - Conclusions that don't follow from what came before
+    - Lost threads
+    - Tonal or rhetorical shifts that break the frame
+
+    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
+
+    Template match: three_item_framework
+    Distilled clip order:
+    1. FBA costly platform dependent
+    2. dropshipping better needs capital
+    3. drop servicing cheap defensible
+  rank: 3
+- id: medium_platform_dependency_led
+  profile: best_medium
+  state_score: 98
+  template_fit: 64
+  algorithmic_coherence: 97
+  llm_coherence:
+  coherence_score: 97
+  coherence_issues:
+  - 4-segment competence cluster (redundancy risk)
+  combined_score: 84
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - curiosity
+  - vindication
+  hook_segment: 651.368
+  hook_signal: platform dependency risk + IP theft
+  close_segment: 857.438
+  close_signal: flywheel = the structural advantage
+  duration_estimate: 210
+  segment_count: 18
+  arc: Competence proof → vindication + fear → flywheel = the structural advantage
+  pitch: Opens on platform dependency risk + IP theft, 16 body segments across 3:29.61,
+    closes on flywheel = the structural advantage
+  template_match:
+    template: personal_transformation
+    fit_score: 64
+    completeness: 40
+    order_score: 100
+    missing_beats:
+    - before_state
+    - turning_point
+    - action
+    matched_beats:
+      result:
+        segment_t: 753.78
+        distillation: first sale in days — no 3-month ramp
+      lesson:
+        segment_t: 800.135
+        distillation: deeper reason beyond margins coming
+  llm_eval_prompt: |-
+    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
+
+    Score 0-100:
+    - 90-100: holds together completely, viewer can follow start to finish
+    - 70-89: mostly coherent, minor jumps or unclear transitions
+    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
+    - Below 50: fundamentally broken, doesn't work as a piece
+
+    List specific issues if any:
+    - Unexplained jumps in argument or topic
+    - Missing context for ideas the body assumes
+    - Conclusions that don't follow from what came before
+    - Lost threads
+    - Tonal or rhetorical shifts that break the frame
+
+    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
+
+    Template match: personal_transformation
+    Distilled clip order:
+    1. Amazon owns your customers
+    2. Google Trends shows oversaturation
+    3. no moat one exception
+    4. numbers prove permanent switch
+    5. drop servicing service arbitrage
+    6. freelancers sold to businesses
+    7. agency without delivery 50-90%
+    8. zero startup no inventory
+    9. freelancer portfolio reach businesses
+    10. first sale within days
+    11. source service close deals
+    12. massive digital services demand
+    13. 30% repeat client revenue
+    14. deeper reason beyond margins coming
+    15. all models moat problem
+    16. freelancer portfolios = free moat
+    17. proof from clients sells
+    18. each sale creates proof
+  rank: 2
+- id: medium_numbers_contextualized_led
+  profile: best_medium
+  state_score: 98
+  template_fit: 63
+  algorithmic_coherence: 94
+  llm_coherence:
+  coherence_score: 94
+  coherence_issues:
+  - 5-segment competence cluster (redundancy risk)
+  combined_score: 83
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - curiosity
+  - fear
+  hook_segment: 621.987
+  hook_signal: numbers contextualized to broke reality
+  close_segment: 831.433
+  close_signal: solves the moat problem elegantly
+  duration_estimate: 208
+  segment_count: 18
+  arc: Competence proof → fear + outrage → solves the moat problem elegantly
+  pitch: Opens on numbers contextualized to broke reality, 16 body segments across
+    3:27.58, closes on solves the moat problem elegantly
+  template_match:
+    template: personal_transformation
+    fit_score: 63
+    completeness: 60
+    order_score: 67
+    missing_beats:
+    - turning_point
+    - action
+    matched_beats:
+      before_state:
+        segment_t: 621.987
+        distillation: "$3-4k startup 10% margin — broke perspective"
+      result:
+        segment_t: 621.987
+        distillation: "$3-4k startup 10% margin — broke perspective"
+      lesson:
+        segment_t: 800.135
+        distillation: deeper reason beyond margins coming
+  llm_eval_prompt: |-
+    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
+
+    Score 0-100:
+    - 90-100: holds together completely, viewer can follow start to finish
+    - 70-89: mostly coherent, minor jumps or unclear transitions
+    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
+    - Below 50: fundamentally broken, doesn't work as a piece
+
+    List specific issues if any:
+    - Unexplained jumps in argument or topic
+    - Missing context for ideas the body assumes
+    - Conclusions that don't follow from what came before
+    - Lost threads
+    - Tonal or rhetorical shifts that break the frame
+
+    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
+
+    Template match: personal_transformation
+    Distilled clip order:
+    1. $3-4k startup 10% margins
+    2. 3 months launch not sell
+    3. Amazon owns your customers
+    4. Google Trends shows oversaturation
+    5. no moat one exception
+    6. numbers prove permanent switch
+    7. drop servicing service arbitrage
+    8. freelancers sold to businesses
+    9. agency without delivery 50-90%
+    10. zero startup no inventory
+    11. freelancer portfolio reach businesses
+    12. first sale within days
+    13. source service close deals
+    14. massive digital services demand
+    15. 30% repeat client revenue
+    16. deeper reason beyond margins coming
+    17. all models moat problem
+    18. freelancer portfolios = free moat
+  rank: 3
+- id: medium_barrier_elimination_led
+  profile: best_medium
+  state_score: 97
+  template_fit: 68
+  algorithmic_coherence: 97
+  llm_coherence:
+  coherence_score: 97
+  coherence_issues:
+  - 4-segment competence cluster (redundancy risk)
+  combined_score: 85
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - vindication
+  - awe
+  hook_segment: 731.103
+  hook_signal: barrier elimination list
+  close_segment: 924.236
+  close_signal: payoff moment — the promise fulfilled
+  duration_estimate: 203
+  segment_count: 16
+  arc: Competence proof → aspiration + awe → payoff moment — the promise fulfilled
+  pitch: Opens on barrier elimination list, 14 body segments across 3:23.34, closes
+    on payoff moment — the promise fulfilled
+  template_match:
+    template: contrarian_argument
+    fit_score: 68
+    completeness: 80
+    order_score: 50
+    missing_beats:
+    - bold_claim
+    matched_beats:
+      target_behavior:
+        segment_t: 772.53
+        distillation: every company buys digital services — massive demand
+      diagnosis:
+        segment_t: 800.135
+        distillation: deeper reason beyond margins coming
+      alternative:
+        segment_t: 731.103
+        distillation: zero startup — no inventory no ads upfront
+      proof:
+        segment_t: 753.78
+        distillation: first sale in days — no 3-month ramp
+  llm_eval_prompt: |-
+    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
+
+    Score 0-100:
+    - 90-100: holds together completely, viewer can follow start to finish
+    - 70-89: mostly coherent, minor jumps or unclear transitions
+    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
+    - Below 50: fundamentally broken, doesn't work as a piece
+
+    List specific issues if any:
+    - Unexplained jumps in argument or topic
+    - Missing context for ideas the body assumes
+    - Conclusions that don't follow from what came before
+    - Lost threads
+    - Tonal or rhetorical shifts that break the frame
+
+    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
+
+    Template match: contrarian_argument
+    Distilled clip order:
+    1. zero startup no inventory
+    2. freelancer portfolio reach businesses
+    3. first sale within days
+    4. source service close deals
+    5. massive digital services demand
+    6. 30% repeat client revenue
+    7. deeper reason beyond margins coming
+    8. all models moat problem
+    9. freelancer portfolios = free moat
+    10. proof from clients sells
+    11. each sale creates proof
+    12. fundamentally different from all others
+    13. year trying zero profit
+    14. kept silent no approval
+    15. only successful opinions valued
+    16. 3 months $850 then $10k
+  rank: 1
