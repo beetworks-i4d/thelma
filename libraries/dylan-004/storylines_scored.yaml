@@ -3,18 +3,20 @@ generated_at: '2026-04-14T21:41:58+02:00'
 source: dylan-004
 transcript_hash: bd4e22f01d2f7eb54c1da3e0626caebf
 scoring_mode: algorithmic_plus_llm
-llm_pass_pending: true
+llm_pass_pending: false
 storylines:
 - id: single_longform_threeitem_framework_led
   profile: best_single_longform
   state_score: 92
   template_fit: 84
   algorithmic_coherence: 76
-  llm_coherence:
-  coherence_score: 76
+  llm_coherence: 72
+  coherence_score: 72
   coherence_issues:
   - 7-segment vindication cluster (redundancy risk)
-  combined_score: 84
+  - 'LLM: Problem diagnosis section redundant — 10+ consecutive failure-mode clips
+    risk viewer disengagement'
+  combined_score: 83
   passed_floor: true
   primary_state: competence
   secondary_states:
@@ -52,77 +54,19 @@ storylines:
       takeaway:
         segment_t: 481.34
         distillation: skip everything start reaching out
-  llm_eval_prompt: |-
-    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
-
-    Score 0-100:
-    - 90-100: holds together completely, viewer can follow start to finish
-    - 70-89: mostly coherent, minor jumps or unclear transitions
-    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
-    - Below 50: fundamentally broken, doesn't work as a piece
-
-    List specific issues if any:
-    - Unexplained jumps in argument or topic
-    - Missing context for ideas the body assumes
-    - Conclusions that don't follow from what came before
-    - Lost threads
-    - Tonal or rhetorical shifts that break the frame
-
-    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
-
-    Template match: problem_solution
-    Distilled clip order:
-    1. service niche and phone
-    2. selling websites to contractors
-    3. selling websites without one
-    4. most people waste time preparing
-    5. three $850 sales from Hotmail
-    6. slow path kills most businesses
-    7. what most people actually do
-    8. exhaustive list of wasted tasks
-    9. people spend months even years
-    10. fear of failure stops them
-    11. busy but it's a hobby
-    12. warning you can't unsee this
-    13. you do it because safe
-    14. LLC and website don't help
-    15. feels like progress avoids rejection
-    16. slow path protects from rejection
-    17. building business while avoiding proof
-    18. I wasted two months too
-    19. researching instead of just doing
-    20. successful people did simple things
-    21. just three things that's it
-    22. freelancer partnership gives you proof
-    23. niche from freelancer's existing proof
-    24. outreach email to matching businesses
-    25. open to a quick call
-    26. same activity different context matters
-    27. skip everything start reaching out
-    28. emailed manually from Google Drive
-    29. first campaign 1500 leads $850
-    30. three $850 sales first month
-    31. dreaming $0 emailing $2550
-    32. market didn't care about Hotmail
-    33. this is the whole game
-    34. slow path maybe one client
-    35. fast path sale within month
-    36. $10K guy skipped everything unnecessary
-    37. do build systems just later
-    38. pre-sale prep is for you
-    39. principle applies beyond first client
-    40. focus on what gets results
   rank: 1
 - id: single_longform_10kmonth_first_led
   profile: best_single_longform
   state_score: 79
   template_fit: 84
   algorithmic_coherence: 76
-  llm_coherence:
-  coherence_score: 76
+  llm_coherence: 70
+  coherence_score: 70
   coherence_issues:
   - 7-segment vindication cluster (redundancy risk)
-  combined_score: 80
+  - 'LLM: $10K hook claim not revisited until clip 37 — long payoff gap'
+  - 'LLM: Middle section redundancy in problem diagnosis'
+  combined_score: 78
   passed_floor: true
   primary_state: aspiration
   secondary_states:
@@ -160,78 +104,19 @@ storylines:
       proof:
         segment_t: 121.73
         distillation: guy made $10K first month
-  llm_eval_prompt: |-
-    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
-
-    Score 0-100:
-    - 90-100: holds together completely, viewer can follow start to finish
-    - 70-89: mostly coherent, minor jumps or unclear transitions
-    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
-    - Below 50: fundamentally broken, doesn't work as a piece
-
-    List specific issues if any:
-    - Unexplained jumps in argument or topic
-    - Missing context for ideas the body assumes
-    - Conclusions that don't follow from what came before
-    - Lost threads
-    - Tonal or rhetorical shifts that break the frame
-
-    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
-
-    Template match: contrarian_argument
-    Distilled clip order:
-    1. guy made $10K first month
-    2. service niche and phone
-    3. selling websites to contractors
-    4. selling websites without one
-    5. most people waste time preparing
-    6. three $850 sales from Hotmail
-    7. slow path kills most businesses
-    8. what most people actually do
-    9. exhaustive list of wasted tasks
-    10. people spend months even years
-    11. fear of failure stops them
-    12. busy but it's a hobby
-    13. warning you can't unsee this
-    14. you do it because safe
-    15. LLC and website don't help
-    16. feels like progress avoids rejection
-    17. slow path protects from rejection
-    18. building business while avoiding proof
-    19. I wasted two months too
-    20. researching instead of just doing
-    21. successful people did simple things
-    22. just three things that's it
-    23. freelancer partnership gives you proof
-    24. niche from freelancer's existing proof
-    25. outreach email to matching businesses
-    26. open to a quick call
-    27. same activity different context matters
-    28. skip everything start reaching out
-    29. emailed manually from Google Drive
-    30. first campaign 1500 leads $850
-    31. three $850 sales first month
-    32. dreaming $0 emailing $2550
-    33. market didn't care about Hotmail
-    34. this is the whole game
-    35. slow path maybe one client
-    36. fast path sale within month
-    37. $10K guy skipped everything unnecessary
-    38. do build systems just later
-    39. pre-sale prep is for you
-    40. principle applies beyond first client
-    41. focus on what gets results
   rank: 2
 - id: short_results_reveal_led
   profile: best_short
   state_score: 95
   template_fit: 60
   algorithmic_coherence: 90
-  llm_coherence:
-  coherence_score: 90
+  llm_coherence: 65
+  coherence_score: 65
   coherence_issues:
   - Short body (1 segments) — limited narrative development
-  combined_score: 80
+  - 'LLM: No setup context for cold viewer — what is being sold, to whom? Proof points
+    without framing'
+  combined_score: 72
   passed_floor: true
   primary_state: aspiration
   secondary_states:
@@ -266,41 +151,19 @@ storylines:
       application:
         segment_t: 545.02
         distillation: first campaign 1500 leads $850
-  llm_eval_prompt: |-
-    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
-
-    Score 0-100:
-    - 90-100: holds together completely, viewer can follow start to finish
-    - 70-89: mostly coherent, minor jumps or unclear transitions
-    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
-    - Below 50: fundamentally broken, doesn't work as a piece
-
-    List specific issues if any:
-    - Unexplained jumps in argument or topic
-    - Missing context for ideas the body assumes
-    - Conclusions that don't follow from what came before
-    - Lost threads
-    - Tonal or rhetorical shifts that break the frame
-
-    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
-
-    Template match: three_item_framework
-    Distilled clip order:
-    1. first campaign 1500 leads $850
-    2. three $850 sales first month
-    3. dreaming $0 emailing $2550
   rank: 1
 - id: short_threeitem_framework_led
   profile: best_short
   state_score: 88
   template_fit: 49
   algorithmic_coherence: 90
-  llm_coherence:
-  coherence_score: 90
+  llm_coherence: 78
+  coherence_score: 78
   coherence_issues:
   - Hook states ["competence", "curiosity"] share nothing with close states ["aspiration",
     "vindication"]
-  combined_score: 73
+  - 'LLM: Jump from "people waste time" to "$850 sales" lacks explicit causal link'
+  combined_score: 69
   passed_floor: true
   primary_state: competence
   secondary_states:
@@ -335,40 +198,15 @@ storylines:
       proof:
         segment_t: 179.87
         distillation: three $850 sales from Hotmail
-  llm_eval_prompt: |-
-    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
-
-    Score 0-100:
-    - 90-100: holds together completely, viewer can follow start to finish
-    - 70-89: mostly coherent, minor jumps or unclear transitions
-    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
-    - Below 50: fundamentally broken, doesn't work as a piece
-
-    List specific issues if any:
-    - Unexplained jumps in argument or topic
-    - Missing context for ideas the body assumes
-    - Conclusions that don't follow from what came before
-    - Lost threads
-    - Tonal or rhetorical shifts that break the frame
-
-    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
-
-    Template match: problem_solution
-    Distilled clip order:
-    1. service niche and phone
-    2. selling websites to contractors
-    3. selling websites without one
-    4. most people waste time preparing
-    5. three $850 sales from Hotmail
-  rank: 3
+  rank: 2
 - id: short_10kmonth_first_led
   profile: best_short
   state_score: 70
   template_fit: 58
   algorithmic_coherence: 100
-  llm_coherence:
-  coherence_score: 100
-  combined_score: 74
+  llm_coherence: 75
+  coherence_score: 75
+  combined_score: 67
   passed_floor: true
   primary_state: aspiration
   secondary_states:
@@ -408,43 +246,21 @@ storylines:
       application:
         segment_t: 121.73
         distillation: guy made $10K first month
-  llm_eval_prompt: |-
-    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
-
-    Score 0-100:
-    - 90-100: holds together completely, viewer can follow start to finish
-    - 70-89: mostly coherent, minor jumps or unclear transitions
-    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
-    - Below 50: fundamentally broken, doesn't work as a piece
-
-    List specific issues if any:
-    - Unexplained jumps in argument or topic
-    - Missing context for ideas the body assumes
-    - Conclusions that don't follow from what came before
-    - Lost threads
-    - Tonal or rhetorical shifts that break the frame
-
-    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
-
-    Template match: three_item_framework
-    Distilled clip order:
-    1. guy made $10K first month
-    2. service niche and phone
-    3. selling websites to contractors
-    4. selling websites without one
-    5. most people waste time preparing
-    6. three $850 sales from Hotmail
-  rank: 2
+  coherence_issues:
+  - 'LLM: $10K first-month hook claim opened but unresolved — proof shows $850 sales
+    not $10K'
+  rank: 3
 - id: medium_personal_proof_led
   profile: best_medium
   state_score: 84
   template_fit: 87
   algorithmic_coherence: 79
-  llm_coherence:
-  coherence_score: 79
+  llm_coherence: 72
+  coherence_score: 72
   coherence_issues:
   - 7-segment vindication cluster (redundancy risk)
-  combined_score: 84
+  - 'LLM: Problem diagnosis section repetitive — 10+ consecutive failure-mode clips'
+  combined_score: 82
   passed_floor: true
   primary_state: aspiration
   secondary_states:
@@ -486,71 +302,19 @@ storylines:
       application:
         segment_t: 199.48
         distillation: what most people actually do
-  llm_eval_prompt: |-
-    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
-
-    Score 0-100:
-    - 90-100: holds together completely, viewer can follow start to finish
-    - 70-89: mostly coherent, minor jumps or unclear transitions
-    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
-    - Below 50: fundamentally broken, doesn't work as a piece
-
-    List specific issues if any:
-    - Unexplained jumps in argument or topic
-    - Missing context for ideas the body assumes
-    - Conclusions that don't follow from what came before
-    - Lost threads
-    - Tonal or rhetorical shifts that break the frame
-
-    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
-
-    Template match: three_item_framework
-    Distilled clip order:
-    1. three $850 sales from Hotmail
-    2. slow path kills most businesses
-    3. what most people actually do
-    4. exhaustive list of wasted tasks
-    5. people spend months even years
-    6. fear of failure stops them
-    7. busy but it's a hobby
-    8. warning you can't unsee this
-    9. you do it because safe
-    10. LLC and website don't help
-    11. feels like progress avoids rejection
-    12. slow path protects from rejection
-    13. building business while avoiding proof
-    14. I wasted two months too
-    15. researching instead of just doing
-    16. successful people did simple things
-    17. just three things that's it
-    18. freelancer partnership gives you proof
-    19. niche from freelancer's existing proof
-    20. outreach email to matching businesses
-    21. open to a quick call
-    22. same activity different context matters
-    23. skip everything start reaching out
-    24. emailed manually from Google Drive
-    25. first campaign 1500 leads $850
-    26. three $850 sales first month
-    27. dreaming $0 emailing $2550
-    28. market didn't care about Hotmail
-    29. this is the whole game
-    30. slow path maybe one client
-    31. fast path sale within month
-    32. $10K guy skipped everything unnecessary
-    33. do build systems just later
-    34. pre-sale prep is for you
   rank: 1
 - id: medium_threeitem_framework_led
   profile: best_medium
   state_score: 79
   template_fit: 84
   algorithmic_coherence: 76
-  llm_coherence:
-  coherence_score: 76
+  llm_coherence: 68
+  coherence_score: 68
   coherence_issues:
   - 7-segment vindication cluster (redundancy risk)
-  combined_score: 80
+  - 'LLM: 40-clip arc too dense for medium format'
+  - 'LLM: Same problem-diagnosis redundancy as longform version'
+  combined_score: 78
   passed_floor: true
   primary_state: competence
   secondary_states:
@@ -588,79 +352,22 @@ storylines:
       takeaway:
         segment_t: 481.34
         distillation: skip everything start reaching out
-  llm_eval_prompt: |-
-    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
-
-    Score 0-100:
-    - 90-100: holds together completely, viewer can follow start to finish
-    - 70-89: mostly coherent, minor jumps or unclear transitions
-    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
-    - Below 50: fundamentally broken, doesn't work as a piece
-
-    List specific issues if any:
-    - Unexplained jumps in argument or topic
-    - Missing context for ideas the body assumes
-    - Conclusions that don't follow from what came before
-    - Lost threads
-    - Tonal or rhetorical shifts that break the frame
-
-    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
-
-    Template match: problem_solution
-    Distilled clip order:
-    1. service niche and phone
-    2. selling websites to contractors
-    3. selling websites without one
-    4. most people waste time preparing
-    5. three $850 sales from Hotmail
-    6. slow path kills most businesses
-    7. what most people actually do
-    8. exhaustive list of wasted tasks
-    9. people spend months even years
-    10. fear of failure stops them
-    11. busy but it's a hobby
-    12. warning you can't unsee this
-    13. you do it because safe
-    14. LLC and website don't help
-    15. feels like progress avoids rejection
-    16. slow path protects from rejection
-    17. building business while avoiding proof
-    18. I wasted two months too
-    19. researching instead of just doing
-    20. successful people did simple things
-    21. just three things that's it
-    22. freelancer partnership gives you proof
-    23. niche from freelancer's existing proof
-    24. outreach email to matching businesses
-    25. open to a quick call
-    26. same activity different context matters
-    27. skip everything start reaching out
-    28. emailed manually from Google Drive
-    29. first campaign 1500 leads $850
-    30. three $850 sales first month
-    31. dreaming $0 emailing $2550
-    32. market didn't care about Hotmail
-    33. this is the whole game
-    34. slow path maybe one client
-    35. fast path sale within month
-    36. $10K guy skipped everything unnecessary
-    37. do build systems just later
-    38. pre-sale prep is for you
-    39. principle applies beyond first client
-    40. focus on what gets results
   rank: 2
 - id: medium_irony_selling_led
   profile: best_medium
   state_score: 71
   template_fit: 80
   algorithmic_coherence: 66
-  llm_coherence:
-  coherence_score: 66
+  llm_coherence: 60
+  coherence_score: 60
   coherence_issues:
   - Hook states ["amusement", "curiosity"] share nothing with close states ["competence",
     "aspiration"]
   - 7-segment vindication cluster (redundancy risk)
-  combined_score: 73
+  - 'LLM: Tonal shift — playful irony opening not maintained through serious lecture
+    body'
+  - 'LLM: Irony hook never revisited or closed'
+  combined_score: 71
   passed_floor: true
   primary_state: amusement
   secondary_states:
@@ -701,62 +408,4 @@ storylines:
       application:
         segment_t: 199.48
         distillation: what most people actually do
-  llm_eval_prompt: |-
-    Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
-
-    Score 0-100:
-    - 90-100: holds together completely, viewer can follow start to finish
-    - 70-89: mostly coherent, minor jumps or unclear transitions
-    - 50-69: noticeable incoherence, viewer would need to re-watch or guess
-    - Below 50: fundamentally broken, doesn't work as a piece
-
-    List specific issues if any:
-    - Unexplained jumps in argument or topic
-    - Missing context for ideas the body assumes
-    - Conclusions that don't follow from what came before
-    - Lost threads
-    - Tonal or rhetorical shifts that break the frame
-
-    Transformation arcs ("I was lost, then I found it") are coherent, not contradictory. Apparent contradictions with reframing language are fine. Only flag direct incoherence.
-
-    Template match: three_item_framework
-    Distilled clip order:
-    1. selling websites without one
-    2. most people waste time preparing
-    3. three $850 sales from Hotmail
-    4. slow path kills most businesses
-    5. what most people actually do
-    6. exhaustive list of wasted tasks
-    7. people spend months even years
-    8. fear of failure stops them
-    9. busy but it's a hobby
-    10. warning you can't unsee this
-    11. you do it because safe
-    12. LLC and website don't help
-    13. feels like progress avoids rejection
-    14. slow path protects from rejection
-    15. building business while avoiding proof
-    16. I wasted two months too
-    17. researching instead of just doing
-    18. successful people did simple things
-    19. just three things that's it
-    20. freelancer partnership gives you proof
-    21. niche from freelancer's existing proof
-    22. outreach email to matching businesses
-    23. open to a quick call
-    24. same activity different context matters
-    25. skip everything start reaching out
-    26. emailed manually from Google Drive
-    27. first campaign 1500 leads $850
-    28. three $850 sales first month
-    29. dreaming $0 emailing $2550
-    30. market didn't care about Hotmail
-    31. this is the whole game
-    32. slow path maybe one client
-    33. fast path sale within month
-    34. $10K guy skipped everything unnecessary
-    35. do build systems just later
-    36. pre-sale prep is for you
-    37. principle applies beyond first client
-    38. focus on what gets results
   rank: 3
