@@ -1,0 +1,1175 @@
+---
+# Phase 1.5 — Segment Classification (Deep Mode, Branch B)
+# Library: dylan-002
+# Source: Script 002_treated_cleaned.json
+# Generated: 2026-04-13
+# Framework: Content Psychopharmacology (15 states)
+# All times are WAV-relative (audio time). Sync offset: 29.602438
+
+transcript_hash: 828ae36f24c3ee4571fa82ef3e1303d7
+
+segments:
+  # === HOOK / OPENING ===
+
+  - id: 1
+    t: 152.933
+    e: 162.906
+    text: "That's how long it took from my first sale to quitting my job and booking a one way ticket out of the country making 10,000 a month from a laptop."
+    states: [curiosity, aspiration, awe]
+    distillation: "7 months to $10k"
+    signal: "specific timeline + dramatic life transformation"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "hook line — open loop, aspiration payoff"
+    rationale: "big claim with specific numbers creates information gap and aspiration"
+    confidence: high
+
+  - id: 2
+    t: 163.026
+    e: 165.63
+    text: "But that wasn't my first try. Not even close."
+    states: [curiosity, belonging]
+    distillation: "not my first try"
+    signal: "negation of easy success creates curiosity"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "anti-bro vulnerability — relatable"
+    rationale: "opens failure loop, signals honest account viewers want"
+    confidence: high
+
+  - id: 3
+    t: 165.83
+    e: 170.476
+    text: "OK. And it wasn't any of the business models that you're probably thinking of."
+    states: [curiosity, vindication]
+    distillation: "not the models you expect"
+    signal: "direct challenge to viewer assumptions"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "assumption-breaking pattern interrupt"
+    rationale: "challenges viewer mental model, creates need for resolution"
+    confidence: high
+
+  - id: 4
+    t: 170.656
+    e: 176.519
+    text: "So I tried affiliate marketing, dropshipping, Amazon FBA and a bunch of the other usual stuff."
+    states: [competence, curiosity]
+    distillation: "tried affiliate dropshipping FBA others"
+    signal: "list of known models signals breadth of experience"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "establishes credibility through experience breadth"
+    rationale: "naming specific models proves real experience, builds trust"
+    confidence: high
+
+  - id: 5
+    t: 176.919
+    e: 183.302
+    text: "And I'm honestly a bit embarrassed to even mention most of it made me nothing, even lost money."
+    states: [belonging, catharsis, schadenfreude]
+    distillation: "most models lost money"
+    signal: "vulnerability admission + financial failure"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "vulnerability builds parasocial trust"
+    rationale: "admitting embarrassment triggers belonging and mild schadenfreude"
+    confidence: high
+
+  - id: 6
+    t: 183.342
+    e: 194.107
+    text: "Some of it made me a few hundred bucks a month, which, you know, when you factor in the hours was worse than a minimum wage job, which I had at the time and I was trying to escape."
+    states: [belonging, schadenfreude, aspiration]
+    distillation: "worse than minimum wage"
+    signal: "hourly rate comparison reveals painful truth"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "relatable hustle-culture disillusionment"
+    rationale: "viewers who tried side hustles see themselves; downward comparison comforts"
+    confidence: high
+
+  # === PREMISE / PROMISE ===
+
+  - id: 7
+    t: 194.487
+    e: 211.465
+    text: "So I want to go through every single model I tried, what I actually did, what actually happened and what finally worked, because every video that I watched when I was starting out just talked about one model in particular in isolation."
+    states: [curiosity, competence, vindication]
+    distillation: "every model compared honestly"
+    signal: "meta-critique of existing content creates gap"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "video promise — differentiates from competitors"
+    rationale: "positions video as uniquely honest, validates viewer frustration with existing content"
+    confidence: high
+
+  - id: 8
+    t: 212.045
+    e: 218.492
+    text: "And nobody put them all next to each other and gave a really honest comparison between them. So that's what I'm doing."
+    states: [vindication, competence]
+    distillation: "nobody compared them honestly before"
+    signal: "gap in existing content landscape"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "reinforces unique value proposition"
+    rationale: "viewer who felt existing content was incomplete feels validated"
+    confidence: high
+
+  # === BACKSTORY / CONTEXT ===
+
+  - id: 9
+    t: 222.475
+    e: 229.602
+    text: "I just finished university. I was making minimum wage answering phones in a call center in Wellington, New Zealand."
+    states: [belonging, nostalgia]
+    distillation: "call center minimum wage"
+    signal: "specific relatable life stage and location"
+    dur: identity
+    roles: [secondary, primary, tertiary]
+    notes: "grounds story in specific relatable reality"
+    rationale: "specific details build parasocial connection; many viewers in similar stage"
+    confidence: high
+
+  - id: 10
+    t: 230.083
+    e: 236.709
+    text: "And the only thought that I had every single day was, is this it? You know is this going to be the next 40 years."
+    states: [fear, aspiration, belonging]
+    distillation: "is this it forever"
+    signal: "existential dread question — universal"
+    dur: mood
+    roles: [primary, secondary, tertiary]
+    notes: "universal existential fear — high relatability"
+    rationale: "taps into widespread fear of being trapped; aspiration as escape need"
+    confidence: high
+
+  - id: 11
+    t: 237.149
+    e: 241.973
+    text: "So I googled how to make money online as you do and just started trying things."
+    states: [belonging, amusement]
+    distillation: "googled make money online"
+    signal: "self-aware humor about common starting point"
+    dur: spike
+    roles: [secondary, primary, tertiary]
+    notes: "humor + shared experience"
+    rationale: "'as you do' is knowing wink; viewers did exactly this"
+    confidence: high
+
+  - id: 12
+    t: 242.434
+    e: 248.118
+    text: "I didn't really want to be rich. I didn't care about cars or watches or any of that stuff."
+    states: [belonging, vindication]
+    distillation: "just wanted modest freedom"
+    signal: "anti-materialist positioning"
+    dur: identity
+    roles: [secondary, primary, tertiary]
+    notes: "rejects bro-culture flex — builds trust"
+    rationale: "differentiates from flashy gurus; viewers tired of flex content feel validated"
+    confidence: high
+
+  - id: 13
+    t: 248.499
+    e: 260.589
+    text: "I just wanted a thousand dollars a week because I did the math and that was enough to quit the job and just travel you know go on a beach somewhere. And that was the entire goal, a thousand bucks a week and a laptop."
+    states: [aspiration, belonging, calm]
+    distillation: "$1000/week laptop freedom"
+    signal: "achievable specific lifestyle aspiration"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "attainable dream — not lambo, just freedom"
+    rationale: "modest specific goal feels achievable; aspiration without intimidation"
+    confidence: high
+
+  - id: 14
+    t: 261.07
+    e: 264.814
+    text: "And it took me a lot longer than I expected to get there for sure."
+    states: [belonging, curiosity]
+    distillation: "took longer than expected"
+    signal: "honest admission sets realistic expectation"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "manages expectations — builds trust"
+    rationale: "honesty about timeline creates more trust than hype"
+    confidence: medium
+
+  # === EVALUATION FRAMEWORK ===
+
+  - id: 15
+    t: 269.278
+    e: 273.522
+    text: "but before I go through each one, here's how I evaluate any business model."
+    states: [competence, curiosity]
+    distillation: "framework for evaluating business models"
+    signal: "promise of structured framework"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "signals structured analytical approach"
+    rationale: "framework promise activates competence-seeking viewers"
+    confidence: high
+
+  - id: 16
+    t: 276.465
+    e: 285.054
+    text: "Now six things profit margin startup costs how long it takes to get going complexity once it's running demand and scalability."
+    states: [competence, curiosity]
+    distillation: "six evaluation criteria defined"
+    signal: "numbered list of evaluation criteria"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "mental model delivery — high retention"
+    rationale: "concrete framework gives viewer a tool they can use; creates competence"
+    confidence: high
+
+  - id: 17
+    t: 285.514
+    e: 293.062
+    text: "These matter differently depending on your situation. So if you've got a job startup costs don't bother you as much but time does."
+    states: [competence, belonging]
+    distillation: "criteria weight depends on situation"
+    signal: "situational nuance shows deep thinking"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "personalizes framework to viewer context"
+    rationale: "acknowledging different situations makes viewer feel understood"
+    confidence: high
+
+  - id: 18
+    t: 293.422
+    e: 301.745
+    text: "If you've got no job you've got plenty of time but no budget right. So you have to know which of these actually matters for you where you are right now."
+    states: [competence, belonging]
+    distillation: "time rich cash poor"
+    signal: "direct address + practical insight"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "viewer feels personally addressed"
+    rationale: "continued personalization; viewer maps themselves onto the framework"
+    confidence: medium
+
+  - id: 19
+    t: 302.185
+    e: 309.887
+    text: "And most people don't even think about that. They just pick a model because it sounds exciting or because someone on YouTube made it look really easy."
+    states: [vindication, competence, outrage]
+    distillation: "pick models wrong reasons"
+    signal: "calling out common mistake"
+    dur: mood
+    roles: [primary, secondary, tertiary]
+    notes: "validates viewer who suspected this"
+    rationale: "viewers who fell for hype feel vindicated; mild outrage at misleading creators"
+    confidence: high
+
+  - id: 20
+    t: 310.387
+    e: 314.388
+    text: "And I did the same thing at the start and it really cost me months."
+    states: [belonging, catharsis]
+    distillation: "same mistake cost months"
+    signal: "personal admission of same error"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "shared mistake builds parasocial bond"
+    rationale: "admitting he fell for it too creates solidarity with viewer"
+    confidence: medium
+
+  - id: 21
+    t: 315.269
+    e: 319.27
+    text: "So let me walk you through every model that I tried and how it actually went."
+    states: [curiosity, competence]
+    distillation: "walkthrough of every model tried"
+    signal: "promise of comprehensive review"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "re-hooks before content body"
+    rationale: "resets attention and commits viewer to the journey ahead"
+    confidence: medium
+
+  # === AFFILIATE MARKETING SECTION ===
+
+  - id: 22
+    t: 327.46
+    e: 337.925
+    text: "and I'm saving the one that worked for last. So stick around. Affiliate marketing was my first attempt. You sell someone else's product and get a commission. And everyone starts here because it's free to start."
+    states: [curiosity, competence]
+    distillation: "affiliate marketing first attempt"
+    signal: "teases payoff, introduces first model"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "open loop (best for last) + model intro"
+    rationale: "saves the answer creates ongoing curiosity; starts systematic review"
+    confidence: high
+
+  - id: 23
+    t: 338.186
+    e: 350.436
+    text: "So I found ClickBank, JVZoo, picked some random products and just started hustling, posting in Facebook groups. DMing strangers, basically any free marketing method that I could find."
+    states: [belonging, competence]
+    distillation: "ClickBank Facebook group hustle"
+    signal: "specific platform names and tactics"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "specifics prove real experience"
+    rationale: "naming platforms builds credibility; relatable grind experience"
+    confidence: high
+
+  - id: 24
+    t: 350.857
+    e: 361.372
+    text: "I was doing this for hours every single day and pulling in maybe a few hundred dollars a month. And I lasted about three months before I realized that the math was never going to work."
+    states: [belonging, schadenfreude, fear]
+    distillation: "hours daily pennies returned"
+    signal: "effort vs result disparity"
+    dur: mood
+    roles: [primary, secondary, tertiary]
+    notes: "painful honesty about results"
+    rationale: "effort-to-reward mismatch triggers empathy and relief in those who quit"
+    confidence: high
+
+  - id: 25
+    t: 361.712
+    e: 369.077
+    text: "because your average commission is like 5 to 10 percent. So you sell something for 100 bucks and you get five."
+    states: [competence, fear]
+    distillation: "5-10% commission tiny returns"
+    signal: "concrete math reveals brutal economics"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "specific numbers make insight stick"
+    rationale: "math makes the problem visceral; viewer gains insight they can verify"
+    confidence: high
+
+  - id: 26
+    t: 371.159
+    e: 381.707
+    text: "then you've still got whatever you spent on marketing and all of that time. And if you don't have an audience or an email list or money for ads you're just grinding for pennies."
+    states: [fear, competence, vindication]
+    distillation: "no audience grinding pennies"
+    signal: "hidden costs reveal full picture"
+    dur: mood
+    roles: [primary, secondary, tertiary]
+    notes: "exposes hidden prerequisites"
+    rationale: "reveals what gurus omit; validates viewers who felt something was off"
+    confidence: high
+
+  - id: 27
+    t: 382.267
+    e: 397.0
+    text: "Startup cost is zero, which feels great until you realize startup time is insane. So if you go to the niche site route, you know, if you go the niche site route, you're looking at about 12 months to hit a thousand a month and a year."
+    states: [competence, fear, vindication]
+    distillation: "zero cost 12-month wait"
+    signal: "free-to-start trap revealed with timeline"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "cost vs time tradeoff insight"
+    rationale: "reframes 'free' as expensive in time; powerful mental model"
+    confidence: high
+
+  - id: 28
+    t: 400.203
+    e: 417.838
+    text: "a year to make a thousand dollars and most of the sales are one off so nothing compounds there's no customer relationship no recurring revenue nothing building on itself it's the most popular starting point and that's exactly why it's the hardest one to make work you know"
+    states: [competence, vindication, fear]
+    distillation: "one-off sales no compounding"
+    signal: "structural business weakness analysis"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "paradox: popular = hardest — strong insight"
+    rationale: "counterintuitive insight about popularity creating competition"
+    confidence: high
+
+  - id: 29
+    t: 418.258
+    e: 431.468
+    text: "Everyone's doing it. Everyone's selling the same generic stuff, putting no thought into it. And there's no way to stand out. There's no moat, nothing defensible. So just you competing with a million other people selling the exact same product."
+    states: [vindication, competence, fear]
+    distillation: "no moat million competitors"
+    signal: "crowding problem stated bluntly"
+    dur: mood
+    roles: [primary, secondary, tertiary]
+    notes: "no-moat concept introduced — recurring theme"
+    rationale: "validates anyone who sensed affiliate is oversaturated"
+    confidence: high
+
+  - id: 30
+    t: 431.608
+    e: 438.554
+    text: "And that wasn't going to get me out of that call center. But the next one almost did. And that's what really does make it dangerous."
+    states: [curiosity, fear, aspiration]
+    distillation: "next model almost worked"
+    signal: "transition tease with danger framing"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "bridge to dropshipping — tension builder"
+    rationale: "'almost worked' and 'dangerous' create dual curiosity hooks"
+    confidence: high
+
+  # === DROPSHIPPING SECTION ===
+
+  - id: 31
+    t: 440.296
+    e: 454.172
+    text: "I was actually kind of excited about, you know, you find a product, throw it on Shopify and run some Facebook ads. and when someone buys the supplier ships it directly. So you never touch the product and"
+    states: [competence, curiosity]
+    distillation: "dropshipping sell without touching"
+    signal: "business model explanation"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "clear simple explanation of model"
+    rationale: "concise explanation builds understanding; excitement is infectious"
+    confidence: medium
+
+  - id: 32
+    t: 455.093
+    e: 471.953
+    text: "It seemed perfect and it was fun at first, but then Facebook launched the ads library and suddenly every winning product that you found got copied within days. So the margins just evaporated and then I met this guy through a mutual connection."
+    states: [competence, fear, curiosity]
+    distillation: "ads library killed margins"
+    signal: "structural shift destroyed advantage"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "platform risk insight — moat destroyed"
+    rationale: "specific event (ads library) explains why model broke; introduces character"
+    confidence: high
+
+  - id: 33
+    t: 475.325
+    e: 484.869
+    text: "He was making a few hundred grand a month selling mannequins through Google ads and SEO as well. But he told me the real play in dropshipping is high ticket stuff."
+    states: [awe, competence, curiosity]
+    distillation: "mannequin guy high-ticket pivot"
+    signal: "extreme success example + insider knowledge"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "social proof through specific contact"
+    rationale: "hundreds of grand on mannequins creates awe; insider tip creates curiosity"
+    confidence: high
+
+  - id: 34
+    t: 485.129
+    e: 495.413
+    text: "So like coffee machines to cafes or barber chairs to barbers. So I pivoted a bit. I built a new store. I ran ads and the margins were genuinely good."
+    states: [competence, aspiration]
+    distillation: "high-ticket chairs and machines"
+    signal: "specific product examples + positive results"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "concrete examples make it real"
+    rationale: "specifics build credibility; small win creates aspiration"
+    confidence: medium
+
+  - id: 35
+    t: 496.094
+    e: 521.02
+    text: "way better than the fidget spinners I started with but I hit the same wall that I kept hitting you know I didn't have enough money to spend on ads to get to the point where I was actually clearing a thousand dollars a week in profit and that's really the main thing that kills most beginners with this model so you need an ad budget to make it work And if you don't have it, you're stuck."
+    states: [competence, fear, belonging]
+    distillation: "high-ticket ad budget wall"
+    signal: "capital barrier identified as structural blocker"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "recurring wall theme — systemic insight"
+    rationale: "identifies capital as the real barrier; viewers without capital feel understood"
+    confidence: high
+
+  - id: 36
+    t: 521.181
+    e: 531.949
+    text: "You know, margins end up at around 15 to 20 percent after ads and product costs and software as well. So, you know, you can start cheap and get going fast, which is the appeal."
+    states: [competence]
+    distillation: "15-20% margins after all costs"
+    signal: "honest margin numbers"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "balanced — acknowledges appeal"
+    rationale: "specific margin numbers deliver competence; balanced view builds credibility"
+    confidence: medium
+
+  - id: 37
+    t: 534.231
+    e: 548.341
+    text: "But the thing nobody warns you about is payment processes. They despise dropshippers. So you get chargebacks, angry customers, refunds, and you're constantly managing that. So it's more stressful than it looks from the outside."
+    states: [competence, fear, vindication]
+    distillation: "payment processors hate dropshippers"
+    signal: "insider knowledge others omit"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "hidden risk nobody mentions — valuable"
+    rationale: "reveals something competitors hide; validates suspicion it's harder than shown"
+    confidence: high
+
+  - id: 38
+    t: 548.742
+    e: 559.79
+    text: "And it can work for sure. Gymshark is essentially a branded dropshipping story. They used UGC and built an empire selling pretty generic fitness clothes, really."
+    states: [competence, aspiration, awe]
+    distillation: "Gymshark = branded dropshipping empire"
+    signal: "extreme success case study"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "balanced — shows ceiling exists"
+    rationale: "Gymshark reference proves model can work at scale; aspirational"
+    confidence: medium
+
+  - id: 39
+    t: 560.09
+    e: 570.898
+    text: "But you need to go branded for it to really have legs and then you need to control manufacturing. Eventually you can't always do drop shipping. So I just didn't have the resources for that at the time."
+    states: [competence, fear]
+    distillation: "brand manufacturing capital barrier"
+    signal: "evolution path requires resources"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "shows why dropshipping is stepping stone"
+    rationale: "reveals the graduation problem; honest about personal limitation"
+    confidence: medium
+
+  # === TRANSITION TO AMAZON FBA ===
+
+  - id: 40
+    t: 575.458
+    e: 584.583
+    text: "So affiliate marketing was too slow and too crowded. Dropshipping almost worked by couldn't afford to scale. And the next one stopped me before I even got going."
+    states: [competence, curiosity, fear]
+    distillation: "affiliate slow dropshipping costly"
+    signal: "progressive elimination pattern"
+    dur: spike
+    roles: [secondary, primary, tertiary]
+    notes: "recap + tease structure"
+    rationale: "concise recap reinforces learning; 'stopped before starting' creates curiosity"
+    confidence: high
+
+  - id: 41
+    t: 585.003
+    e: 595.609
+    text: "And it's the one most people waste the most money on Amazon FBA. So you send your products to Amazon's warehouses that handle storage and shipping and you collect sales."
+    states: [competence, fear, curiosity]
+    distillation: "Amazon FBA most wasted"
+    signal: "warning framing + model explanation"
+    dur: mood
+    roles: [primary, secondary, tertiary]
+    notes: "strongest warning language yet"
+    rationale: "'waste the most money' is a fear-inducing frame that grabs attention"
+    confidence: high
+
+  - id: 42
+    t: 595.749
+    e: 606.075
+    text: "And I was going to sell journals with writing prompts. I've always been really into journaling like writing ideas writing about what I'm doing and what I'm planning. And, you know, I was genuinely excited about this one."
+    states: [belonging, nostalgia]
+    distillation: "excited to sell journals"
+    signal: "personal passion behind product choice"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "personal detail builds connection"
+    rationale: "showing genuine excitement before failure makes the lesson more impactful"
+    confidence: medium
+
+  - id: 43
+    t: 606.375
+    e: 621.527
+    text: "So I got about as far as sourcing manufacturers and figuring out the specs for the product that I was designing. But the numbers really stopped me because you needed thousands up front to get inventory manufactured and shipped before you sell a single unit."
+    states: [competence, fear]
+    distillation: "thousands upfront before single sale"
+    signal: "capital requirement shock"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "concrete barrier — thousands before revenue"
+    rationale: "specific capital requirement creates fear for budget-constrained viewers"
+    confidence: high
+
+  - id: 44
+    t: 621.987
+    e: 642.102
+    text: "And I was still making the wage, you know, margins land around 10 percent after you pay for the product shipping and Amazon's cut. So startup costs sit somewhere around three to four thousand dollars on average, which is cheap for a real business, but a lot when you're broke making minimum wage working in a call center."
+    states: [competence, belonging, fear]
+    distillation: "$3-4k startup 10% margins"
+    signal: "numbers contextualized to broke reality"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "contextualizes cost to viewer situation"
+    rationale: "reframes 'cheap' as expensive when broke; powerful perspective shift"
+    confidence: high
+
+  - id: 45
+    t: 642.442
+    e: 650.968
+    text: "And it takes about three months to launch your first product. It takes about three months to launch your first product, not to start selling to launch."
+    states: [competence, fear]
+    distillation: "3 months launch not sell"
+    signal: "timeline distinction reveals hidden delay"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "launch vs sell distinction — key insight"
+    rationale: "correcting a common misunderstanding delivers competence"
+    confidence: medium
+
+  - id: 46
+    t: 651.368
+    e: 665.737
+    text: "So the other problem is you don't own your customers. Amazon does. So when computers show up selling the same thing, copying your product, even if you put a lot of time into designing and making it different, your margin shrank. And there's really not much you can do about it."
+    states: [competence, fear, outrage]
+    distillation: "Amazon owns your customers"
+    signal: "platform dependency risk + IP theft"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "platform risk = existential business risk"
+    rationale: "not owning customers is structural weakness; outrage at copycats"
+    confidence: high
+
+  # === META-ANALYSIS: ALL MODELS ===
+
+  - id: 47
+    t: 665.817
+    e: 678.32
+    text: "So if you pull up Google Trends for all of these business models, it's pretty clear everyone is doing them. The competition is enormous across the board, and every single one of them has the same problem in some form."
+    states: [competence, vindication, fear]
+    distillation: "Google Trends shows oversaturation"
+    signal: "data-backed competition claim"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "data reference adds proof layer"
+    rationale: "Google Trends as evidence transforms opinion into insight"
+    confidence: high
+
+  - id: 48
+    t: 678.74
+    e: 688.682
+    text: "Either there's no moat and you're competing on price with everyone. It's a commodity. All the moat costs thousands to build. But there's one I haven't shown you yet."
+    states: [competence, curiosity]
+    distillation: "no moat one exception"
+    signal: "binary trap + escape tease"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "crystallizes core problem + teases solution"
+    rationale: "reduces all failures to one insight (moat problem), then teases the exception"
+    confidence: high
+
+  - id: 49
+    t: 694.743
+    e: 701.426
+    text: "And when I lay out the numbers next to everything else you just saw, you'll see why I never went back to any of those other models."
+    states: [curiosity, aspiration]
+    distillation: "numbers prove permanent switch"
+    signal: "comparative promise with finality claim"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "strong pre-reveal tension builder"
+    rationale: "'never went back' implies dramatic superiority; creates anticipation"
+    confidence: high
+
+  # === DROP SERVICING REVEAL ===
+
+  - id: 50
+    t: 701.786
+    e: 709.309
+    text: "So the business that actually got me out of that call center is called drop servicing. And some people call it service arbitrage."
+    states: [curiosity, aspiration, competence]
+    distillation: "drop servicing service arbitrage"
+    signal: "answer to the video's central question"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "the reveal — payoff moment"
+    rationale: "resolves the open loop; naming it gives viewer something to google"
+    confidence: high
+
+  - id: 51
+    t: 709.409
+    e: 719.072
+    text: "OK, you find skilled freelancers from around the world. You sell their services to businesses that actually need them and you keep the difference."
+    states: [competence, curiosity]
+    distillation: "freelancers sold to businesses"
+    signal: "simple clear business model explanation"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "model explained in one breath"
+    rationale: "simplicity of explanation makes it feel accessible"
+    confidence: high
+
+  - id: 52
+    t: 719.272
+    e: 731.062
+    text: "So you're essentially running an agency without doing any of the actual delivery work yourself and profit margins are in the 50 to 70 percent range and sometimes even as high as 90 percent."
+    states: [awe, aspiration, competence]
+    distillation: "agency without delivery 50-90%"
+    signal: "margin numbers dramatically higher than prior models"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "margin contrast is the core hook"
+    rationale: "50-90% vs 5-20% from earlier creates awe through comparison"
+    confidence: high
+
+  - id: 53
+    t: 731.103
+    e: 742.232
+    text: "So startup costs are basically the same as affiliate marketing zero to almost nothing. You're not buying inventory. You're not paying for ads or products up front."
+    states: [competence, aspiration]
+    distillation: "zero startup no inventory"
+    signal: "barrier elimination list"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "systematically removes every prior barrier"
+    rationale: "each 'no' maps to a specific problem from the previous models"
+    confidence: high
+
+  - id: 54
+    t: 742.452
+    e: 752.419
+    text: "You just find a freelancer who does great work. You partner with them, get their example work, and you start reaching out to businesses that need that work. And you connect the two essentially."
+    states: [competence, aspiration]
+    distillation: "freelancer portfolio reach businesses"
+    signal: "simple step-by-step process"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "actionable steps — low complexity"
+    rationale: "step-by-step makes it tangible; viewer can imagine doing this"
+    confidence: medium
+
+  - id: 55
+    t: 753.78
+    e: 765.906
+    text: "So I've seen people who are brand new to landing their first sale within days or weeks of starting. And there's no three month ramp up waiting for products to ship to a warehouse."
+    states: [aspiration, competence, awe]
+    distillation: "first sale within days"
+    signal: "speed contrast with prior models"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "speed as competitive advantage"
+    rationale: "days vs months creates powerful contrast; aspiration through achievability"
+    confidence: high
+
+  - id: 56
+    t: 766.207
+    e: 772.25
+    text: "You essentially can just source a service online, just a direct connection. You reach out to businesses and you close deals."
+    states: [competence, aspiration]
+    distillation: "source service close deals"
+    signal: "simplicity emphasis"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "reinforces simplicity"
+    rationale: "repetition of simplicity cements the contrast with complex models"
+    confidence: low
+
+  - id: 57
+    t: 772.53
+    e: 785.032
+    text: "So demand is enormous because you're selling digital services and every company on the planet is buying more and more of those every single year in some form or another. And the scalability is what really sets it apart."
+    states: [competence, aspiration, awe]
+    distillation: "massive digital services demand"
+    signal: "macro trend supporting the model"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "demand argument — structural tailwind"
+    rationale: "tying to universal trend makes it feel inevitable rather than niche"
+    confidence: high
+
+  - id: 58
+    t: 785.112
+    e: 798.355
+    text: "So about 30 percent of my clients come back for more work in a business where I don't actually sell a recurring service. The ones where I do sell a recurring service, they all come back essentially. So that's recurring revenue. That's actual relationships."
+    states: [competence, aspiration]
+    distillation: "30% repeat client revenue"
+    signal: "specific retention metric"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "recurring revenue solves earlier problem"
+    rationale: "directly addresses 'nothing compounds' problem from affiliate section"
+    confidence: high
+
+  - id: 59
+    t: 800.135
+    e: 811.782
+    text: "I never had that with any other business model but I want to explain why this actually works at a deeper level because it's not just about the margins. This is the important part."
+    states: [curiosity, competence]
+    distillation: "deeper reason beyond margins coming"
+    signal: "depth promise — going beneath surface"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "transitions to structural advantage"
+    rationale: "'deeper level' and 'important part' re-engage viewers who might be drifting"
+    confidence: medium
+
+  # === MOAT ARGUMENT ===
+
+  - id: 60
+    t: 812.083
+    e: 831.093
+    text: "Remember how affiliate marketing had no moat and Amazon FBA needed thousands of dollars to build one and every other business model I tried had that same problem. Either you're selling commodities and everyone competes on price until nobody's making money Or there is a moat, but it costs tens of thousands of dollars to build."
+    states: [competence, vindication, fear]
+    distillation: "all models moat problem"
+    signal: "callback to earlier framework — pattern completion"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "callback ties everything together"
+    rationale: "structural recap crystallizes the lesson before showing the solution"
+    confidence: high
+
+  - id: 61
+    t: 831.433
+    e: 842.235
+    text: "So drop servicing gives you a moat without the investment because your freelancers already have portfolios, past work. They already have case studies from past clients."
+    states: [competence, aspiration, vindication]
+    distillation: "freelancer portfolios = free moat"
+    signal: "structural solution to core problem"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "solves the moat problem elegantly"
+    rationale: "the moat-without-investment insight is the video's intellectual payoff"
+    confidence: high
+
+  - id: 62
+    t: 842.495
+    e: 856.998
+    text: "So you essentially just partner with a freelancer who does lead generation for SEO companies and they've got great results. For example, just an example service in their share. You take that proof and you go sell the same service to more SEO companies."
+    states: [competence, aspiration]
+    distillation: "proof from clients sells"
+    signal: "concrete worked example"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "specific example makes abstract concrete"
+    rationale: "worked example converts understanding into actionable knowledge"
+    confidence: medium
+
+  - id: 63
+    t: 857.438
+    e: 873.606
+    text: "Every client that you land creates more proof and every relationship that you build makes the next sale easier because you get more proof from more clients and more proof for more freelancers as you partner with more and that snowball effect just doesn't exist with other models."
+    states: [competence, aspiration, awe]
+    distillation: "each sale creates proof"
+    signal: "compounding flywheel mechanism"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "flywheel = the structural advantage"
+    rationale: "compounding loop is the deepest insight; directly contrasts 'nothing compounds' from affiliate"
+    confidence: high
+
+  - id: 64
+    t: 874.026
+    e: 878.907
+    text: "That's what makes this fundamentally different from everything else on the list."
+    states: [vindication, competence]
+    distillation: "fundamentally different from all others"
+    signal: "definitive differentiation claim"
+    dur: mood
+    roles: [primary, secondary, tertiary]
+    notes: "summary punch line"
+    rationale: "bold claim caps the analytical section with conviction"
+    confidence: medium
+
+  # === PERSONAL VULNERABILITY SECTION ===
+
+  - id: 65
+    t: 879.227
+    e: 894.85
+    text: "And here's the part of the story that I usually skip over. I'd spent the better part of a year trying all of this and I hadn't really made a single dollar of profit. I was still sitting in that cubicle still making minimum wage with a few dumb websites and half baked plans to show for it."
+    states: [catharsis, belonging, fear]
+    distillation: "year trying zero profit"
+    signal: "rare vulnerability about extended failure"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "deepest vulnerability moment in video"
+    rationale: "admitting a year of zero results is powerful catharsis; belonging for struggling viewers"
+    confidence: high
+
+  - id: 66
+    t: 895.17
+    e: 905.693
+    text: "So I never told my friends or family what I was doing during that whole period. Not because I was embarrassed by it or something like that. I just didn't really care what they thought, to be honest."
+    states: [belonging, vindication, aspiration]
+    distillation: "kept silent no approval"
+    signal: "independence from social validation"
+    dur: identity
+    roles: [secondary, primary, tertiary]
+    notes: "models emotional independence"
+    rationale: "viewers hiding side hustles feel seen; 'didn't care' is aspirational mindset"
+    confidence: high
+
+  - id: 67
+    t: 905.713
+    e: 923.896
+    text: "The only opinions that I cared about were from people who had what I wanted because they probably knew more about getting there than people who'd never done it before. Who'd spent their whole lives in a nine to five happily or whatever. That's fine. But that wasn't my goal. So I didn't really need their input."
+    states: [vindication, competence, aspiration]
+    distillation: "only successful opinions valued"
+    signal: "selective attention principle"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "principle: filter advice by source credentials"
+    rationale: "reframes ignoring critics as strategic; gives viewer permission to do the same"
+    confidence: high
+
+  # === SUCCESS PAYOFF ===
+
+  - id: 68
+    t: 924.236
+    e: 941.227
+    text: "And once I found drop servicing, it took me three months to get my first sale. OK, from beginning to close. It was $850. And seven months after that, I'd quit my job. I was making $10,000 a month and booked a one way ticket out of Wellington to Thailand actually at the time to"
+    states: [aspiration, awe, belonging]
+    distillation: "3 months $850 then $10k"
+    signal: "specific timeline with dollar amounts and destination"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "payoff moment — the promise fulfilled"
+    rationale: "concrete numbers + specific destination transforms aspiration into proof"
+    confidence: high
+
+  - id: 69
+    t: 942.526
+    e: 953.33
+    text: "So do I even remember what it felt like sitting in that call center. Honestly barely at all. Not really. Does any of the time I spent failing matter anymore. Not even a little bit right."
+    states: [catharsis, aspiration, calm]
+    distillation: "failures forgotten pain irrelevant"
+    signal: "retrospective minimization of suffering"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "permission to endure the struggle"
+    rationale: "viewer currently struggling is told the pain is temporary; cathartic release"
+    confidence: high
+
+  # === STEVE SOCIAL PROOF ===
+
+  - id: 70
+    t: 953.51
+    e: 964.115
+    text: "So think about this a guy I know Steve for example a friend of mine. He went through the same thing. He was doing recruiting in London his job. He made about three thousand pounds."
+    states: [belonging, competence]
+    distillation: "Steve London recruiter journey"
+    signal: "named social proof with geographic specifics"
+    dur: mood
+    roles: [secondary, primary, tertiary]
+    notes: "third-party proof broadens applicability"
+    rationale: "named friend makes it feel real; different location proves it's not luck"
+    confidence: medium
+
+  - id: 71
+    t: 966.188
+    e: 974.33
+    text: "in London and he made about 300 pounds in his entire first year in business. And today he's generated millions of dollars and does whatever he wants with his time."
+    states: [aspiration, awe, belonging]
+    distillation: "Steve £300 to millions"
+    signal: "extreme contrast transformation"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "second transformation proof — compounds evidence"
+    rationale: "300 pounds to millions is dramatic contrast; proves pattern not anomaly"
+    confidence: high
+
+  - id: 72
+    t: 974.49
+    e: 986.636
+    text: "So the timeline always looks brutal in the middle and obvious in hindsight. You just have to find something you'll stick with and trust that you'll figure it out. because you probably will if you stick with that and you adjust."
+    states: [aspiration, belonging, competence]
+    distillation: "brutal middle obvious hindsight"
+    signal: "meta-principle about all success timelines"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "universalized wisdom — quotable"
+    rationale: "'brutal in the middle, obvious in hindsight' is a portable insight viewers take with them"
+    confidence: high
+
+  # === RANKING SUMMARY ===
+
+  - id: 73
+    t: 988.757
+    e: 997.204
+    text: "Affiliate marketing is at the bottom. It's the easiest to start and hardest to make work. It's too generic, too crowded and no way to differentiate."
+    states: [competence, vindication]
+    distillation: "affiliate easiest start hardest"
+    signal: "definitive ranking with reasoning"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "ranking recap — affiliate verdict"
+    rationale: "clear ranking satisfies competence need; validates viewers who abandoned it"
+    confidence: high
+
+  - id: 74
+    t: 997.625
+    e: 1005.751
+    text: "Amazon FBA is above that. It can be sold with branded products, but the upfront cost is real and you're building on someone else's platform."
+    states: [competence, fear]
+    distillation: "FBA costly platform dependent"
+    signal: "nuanced ranking with tradeoffs"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "ranking recap — FBA verdict"
+    rationale: "balanced assessment builds analytical credibility"
+    confidence: medium
+
+  - id: 75
+    t: 1054.41
+    e: 1064.575
+    text: "Dropshipping or e-commerce is better. There's no platform dependency, no inventory. And if you can build a real brand, the ceiling is high, but you need capital and stomach for the ad spend grind."
+    states: [competence]
+    distillation: "dropshipping better needs capital"
+    signal: "ranking with conditional praise"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "ranking recap — dropshipping verdict"
+    rationale: "conditional praise shows analytical honesty"
+    confidence: medium
+
+  - id: 76
+    t: 1064.815
+    e: 1077.582
+    text: "So drop servicing is at the top, just as cheap to start as the bottom two. But you actually build something defensible. You control your niche. You control the client relationship. And every sale makes the next one easier."
+    states: [competence, aspiration, vindication]
+    distillation: "drop servicing cheap defensible"
+    signal: "definitive ranking with three proof points"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "final ranking — drop servicing wins"
+    rationale: "three-point proof (cheap + defensible + compounding) summarizes entire video argument"
+    confidence: high
+
+  - id: 77
+    t: 1077.822
+    e: 1080.843
+    text: "So my drop servicing businesses still do $100,000 a month."
+    states: [awe, aspiration]
+    distillation: "$100k/month current revenue"
+    signal: "current income proof — not just past"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "proof it still works today"
+    rationale: "$100k/month creates awe; 'still' proves longevity not just initial success"
+    confidence: high
+
+  # === AI POSITIONING / CTA ===
+
+  - id: 78
+    t: 1082.064
+    e: 1107.765
+    text: "And especially with the AI boom right now, you know, this model is better positioned than anything else out there when it comes to online business that I tried or seen better than the old guard models, better than the new trendy stuff like clipping or selling digital products with chat GPT because I drop servicing gives you something to sell. someone to sell it to and the proof from the freelancers that connects the two."
+    states: [competence, aspiration, curiosity]
+    distillation: "AI boom favors servicing"
+    signal: "timely trend alignment"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "ties to current trend — relevance boost"
+    rationale: "AI framing makes it feel current; differentiates from 'old' models"
+    confidence: high
+
+  - id: 79
+    t: 1110.086
+    e: 1118.808
+    text: "and the coolest part is it's the AI business model that most people really ignore. Everyone's focused on learning AI, but the real money isn't selling it."
+    states: [curiosity, vindication, competence]
+    distillation: "selling AI isn't profit"
+    signal: "contrarian positioning"
+    dur: identity
+    roles: [primary, secondary, tertiary]
+    notes: "contrarian AI take — differentiator"
+    rationale: "contrarian angle creates curiosity; validates those skeptical of AI hype"
+    confidence: high
+
+  - id: 80
+    t: 1119.009
+    e: 1122.71
+    text: "And I explained the whole model in this video here. So go check it out."
+    states: [curiosity]
+    distillation: "CTA to next video"
+    signal: "direct call to action"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "end card CTA"
+    rationale: "standard CTA leveraging built curiosity"
+    confidence: medium
+
+  - id: 81
+    t: 1126.05
+    e: 1131.232
+    text: "And if you want me to break down exactly how drop servicing works, check out the free training description below this video."
+    states: [curiosity, aspiration]
+    distillation: "CTA free training description link"
+    signal: "secondary CTA to training"
+    dur: spike
+    roles: [primary, secondary, tertiary]
+    notes: "description link CTA"
+    rationale: "offers deeper value for most engaged viewers"
+    confidence: medium
+
+# === STUMBLES ===
+# Pass 3 — Stumbles inside content segments that can't be cleanly cut
+
+stumbles:
+  - segment_id: 27
+    t: 387.812
+    e: 397.0
+    text_around: "if you go to the niche site route, you know, if you go the niche site route"
+    type: restart_mid_sentence
+    note: "repeats 'if you go the niche site route' — can potentially cut at 391.0 but may sound abrupt"
+
+  - segment_id: 35
+    t: 496.094
+    e: 517.718
+    type: long_run_on
+    note: "21.6s single breath run-on sentence from fidget spinners through ad budget wall; no clean internal cut point"
+
+  - segment_id: 45
+    t: 642.442
+    e: 650.968
+    text_around: "it takes about three months to launch your first product. It takes about three months"
+    type: restart_mid_sentence
+    note: "repeats 'it takes about three months' — can cut at ~645.2 but needs careful audio edit"
+
+  - segment_id: 62
+    t: 849.597
+    e: 852.117
+    text_around: "For example, just an example service in their share"
+    type: stumble
+    note: "awkward phrasing 'example service in their share' — unclear, may need to cut or leave"
+
+  - segment_id: 64
+    t: 874.026
+    e: 878.907
+    text_around: "That's what makes the that's what makes this"
+    type: restart_mid_sentence
+    note: "false start 'that's what makes the' before clean restart — cut possible at ~875.5"
+
+  - segment_id: 78
+    t: 1100.0
+    e: 1107.765
+    text_around: "because I drop servicing gives you something to sell"
+    type: stumble
+    note: "grammatical stumble 'because I drop servicing' — mid-sentence, hard to cut without losing context"
+
+# === DISCARDED SEGMENTS ===
+# Pass 1 — Segments filtered out (not classified)
+
+discarded:
+  - segments: [0, 1, 2]
+    reason: "technical setup — recording checks"
+  - segments: [3]
+    reason: "outtake — frustration exclamation"
+  - segments: [4, 5, 6, 7, 8, 9, 10, 11]
+    reason: "false starts and self-critique — multiple takes of 'seven months' opener"
+  - segments: [34, 44]
+    reason: "filler — isolated 'OK'"
+  - segments: [35]
+    reason: "duplicate — retake of segment 33 evaluation intro"
+  - segments: [46, 47, 48, 49]
+    reason: "false starts — multiple takes of transition/tease to stick around"
+  - segments: [72]
+    reason: "filler — isolated 'OK, drop shipping' transition"
+  - segments: [78]
+    reason: "false start — retaken cleanly in segment 79"
+  - segments: [99]
+    reason: "duplicate — exact repeat of segment 98"
+  - segments: [114]
+    reason: "filler — 'so you know'"
+  - segments: [126]
+    reason: "false start — incomplete sentence retaken in 127"
+  - segments: [151]
+    reason: "false start — 'this is it's not just about the margins' retaken"
+  - segments: [199, 200]
+    reason: "false starts — retaken cleanly in segment 208+ range"
+  - segments: [201, 202, 203, 204, 205]
+    reason: "first take of dropshipping ranking — superseded by retake at 208-210"
+  - segments: [206, 207]
+    reason: "outtake — 'I fucked it up' + 'scroll back up' production notes"
+  - segments: [224, 225]
+    reason: "production notes — discussing CTA placement, not content"
