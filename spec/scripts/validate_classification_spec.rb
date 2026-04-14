@@ -3,13 +3,13 @@ require 'json'
 require 'yaml'
 require 'tmpdir'
 
-SCRIPT = File.expand_path('../../scripts/validate_classification.rb', __dir__)
+VALIDATOR_SCRIPT = File.expand_path('../../scripts/validate_classification.rb', __dir__)
 
 def run_validator(yaml_content)
   Dir.mktmpdir do |dir|
     path = File.join(dir, 'segments_classified.yaml')
     File.write(path, yaml_content)
-    stdout, stderr, status = Open3.capture3('ruby', SCRIPT, path)
+    stdout, stderr, status = Open3.capture3('ruby', VALIDATOR_SCRIPT, path)
     report = JSON.parse(stdout) rescue nil
     { stdout: stdout, stderr: stderr, exit_code: status.exitstatus, report: report }
   end

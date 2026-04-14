@@ -64,7 +64,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 3. Run Phase 1.5 (classification, deep mode) — can be Task agent
 4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb`
 5. Run Phase 1.7 (template matching) — can be Task agent: `ruby scripts/match_templates.rb`
-6. Run Phase 1.8 (coherence scoring) — can be Task agent: `ruby scripts/score_coherence.rb --prepare` → agent evaluates each candidate → `ruby scripts/score_coherence.rb --apply`
+6. Run Phase 1.8 (coherence scoring) — can be Task agent: `ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml>`
 7. Return to main conversation → Run Phase 2 (storyline selection) directly via AskUserQuestion
 8. Pass selected storyline(s) + branch assignment into Phase 3 Task agent prompt
 9. Run Phase 3 (arrangement + XML) — Task agent builds one output per selected candidate
@@ -279,31 +279,18 @@ Loads 6 narrative templates from `templates/story_structures/` (problem_solution
 
 ### Phase 1.8: Coherence Scoring (deep mode only)
 
-After template matching, add LLM-evaluated narrative coherence and compute combined ranking.
+After template matching, score narrative coherence and compute combined ranking in a single pass:
 
-**Step 1 — Prepare evaluation payloads:**
 ```bash
-ruby scripts/score_coherence.rb --prepare <storylines_matched.yaml> <segments_classified.yaml>
-```
-Outputs `coherence_prep.yaml` with per-candidate distillation sequences and evaluation prompts.
-
-**Step 2 — Agent evaluates coherence:**
-For each candidate in `coherence_prep.yaml`, read the `evaluation_prompt` field and score narrative coherence 0-100. Write results to `coherence_scores.yaml`:
-```yaml
-scores:
-  - id: candidate_id
-    coherence_score: 78
-    issues:
-      - "Segments 3-5 repeat similar ideas"
+ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml>
 ```
 
-**Step 3 — Apply scores and rank:**
-```bash
-ruby scripts/score_coherence.rb --apply <coherence_prep.yaml> <coherence_scores.yaml>
-```
-Computes `combined_score = state_score × 0.3 + template_fit × 0.4 + coherence_score × 0.3`. Applies quality floor (combined >= 60), ranks within each profile, caps at top 3. Outputs `storylines_scored.yaml`.
+Reads both files, reconstructs each candidate's distillation arc, scores coherence algorithmically (incompatible transitions, redundant state clusters, distillation diversity, arc completeness), computes combined score, applies quality floor, ranks, and writes `storylines_scored.yaml`. No intermediate files.
 
-**Output:** `storylines_scored.yaml` — each storyline has `coherence` (score + issues), `combined_score`, `quality_pass`, and `rank` (within profile). This is the input for Phase 2 storyline selection.
+**Combined score:** `state_score × 0.3 + template_fit × 0.4 + coherence_score × 0.3`
+**Quality floor:** 60. Below = `passed_floor: false`.
+
+**Output:** `storylines_scored.yaml` — each storyline has `state_score`, `template_fit`, `coherence_score`, `coherence_issues`, `combined_score`, `passed_floor`, and `rank` (within profile, passing candidates only, top 3). This is the input for Phase 2 storyline selection.
 
 ### Phase 2: Storyline Selection — MAIN CONVERSATION ONLY
 
