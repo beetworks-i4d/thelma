@@ -505,6 +505,10 @@ shorts_to_process.each do |num|
     yaml_data['speech_analysis'] = File.join(TRANSCRIPTS_DIR, video_info['speech_analysis'])
   end
 
+  # Add classification path if exists (Branch A files have segments_used, so emotion markers will be skipped)
+  class_path = File.join(LIBRARY_DIR, "segments_classified_short_#{padded}.yaml")
+  yaml_data['classification'] = class_path if File.exist?(class_path)
+
   yaml_data['auto_remove_pauses_above'] = 500
   yaml_data['clips'] = clips
   yaml_data['markers'] = markers

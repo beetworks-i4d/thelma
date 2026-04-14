@@ -466,7 +466,7 @@ selected_storylines:
 2. **Select clips** — Choose strongest segments. Cut filler, false starts, tangents, repeated points. (The cleaned transcript has already removed duplicate takes and obvious filler, so focus on editorial selection.)
 3. **Arrange structure** — Order clips in the chosen format. If cold open: pick the single most emotionally compelling moment and place it first.
 4. **Add markers** (see marker reference below)
-5. **Write YAML** — Include `speech_analysis` path for snap-to-boundary. Use `video_start`/`video_end` for clip times (fast mode transcript comes from video audio). If dual-system audio and transcript was from WAV, use `audio_start`/`audio_end` instead.
+5. **Write YAML** — Include `speech_analysis` path for snap-to-boundary. If `segments_classified.yaml` (or `segments_deduped.yaml`) exists, include `classification: <path>` to enable emotion markers in the output XML. Use `video_start`/`video_end` for clip times (fast mode transcript comes from video audio). If dual-system audio and transcript was from WAV, use `audio_start`/`audio_end` instead.
 6. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 7. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For fast mode, log is minimal: hook choice (if cold open), segments cut with reasons, overall structure rationale. Use the same file format as deep mode but with fewer entries.
 
@@ -553,6 +553,7 @@ Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyli
    - Set `output_dir` in the YAML to this same project output folder — this controls where `build_structure_cut.rb` writes the XML
    - **Do NOT use `libraries/[library-name]/roughcuts/`** — that directory is for internal library data, not deliverable outputs
    - Include `speech_analysis` path for snap-to-boundary
+   - Include `classification` path pointing to `segments_classified.yaml` (or `segments_deduped.yaml`) to enable emotion markers in the output XML
    - Classification `t`/`e` values inherit the time domain of the source transcript. If the transcript was generated from the production WAV (dual-system audio), use `audio_start`/`audio_end`. If from video audio, use `video_start`/`video_end`. Check `library.yaml` — if `sync_audio` exists AND the transcript filename matches the WAV (not the video), times are WAV-relative → use `audio_start`/`audio_end`.
    - **Output format by profile:**
      - `best_short` → set `output_format: vertical_short` (unless source is already vertical)
@@ -679,6 +680,11 @@ If any candidate failed integrity validation during Phase 3, note it: "Skipped [
 - Template: "[template_name] ([completeness]% beat coverage)"
 - Any integrity warnings from validation
 
+**Emotion markers (when classification is present):**
+- Report count: "Emotion markers: [N] (from classification data)"
+- Explain format: markers appear in Premiere's marker panel with headline "state | distillation" and a structured comment containing states with durability, role, signal, confidence, and source timestamp
+- See `docs/emotion-markers-reference.md` for editor-facing reference
+
 Ask: "Want me to adjust anything before you open it?"
 
 ## YAML Format Reference
@@ -698,6 +704,12 @@ sync_audio:                       # optional — for dual-system audio
   offset: 50.41                   # from audio_sync_offset.rb
 
 speech_analysis: /path/to/speech_analysis.json  # optional — from audio_analysis.rb
+
+classification: /path/to/segments_classified.yaml  # optional — from Phase 1.5 classification
+                                  # When present, build_structure_cut.rb generates emotion markers
+                                  # encoding states, durability, signal, confidence into Premiere markers.
+                                  # Branch A files (with segments_used key) are auto-skipped.
+                                  # Use --no-emotion-markers flag to suppress.
 
 auto_remove_pauses_above: 500     # optional, milliseconds (default 500)
                                   # Long pauses above this threshold inside clips are

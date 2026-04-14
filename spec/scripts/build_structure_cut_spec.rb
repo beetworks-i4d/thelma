@@ -248,4 +248,147 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
   end
+
+  describe 'emotion markers' do
+    let(:classification_data) do
+      {
+        'segments' => [
+          {
+            't' => 1.5,
+            'e' => 3.0,
+            'states' => %w[vindication curiosity],
+            'distillation' => 'system rigged but you win',
+            'signal' => 'named target, specific claim',
+            'dur' => 'identity',
+            'narrative_role' => 'primary',
+            'confidence' => 'high'
+          },
+          {
+            't' => 5.5,
+            'e' => 7.0,
+            'states' => %w[competence aspiration],
+            'distillation' => 'three-step framework reveal',
+            'signal' => 'framework reveal',
+            'dur' => 'spike',
+            'narrative_role' => 'secondary',
+            'confidence' => 'medium'
+          }
+        ]
+      }
+    end
+
+    it 'generates markers with correct name format: primary_state | distillation' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, classification_data.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        marker_names = doc.xpath('//sequence/marker/name').map(&:text)
+        expect(marker_names).to include('vindication | system rigged but you win')
+        expect(marker_names).to include('competence | three-step framework reveal')
+      end
+    end
+
+    it 'generates comments with all pipe-separated payload fields' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, classification_data.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        comments = doc.xpath('//sequence/marker/comment').map(&:text)
+        emotion_comment = comments.find { |c| c.include?('vindication(identity)') }
+        expect(emotion_comment).not_to be_nil
+        expect(emotion_comment).to include('states: vindication(identity), curiosity(identity)')
+        expect(emotion_comment).to include('role: primary')
+        expect(emotion_comment).to include('signal: named target, specific claim')
+        expect(emotion_comment).to include('confidence: high')
+        expect(emotion_comment).to include('t=1.5')
+      end
+    end
+
+    it 'produces no crash and no emotion markers when classification is absent' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['markers'] = [
+          { 'name' => 'NOTE', 'comment' => 'Existing marker', 'time' => 0.0, 'color' => 'yellow' }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('emotion markers')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        comments = doc.xpath('//sequence/marker/comment').map(&:text)
+        expect(comments).to include('Existing marker')
+      end
+    end
+
+    it 'skips emotion markers when --no-emotion-markers flag is set' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, classification_data.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, '--no-emotion-markers', yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('Added')
+        expect(stderr).not_to include('emotion markers')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        marker_names = doc.xpath('//sequence/marker/name').map(&:text)
+        emotion_markers = marker_names.select { |n| n.include?('|') }
+        expect(emotion_markers).to be_empty
+      end
+    end
+
+    it 'preserves NOTE markers alongside emotion markers' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, classification_data.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        config['markers'] = [
+          { 'name' => 'NOTE', 'comment' => 'Check audio levels', 'time' => 0.0, 'color' => 'yellow' },
+          { 'name' => 'TITLE', 'comment' => 'Insert title card', 'time' => 0.0, 'color' => 'blue' }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        comments = doc.xpath('//sequence/marker/comment').map(&:text)
+        # User-defined markers preserved
+        expect(comments).to include('Check audio levels')
+        expect(comments).to include('Insert title card')
+        # Emotion markers also present
+        emotion_comments = comments.select { |c| c.include?('states:') }
+        expect(emotion_comments.size).to be >= 1
+      end
+    end
+  end
 end

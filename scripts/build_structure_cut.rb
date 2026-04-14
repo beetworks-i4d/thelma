@@ -74,6 +74,7 @@ def orient_label(w, h)
   w > h ? 'horizontal' : (h > w ? 'vertical' : 'square')
 end
 
+no_emotion_markers = !!ARGV.delete('--no-emotion-markers')
 yaml_path = ARGV[0]
 abort "Usage: ruby scripts/build_structure_cut.rb <yaml_path>" unless yaml_path
 abort "YAML not found: #{yaml_path}" unless File.exist?(yaml_path)
@@ -169,6 +170,23 @@ if config['speech_analysis']
   speech_segments = sa_data['speech_segments']
   long_pauses = sa_data['long_pauses']
   $stderr.puts "Loaded speech analysis: #{speech_segments.size} segments, #{long_pauses.size} long pauses"
+end
+
+# === Load classification for emotion markers ===
+classification_segments = nil
+if config['classification'] && !no_emotion_markers
+  class_path = config['classification']
+  if File.exist?(class_path)
+    class_data = YAML.safe_load(File.read(class_path), permitted_classes: [Date])
+    if class_data.key?('segments_used')
+      $stderr.puts "Classification is Branch A (script-locked) — skipping emotion markers"
+    elsif class_data['segments']
+      classification_segments = class_data['segments']
+      $stderr.puts "Loaded #{classification_segments.size} classified segments for emotion markers"
+    end
+  else
+    $stderr.puts "WARNING: Classification not found: #{class_path} — skipping emotion markers"
+  end
 end
 
 # === Parse auto_remove_pauses_above ===
@@ -413,6 +431,43 @@ if long_pauses && speech_segments
   end
 end
 
+# === Add emotion markers from classification ===
+emotion_count = 0
+if classification_segments
+  classification_segments.each do |seg|
+    seg_t = seg['t'].to_f
+    seg_wav_t = has_sync ? seg_t + sync_offset : seg_t
+
+    clip_idx = clip_source_ranges.each_with_index.find { |csr, _|
+      seg_wav_t >= csr[:wav_start] - 0.05 && seg_wav_t < csr[:wav_end] + 0.05
+    }&.last
+    next unless clip_idx
+
+    offset_in_clip = seg_wav_t - clip_source_ranges[clip_idx][:wav_start]
+    tl_time = (timeline_positions[clip_idx] + offset_in_clip).round(2)
+
+    primary_state = (seg['states'] || []).first || 'unknown'
+    distillation = seg['distillation'] || ''
+    dur = seg['dur'] || 'mood'
+    states_str = (seg['states'] || []).map { |s| "#{s}(#{dur})" }.join(', ')
+
+    comment_parts = ["states: #{states_str}"]
+    comment_parts << "role: #{seg['narrative_role'] || 'unclassified'}"
+    comment_parts << "signal: #{seg['signal']}" if seg['signal']
+    comment_parts << "confidence: #{seg['confidence'] || 'unknown'}"
+    comment_parts << "t=#{seg_t}"
+
+    markers << {
+      name: "#{primary_state} | #{distillation}",
+      comment: comment_parts.join(' | '),
+      time: tl_time,
+      color: 'purple'
+    }
+    emotion_count += 1
+  end
+  $stderr.puts "Added #{emotion_count} emotion markers"
+end
+
 if removed_pause_count > 0
   $stderr.puts "Pause removal: #{removed_pause_count} pauses removed (#{(total_removed_ms / 1000.0).round(1)}s total)"
 end
@@ -561,6 +616,7 @@ secs = (total_duration % 60).round
 puts output_path
 $stderr.puts "Structure cut generated: #{output_path}"
 summary = "Duration: #{mins}:#{format('%02d', secs)} | Clips: #{clips.length} | Markers: #{markers.length}"
+summary += " | Emotion: #{emotion_count}" if emotion_count > 0
 summary += " | Pauses removed: #{removed_pause_count} (#{(total_removed_ms / 1000.0).round(1)}s)" if removed_pause_count > 0
 $stderr.puts summary
 if has_sync
