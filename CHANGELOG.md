@@ -5,6 +5,26 @@ All notable changes to ButterCut will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-04-15 — v1.1-foundation
+
+Phase 1 of the editorial pipeline rebuild: validation, scoring, dedup, test coverage, and reusability.
+
+### Added
+- **Classification output validator** (`scripts/validate_classification.rb`) — structural, taxonomy, and data validation for `segments_classified.yaml` with exit codes 1/2/3 by severity
+- **Two-layer coherence scoring** (`scripts/score_coherence.rb`) — algorithmic pre-filter (state continuity, template fit, coherence heuristics) + LLM narrative judgment pass with combined scoring and quality floor
+- **Semantic dedup** (`scripts/semantic_dedup.rb`) — Phase 1.5b post-classification pass that compares consecutive segments by distillation overlap to detect retakes while preserving rhetorical repetition
+- **Test coverage for critical scripts** — 24 new tests for `build_structure_cut.rb` (14) and `transcript_cleanup.rb` (10), plus specs for all new scripts
+- SKILL.md orchestration documentation for Phases 1.5b, 1.6, 1.7, 1.8
+
+### Changed
+- **`branch_a_batch.rb` now accepts `--library` flag** — removed hardcoded paths to `dylan-shorts-batch-1`; all paths derived from `library.yaml`. New `--shorts` range flag replaces hardcoded 1..30.
+- Pipeline flow updated: Phase 1.5 classification → Phase 1.5b semantic dedup → Phase 1.6 storyline discovery (reads `segments_deduped.yaml`)
+
+### Fixed
+- Close search window in `branch_a_batch.rb` — all 30 shorts now match correctly
+- Distillation word limits tightened to 5-word maximum during classification
+- Sync audio pulled from `library.yaml` when no fast mode YAML exists
+
 ## [0.4.0] - 2026-02-24
 
 ### Changed

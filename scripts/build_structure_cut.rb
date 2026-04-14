@@ -419,7 +419,7 @@ end
 
 # === Generate base XML ===
 FileUtils.mkdir_p(output_dir)
-generator = ButterCut.new(clips, editor: editor, markers: markers)
+generator = ButterCut.new(clips, editor: editor, markers: markers, name: config['name'])
 base_xml = generator.to_xml
 
 # === Post-process: add sync audio track if present ===

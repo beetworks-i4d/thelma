@@ -1,9 +1,15 @@
 #!/usr/bin/env ruby
-# branch_a_batch.rb — Batch Branch A (script-driven) processing for Dylan Shorts Batch 1
+# branch_a_batch.rb — Batch Branch A (script-driven) processing
 #
-# Usage: ruby scripts/branch_a_batch.rb [short_numbers...]
-#   No args = process all shorts 1-30
-#   Args = process specific shorts, e.g.: ruby scripts/branch_a_batch.rb 2 3 4
+# Algorithm: Sequential forward-only hook discovery across ordered video transcripts.
+# 1. Build unified timeline from all video transcripts in library order
+# 2. Pass 1: Find all hooks sequentially (forward-only, sliding window word overlap)
+# 3. Scope = hook[i] to hook[i+1] (no fixed window, no global search)
+# 4. Per short: hook → all body content between hook and close → close
+#
+# Usage: ruby scripts/branch_a_batch.rb --library <library-name> [--shorts 1..5]
+#   --library  Library name (required). Resolves to libraries/<name>/library.yaml.
+#   --shorts   Range of shorts to process (optional). Defaults to all shorts in script.
 
 require 'yaml'
 require 'json'
@@ -12,11 +18,47 @@ require 'fileutils'
 require 'digest'
 require 'date'
 
-LIBRARY_DIR = File.expand_path('libraries/dylan-shorts-batch-1', __dir__.sub('/scripts', ''))
-PROJECT_DIR = '/Users/i4d/Desktop/RAW/Dylan Shorts Batch 1'
-OUTPUT_DIR = File.join(PROJECT_DIR, 'output')
+PROJECT_ROOT = ENV['BUTTERCUT_ROOT'] || File.expand_path('..', __dir__)
+BUILD_SCRIPT = File.join(PROJECT_ROOT, 'scripts', 'build_structure_cut.rb')
+
+# --- CLI parsing ---
+
+library_name = nil
+shorts_range = nil
+i = 0
+while i < ARGV.length
+  case ARGV[i]
+  when '--library'
+    library_name = ARGV[i + 1]
+    i += 2
+  when '--shorts'
+    shorts_range = ARGV[i + 1]
+    i += 2
+  else
+    abort "Unknown argument: #{ARGV[i]}\nUsage: ruby scripts/branch_a_batch.rb --library <library-name> [--shorts 1..5]"
+  end
+end
+
+abort "Usage: ruby scripts/branch_a_batch.rb --library <library-name> [--shorts 1..5]\n  --library is required" unless library_name
+
+# --- Derive paths from library.yaml ---
+
+LIBRARY_DIR = File.join(PROJECT_ROOT, 'libraries', library_name)
+library_yaml_path = File.join(LIBRARY_DIR, 'library.yaml')
+abort "Library not found: #{library_yaml_path}" unless File.exist?(library_yaml_path)
+
+library = YAML.load_file(library_yaml_path, permitted_classes: [Date])
+
+abort "No 'videos' in #{library_yaml_path}" unless library['videos'].is_a?(Array) && !library['videos'].empty?
+abort "No 'script_parsed' in #{library_yaml_path}. Branch A batch requires a parsed script." unless library['script_parsed']
+
 TRANSCRIPTS_DIR = File.join(LIBRARY_DIR, 'transcripts')
-BUILD_SCRIPT = File.expand_path('scripts/build_structure_cut.rb', __dir__.sub('/scripts', ''))
+script_parsed_path = File.join(TRANSCRIPTS_DIR, library['script_parsed'])
+abort "Script not found: #{script_parsed_path}" unless File.exist?(script_parsed_path)
+
+PROJECT_DIR = File.dirname(library['videos'].first['path'])
+OUTPUT_DIR = File.join(PROJECT_DIR, 'output')
+FileUtils.mkdir_p(OUTPUT_DIR)
 
 # --- Helpers ---
 
@@ -47,53 +89,17 @@ def segment_quality(seg)
   return 0 if text.length < 10
   return 0 if text =~ /^(okay|ok|yeah|so|um|uh|hmm|right)[.,]?\s*$/i
   words = text.scan(/\b(\w+)\b/).flatten
-  return 0 if words.group_by { |w| w.downcase }.any? { |w, occ| occ.length >= 4 && w.length > 2 }
-  # Penalize trailing-off (ends without punctuation and is short)
+  # TODO: De-duping is not aggressive enough — lots of duplication left in output.
+  #       Dupe matching should be on multi-word clusters (2-3 word ngrams), not individual words.
+  #       Single-word matching misses repeated phrases like "I can't design" / "I can't design websites".
+  # Only flag as bad if a single word dominates (>= 50% of all words) — avoids filtering rhetorical repetition
+  word_count = words.length
+  return 0 if word_count > 0 && words.group_by { |w| w.downcase }.any? { |w, occ| occ.length >= 4 && w.length > 2 && occ.length.to_f / word_count > 0.5 }
   penalty = (text[-1] !~ /[.!?"]/ && text.length < 40) ? 0.5 : 1.0
-  # Penalize restarts ("the thing is that that")
   penalty *= 0.7 if text =~ /\b(\w{3,})\s+\1\b/i
   dur = seg['end'] - seg['start']
-  # Prefer segments 3-15 seconds
   dur_score = dur >= 3 && dur <= 15 ? 1.0 : (dur > 15 ? 0.7 : 0.3)
   penalty * dur_score
-end
-
-def pick_best_segments(segments, target_duration, max_segments: 5)
-  return [] if segments.empty?
-
-  # Score and sort by quality
-  scored = segments.map { |s| [s, segment_quality(s)] }.reject { |_, q| q <= 0 }
-  return [] if scored.empty?
-
-  # Sort by start time to maintain chronological order within the beat
-  scored.sort_by! { |s, _| s['start'] }
-
-  selected = []
-  total_dur = 0
-
-  scored.each do |seg, quality|
-    break if total_dur >= target_duration
-    break if selected.length >= max_segments
-    dur = seg['end'] - seg['start']
-    # Skip if it would overshoot by more than 50%
-    next if total_dur > 0 && total_dur + dur > target_duration * 1.5
-    selected << seg
-    total_dur += dur
-  end
-
-  # If we're way under target, add more segments sorted by quality
-  if total_dur < target_duration * 0.5 && scored.length > selected.length
-    remaining = scored.reject { |s, _| selected.include?(s) }.sort_by { |_, q| -q }
-    remaining.each do |seg, _|
-      break if total_dur >= target_duration
-      dur = seg['end'] - seg['start']
-      selected << seg
-      total_dur += dur
-    end
-    selected.sort_by! { |s| s['start'] }
-  end
-
-  selected
 end
 
 def merge_continuous_clips(segments, gap_threshold: 1.5)
@@ -153,9 +159,8 @@ end
 
 # --- Load data ---
 
-$stderr.puts "Loading script and library..."
-script = YAML.load_file(File.join(TRANSCRIPTS_DIR, 'script_parsed.yaml'), permitted_classes: [Date])
-library = YAML.load_file(File.join(LIBRARY_DIR, 'library.yaml'), permitted_classes: [Date])
+$stderr.puts "Loading script and library (#{library_name})..."
+script = YAML.load_file(script_parsed_path, permitted_classes: [Date])
 
 # Build video lookup
 video_lookup = {}
@@ -165,11 +170,13 @@ library['videos'].each do |v|
 end
 
 # Determine which shorts to process
-requested = ARGV.map(&:to_i)
-shorts_to_process = if requested.empty?
-  (1..30).to_a
+all_short_numbers = script['shorts'].map { |s| s['number'] }.sort
+shorts_to_process = if shorts_range
+  match = shorts_range.match(/^(\d+)\.\.(\d+)$/)
+  abort "Invalid --shorts range: '#{shorts_range}'. Expected format: 1..5" unless match
+  (match[1].to_i..match[2].to_i).to_a
 else
-  requested
+  all_short_numbers
 end
 
 $stderr.puts "Processing #{shorts_to_process.length} shorts: #{shorts_to_process.join(', ')}"
@@ -180,7 +187,6 @@ transcript_cache = {}
 def load_transcript(video_basename, transcripts_dir, cache)
   return cache[video_basename] if cache[video_basename]
 
-  # Find cleaned version first — handle spaces vs underscores
   base = video_basename.sub(/\.[^.]+$/, '')
   base_under = base.gsub(' ', '_')
   cleaned = Dir.glob(File.join(transcripts_dir, "#{base}_transcript_cleaned.json")).first ||
@@ -199,326 +205,273 @@ def load_transcript(video_basename, transcripts_dir, cache)
   data
 end
 
-# --- Process each short ---
+# =============================================================
+# PHASE 1: Build unified timeline from all videos in order
+# =============================================================
+
+$stderr.puts "\n--- Building unified timeline ---"
+unified = []
+library['videos'].each do |v|
+  basename = File.basename(v['path'])
+  transcript = load_transcript(basename, TRANSCRIPTS_DIR, transcript_cache)
+  unless transcript
+    $stderr.puts "  SKIP: #{basename} — no transcript"
+    next
+  end
+  seg_count = transcript['segments'].length
+  transcript['segments'].each do |seg|
+    unified << seg.merge(
+      '_video_path' => v['path'],
+      '_video_basename' => basename,
+      '_video_info' => v
+    )
+  end
+  $stderr.puts "  #{basename}: #{seg_count} segments (ends at #{fmt(transcript['segments'].last['end'])})"
+end
+$stderr.puts "Unified timeline: #{unified.length} segments across #{library['videos'].length} videos"
+
+# =============================================================
+# PHASE 2: Find ALL hook positions sequentially (forward-only)
+# =============================================================
+
+$stderr.puts "\n--- Pass 1: Finding all hooks (forward-only) ---"
+all_shorts = script['shorts'].sort_by { |s| s['number'] }
+hook_positions = {}
+cursor = 0
+
+all_shorts.each do |short_def|
+  num = short_def['number']
+  hook_beat = short_def['beats'].find { |b| b['role'] == 'hook' }
+  close_beat = short_def['beats'].find { |b| b['role'] == 'close' }
+  next unless hook_beat
+  hook_text = hook_beat['text']
+
+  # Search forward from cursor with generous window (don't search backward)
+  search_end = [cursor + 400, unified.length].min
+
+  best_score = 0
+  best_start = nil
+  best_size = 1
+
+  (cursor...search_end).each do |i|
+    # Try sliding windows of 1-8 segments (hooks can span multiple sentences)
+    max_win = [8, unified.length - i].min
+    (1..max_win).each do |w|
+      # Only combine segments from the same video
+      break if unified[i + w - 1]['_video_path'] != unified[i]['_video_path']
+      # Only combine segments that are close together (< 5s gap)
+      break if w > 1 && unified[i + w - 1]['start'] - unified[i + w - 2]['end'] > 5
+
+      window_text = unified[i, w].map { |s| s['text'] }.join(' ')
+      score = word_overlap(hook_text, window_text)
+      if score > best_score
+        best_score = score
+        best_start = i
+        best_size = w
+      end
+    end
+  end
+
+  if best_start && best_score > 0.12
+    # Also find the close AFTER the hook to advance cursor past both
+    # Start close search from 3 segs after hook START (not after full window,
+    # which may have greedily absorbed the close)
+    close_cursor = best_start + [best_size, 3].min
+    close_search_end = [close_cursor + 15, unified.length].min
+    close_found_idx = nil
+    close_found_size = 1
+    close_found_score = 0
+
+    if close_beat
+      (close_cursor...close_search_end).each do |ci|
+        break if unified[ci]['_video_path'] != unified[best_start]['_video_path']
+        max_cw = [3, unified.length - ci].min
+        (1..max_cw).each do |cw|
+          break if ci + cw > unified.length
+          break if cw > 1 && unified[ci + cw - 1]['start'] - unified[ci + cw - 2]['end'] > 5
+          ctext = unified[ci, cw].map { |s| s['text'] }.join(' ')
+          cscore = word_overlap(close_beat['text'], ctext)
+          if cscore > close_found_score
+            close_found_score = cscore
+            close_found_idx = ci
+            close_found_size = cw
+          end
+        end
+      end
+    end
+
+    hook_positions[num] = {
+      start_idx: best_start, size: best_size, score: best_score,
+      close_idx: close_found_idx, close_size: close_found_size, close_score: close_found_score
+    }
+
+    # Advance cursor past CLOSE (not just hook) to prevent next short from absorbing it
+    if close_found_idx && close_found_score > 0.12
+      cursor = close_found_idx + close_found_size
+      vname = File.basename(unified[best_start]['_video_path'])
+      $stderr.puts "  #{'%2d' % num}: hook at #{fmt(unified[best_start]['start'])} close at #{fmt(unified[close_found_idx]['start'])} in #{vname} (h:#{best_score.round(3)}/#{best_size}s c:#{close_found_score.round(3)}/#{close_found_size}s)"
+    else
+      # No close found — advance past hook + skip margin
+      cursor = best_start + best_size + 2
+      vname = File.basename(unified[best_start]['_video_path'])
+      $stderr.puts "  #{'%2d' % num}: hook at #{fmt(unified[best_start]['start'])} in #{vname} (h:#{best_score.round(3)}/#{best_size}s, no close)"
+    end
+  else
+    $stderr.puts "  #{'%2d' % num}: HOOK NOT FOUND (best: #{(best_score || 0).round(3)}) — cursor at #{cursor}"
+  end
+end
+
+found = hook_positions.keys.length
+$stderr.puts "Found #{found}/#{all_shorts.length} hooks"
+
+# =============================================================
+# PHASE 3: Process each requested short
+# =============================================================
 
 results = []
 shorts_to_process.each do |num|
   short_def = script['shorts'].find { |s| s['number'] == num }
   unless short_def
-    $stderr.puts "Short ##{num}: not found in script_parsed.yaml, skipping"
+    $stderr.puts "\nShort ##{num}: not found in script_parsed.yaml, skipping"
+    next
+  end
+
+  hook_pos = hook_positions[num]
+  unless hook_pos
+    $stderr.puts "\nShort ##{num}: no hook found, skipping"
     next
   end
 
   padded = '%02d' % num
   $stderr.puts "\n=== Short ##{padded}: #{short_def['title']} ==="
 
-  # Load scope: from fast mode YAML if available, else search transcripts
-  fast_path = File.join(OUTPUT_DIR, "Short_#{padded}.yaml")
-  fast_yaml = File.exist?(fast_path) ? YAML.load_file(fast_path) : nil
+  # --- Determine scope ---
+  hook_start_idx = hook_pos[:start_idx]
+  hook_end_idx = hook_start_idx + hook_pos[:size] - 1
 
-  if fast_yaml
-    video_path = fast_yaml['video_path']
-    video_basename = File.basename(video_path)
-    video_info = video_lookup[video_basename]
-
-    transcript = load_transcript(video_basename, TRANSCRIPTS_DIR, transcript_cache)
-    unless transcript
-      $stderr.puts "  SKIP: no transcript"
-      next
+  # Scope ends at the next short's hook start (or end of timeline)
+  scope_end_idx = unified.length - 1
+  next_nums = all_shorts.select { |s| s['number'] > num }.map { |s| s['number'] }.sort
+  next_nums.each do |nn|
+    if hook_positions[nn]
+      scope_end_idx = hook_positions[nn][:start_idx] - 1
+      break
     end
-    all_segments = transcript['segments']
-
-    fast_clips = fast_yaml['clips']
-    scope_start = fast_clips.first['start']
-    scope_end = fast_clips.last['end']
-  else
-    # No fast-mode YAML — search all video transcripts for best hook match
-    $stderr.puts "  No fast mode YAML — searching transcripts for hook text..."
-    hook_text = short_def['beats'].find { |b| b['role'] == 'hook' }['text']
-    close_text = short_def['beats'].find { |b| b['role'] == 'close' }['text']
-
-    best_video = nil
-    best_score = 0
-    best_seg_idx = nil
-
-    library['videos'].each do |v|
-      vbase = File.basename(v['path'])
-      t = load_transcript(vbase, TRANSCRIPTS_DIR, transcript_cache)
-      next unless t
-      t['segments'].each_with_index do |seg, idx|
-        score = word_overlap(hook_text, seg['text'])
-        if score > best_score
-          best_score = score
-          best_video = v
-          best_seg_idx = idx
-        end
-      end
-    end
-
-    unless best_video && best_score > 0.1
-      $stderr.puts "  SKIP: could not match hook text to any transcript (best score: #{best_score.round(3)})"
-      next
-    end
-
-    video_path = best_video['path']
-    video_basename = File.basename(video_path)
-    video_info = best_video
-    $stderr.puts "  Matched to #{video_basename} (score: #{best_score.round(3)})"
-
-    transcript = load_transcript(video_basename, TRANSCRIPTS_DIR, transcript_cache)
-    all_segments = transcript['segments']
-
-    # Build scope: from 30s before best hook match to end of video (or +5min, whichever is less)
-    hook_seg = all_segments[best_seg_idx]
-    scope_start = [hook_seg['start'] - 30, 0].max
-    scope_end = [hook_seg['start'] + 300, all_segments.last['end']].min
   end
 
-  # Get segments in scope
-  scope_segments = all_segments.select { |s| s['start'] >= scope_start - 1 && s['end'] <= scope_end + 1 }
-  $stderr.puts "  Scope: #{fmt(scope_start)}-#{fmt(scope_end)} (#{scope_segments.length} segments)"
+  # Constrain scope to same video as hook
+  hook_video = unified[hook_start_idx]['_video_path']
+  scope_segments = unified[hook_start_idx..scope_end_idx].select { |s| s['_video_path'] == hook_video }
+
+  video_path = hook_video
+  video_basename = unified[hook_start_idx]['_video_basename']
+  video_info = unified[hook_start_idx]['_video_info']
+
+  $stderr.puts "  Video: #{video_basename}"
+  $stderr.puts "  Scope: #{fmt(scope_segments.first['start'])}-#{fmt(scope_segments.last['end'])} (#{scope_segments.length} segs)"
 
   beats = short_def['beats']
   hook_beat = beats.find { |b| b['role'] == 'hook' }
   close_beat = beats.find { |b| b['role'] == 'close' }
   tp_beats = beats.select { |b| b['role'] == 'talking_point' }
 
-  # --- Match HOOK ---
-  hook_candidates = scope_segments.select { |s| word_overlap(hook_beat['text'], s['text']) > 0.25 }
-  if hook_candidates.empty?
-    # Fall back to first few segments in scope
-    hook_candidates = scope_segments.first(5)
-  end
-  # Sort by overlap score and take the cluster
-  hook_candidates.sort_by! { |s| -word_overlap(hook_beat['text'], s['text']) }
-  best_hook_start = hook_candidates.first['start']
+  # --- Use close position from Pass 1 if available ---
+  p1_close_idx = hook_pos[:close_idx]
+  p1_close_size = hook_pos[:close_size] || 1
+  p1_close_score = hook_pos[:close_score] || 0
 
-  # Build hook cluster bidirectionally from best match
-  best_hook_idx = scope_segments.index { |s| s['start'] == best_hook_start }
+  if p1_close_idx && p1_close_score > 0.12
+    # Use the close found in Pass 1 — find it within scope_segments
+    p1_close_time = unified[p1_close_idx]['start']
+    close_si = scope_segments.index { |s| (s['start'] - p1_close_time).abs < 0.5 }
 
-  # Expand backward from best match
-  backward_hook = []
-  if best_hook_idx && best_hook_idx > 0
-    (best_hook_idx - 1).downto(0) do |i|
-      seg = scope_segments[i]
-      break if best_hook_start - seg['end'] > 3
-      overlap = word_overlap(hook_beat['text'], seg['text'])
-      if overlap > 0.1 || best_hook_start - seg['end'] < 1.5
-        backward_hook.unshift(seg)
-      else
-        break
-      end
+    if close_si
+      close_segments = scope_segments[close_si, [p1_close_size, scope_segments.length - close_si].min]
+      hook_segments = close_si > 0 ? scope_segments[0...close_si] : [scope_segments.first]
+      best_close_score = p1_close_score
     end
   end
 
-  # Expand forward from best match — stop if segment matches close better than hook
-  forward_hook = [scope_segments[best_hook_idx]]
-  if best_hook_idx
-    (best_hook_idx + 1...scope_segments.length).each do |i|
-      seg = scope_segments[i]
-      break if seg['start'] - forward_hook.last['end'] > 3
-      hook_overlap = word_overlap(hook_beat['text'], seg['text'])
-      close_overlap = word_overlap(close_beat['text'], seg['text'])
-      # Stop if this segment is a better match for the close than the hook
-      break if close_overlap > hook_overlap && close_overlap > 0.15
-      if hook_overlap > 0.1 || seg['start'] - forward_hook.last['end'] < 1.5
-        forward_hook << seg
-      else
-        break
-      end
-    end
-  end
+  # If Pass 1 didn't provide a close, search within scope
+  unless defined?(close_segments) && close_segments
+    search_zone = scope_segments.select { |s| s['start'] - scope_segments.first['start'] < 120 }
+    search_zone = scope_segments[0..[5, scope_segments.length - 1].min] if search_zone.length < 3
 
-  hook_segments = backward_hook + forward_hook
+    best_close_score = 0
+    best_close_si = nil
+    best_close_size = 1
+    min_close_start = [2, search_zone.length - 1].min
 
-  $stderr.puts "  Hook: #{hook_segments.length} segments, #{fmt(hook_segments.first['start'])}-#{fmt(hook_segments.last['end'])}"
-
-  # --- Match CLOSE (excluding hook segments) ---
-  non_hook_segments = scope_segments.reject { |s| hook_segments.include?(s) }
-
-  close_candidates = non_hook_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.3 }
-  if close_candidates.empty?
-    close_candidates = non_hook_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.15 }
-  end
-  if close_candidates.empty?
-    # Fall back: check if hook greedily absorbed close segments — try ALL scope segments
-    all_close_candidates = scope_segments.select { |s| word_overlap(close_beat['text'], s['text']) > 0.25 }
-    if all_close_candidates.any?
-      # Steal the best close match from hook and re-trim hook
-      all_close_candidates.sort_by! { |s| -word_overlap(close_beat['text'], s['text']) }
-      stolen = all_close_candidates.first
-      close_candidates = [stolen]
-      # Remove stolen segment and everything after it from hook
-      stolen_idx = hook_segments.index(stolen)
-      if stolen_idx
-        hook_segments = hook_segments[0...stolen_idx]
-        $stderr.puts "  Close: reclaimed from hook — re-trimmed hook to #{hook_segments.length} segments"
-      end
-    end
-  end
-  if close_candidates.empty?
-    # Last resort: segments right after hook
-    hook_end = hook_segments.last['end']
-    close_candidates = non_hook_segments.select { |s| s['start'] > hook_end && s['start'] < hook_end + 30 }
-  end
-
-  # Prefer the best overlap
-  close_candidates.sort_by! { |s| -word_overlap(close_beat['text'], s['text']) }
-
-  if close_candidates.any?
-    best_close = close_candidates.first
-    best_close_idx = scope_segments.index { |s| s['start'] == best_close['start'] }
-
-    # Build close cluster bidirectionally from best match (excluding hook segments)
-    backward_close = []
-    if best_close_idx && best_close_idx > 0
-      (best_close_idx - 1).downto(0) do |i|
-        seg = scope_segments[i]
-        break if best_close['start'] - seg['end'] > 3
-        break if hook_segments.include?(seg)
-        overlap = word_overlap(close_beat['text'], seg['text'])
-        if overlap > 0.1 || best_close['start'] - seg['end'] < 1.5
-          backward_close.unshift(seg)
-        else
-          break
+    (min_close_start...search_zone.length).each do |si|
+      max_win = [3, search_zone.length - si].min
+      (1..max_win).each do |w|
+        break if w > 1 && search_zone[si + w - 1]['start'] - search_zone[si + w - 2]['end'] > 5
+        window_text = search_zone[si, w].map { |s| s['text'] }.join(' ')
+        score = word_overlap(close_beat['text'], window_text)
+        if score > best_close_score || (score == best_close_score && si > (best_close_si || -1))
+          best_close_score = score
+          best_close_si = si
+          best_close_size = w
         end
       end
     end
 
-    forward_close = [best_close]
-    if best_close_idx
-      (best_close_idx + 1...scope_segments.length).each do |i|
-        seg = scope_segments[i]
-        break if seg['start'] - forward_close.last['end'] > 3
-        break if hook_segments.include?(seg)
-        overlap = word_overlap(close_beat['text'], seg['text'])
-        if overlap > 0.1 || seg['start'] - forward_close.last['end'] < 1.5
-          forward_close << seg
-        else
-          break
-        end
-      end
-    end
-
-    close_segments = backward_close + forward_close
-  else
-    close_segments = []
-  end
-
-  if close_segments.any?
-    $stderr.puts "  Close: #{close_segments.length} segments, #{fmt(close_segments.first['start'])}-#{fmt(close_segments.last['end'])}"
-  else
-    $stderr.puts "  Close: NOT FOUND — will use last segment in scope"
-    close_segments = [scope_segments.last]
-  end
-
-  # --- Match TALKING POINTS ---
-  # Identify TP range: segments not in hook or close
-  hook_times = hook_segments.map { |s| s['start'] }
-  close_times = close_segments.map { |s| s['start'] }
-  tp_pool = scope_segments.reject { |s| hook_times.include?(s['start']) || close_times.include?(s['start']) }
-
-  # Filter out low-quality segments
-  tp_pool = tp_pool.select { |s| segment_quality(s) > 0 }
-
-  $stderr.puts "  TP pool: #{tp_pool.length} segments"
-
-  # Target duration per TP
-  total_hook_dur = hook_segments.sum { |s| s['end'] - s['start'] }
-  total_close_dur = close_segments.sum { |s| s['end'] - s['start'] }
-  target_total = 55.0  # target short duration
-  tp_budget = [target_total - total_hook_dur - total_close_dur, tp_beats.length * 4].max
-  tp_target = tp_budget / tp_beats.length
-
-  # Strategy: divide TP pool into N regions by position, assign to TPs in order
-  # But also try keyword matching for each TP
-  tp_matched = []
-
-  if tp_pool.any?
-    # Split pool into roughly equal chunks by index
-    chunk_size = (tp_pool.length.to_f / tp_beats.length).ceil
-    chunks = tp_pool.each_slice([chunk_size, 1].max).to_a
-
-    tp_beats.each_with_index do |tp, i|
-      chunk = chunks[i] || chunks.last || []
-
-      # Also check if any segment in the ENTIRE pool has strong keyword match
-      tp_keywords = tp['text'].downcase.gsub(/[^a-z0-9\s]/, '').split.reject { |w| w.length < 4 }
-      keyword_matches = tp_pool.select { |s|
-        seg_words = s['text'].downcase.split
-        tp_keywords.any? { |kw| seg_words.any? { |sw| sw.include?(kw) } }
-      }
-
-      # Use keyword matches if they're in this chunk's neighborhood, else use positional chunk
-      candidates = if keyword_matches.any? && chunk.any?
-        # Prefer keyword matches that are near the positional chunk
-        chunk_mid = chunk[chunk.length / 2]['start']
-        nearby_kw = keyword_matches.select { |s| (s['start'] - chunk_mid).abs < 120 }
-        nearby_kw.any? ? (chunk + nearby_kw).uniq.sort_by { |s| s['start'] } : chunk
-      else
-        chunk
-      end
-
-      selected = pick_best_segments(candidates, tp_target)
-      tp_matched << {
-        beat: tp,
-        segments: selected,
-        beat_index: i
-      }
-    end
-  else
-    tp_beats.each_with_index do |tp, i|
-      tp_matched << { beat: tp, segments: [], beat_index: i }
-    end
-  end
-
-  # Log TP matches
-  tp_matched.each do |tm|
-    segs = tm[:segments]
-    if segs.any?
-      dur = segs.sum { |s| s['end'] - s['start'] }
-      $stderr.puts "  TP#{tm[:beat_index] + 1}: #{segs.length} segs, #{dur.round(1)}s — #{segs.first['text'][0..60]}..."
+    if best_close_si && best_close_score > 0.15
+      close_segments = search_zone[best_close_si, best_close_size]
+      hook_segments = search_zone[0...best_close_si]
     else
-      $stderr.puts "  TP#{tm[:beat_index] + 1}: NO MATCH"
+      close_segments = [scope_segments.last]
+      hook_segments = scope_segments.length > 1 ? scope_segments[0..-2] : scope_segments[0..0]
+      best_close_score = 0.0
     end
   end
 
-  # --- Assemble clips in beat order ---
-  all_clip_groups = []
+  # Ensure hook has at least 1 segment
+  hook_segments = [scope_segments.first] if hook_segments.empty?
 
-  # Hook
-  hook_clips = merge_continuous_clips(hook_segments)
-  all_clip_groups << { role: 'hook', clips: hook_clips, beat_text: hook_beat['text'] }
+  # Include ALL segments from hook start through close end — full short content
+  close_end_t = close_segments.last['end']
+  close_start_t = close_segments.first['start']
+  all_short_segments = scope_segments.select { |s| s['end'] <= close_end_t + 0.1 }
+  all_short_segments = all_short_segments.select { |s| segment_quality(s) > 0 }
+  all_short_segments.sort_by! { |s| s['start'] }
 
-  # TPs in script order
-  tp_matched.each do |tm|
-    next if tm[:segments].empty?
-    tp_clips = merge_continuous_clips(tm[:segments])
-    all_clip_groups << { role: 'talking_point', clips: tp_clips, beat_text: tm[:beat]['text'], beat_index: tm[:beat_index] }
-  end
+  total_content_dur = all_short_segments.sum { |s| s['end'] - s['start'] }
 
-  # Close
-  close_clips = merge_continuous_clips(close_segments)
-  all_clip_groups << { role: 'close', clips: close_clips, beat_text: close_beat['text'] }
+  $stderr.puts "  Hook: #{fmt(hook_segments.first['start'])}-#{fmt(hook_segments.last['end'])} (score: #{hook_pos[:score].round(3)})"
+  $stderr.puts "  Close: #{fmt(close_segments.first['start'])}-#{fmt(close_segments.last['end'])} (score: #{best_close_score.round(3)})"
+  $stderr.puts "  Content: #{all_short_segments.length} segs, #{total_content_dur.round(1)}s"
 
-  # Flatten to clip list
-  clips = []
-  beat_boundaries = [] # timeline positions where beats change
+  # --- Assemble clips: all content from hook through close ---
+  clips = merge_continuous_clips(all_short_segments)
+
+  # Track beat boundaries for markers (approximate timeline positions)
+  # Close boundary = cumulative duration up to where close starts
   timeline_pos = 0.0
-
-  all_clip_groups.each_with_index do |group, gi|
-    beat_boundaries << { time: timeline_pos, role: group[:role], index: gi }
-    group[:clips].each do |clip|
-      clips << clip
-      timeline_pos += clip['video_end'] - clip['video_start']
+  close_timeline_pos = nil
+  clips.each do |clip|
+    clip_start = clip['video_start']
+    clip_end = clip['video_end']
+    if close_start_t >= clip_start && close_start_t <= clip_end
+      close_timeline_pos = timeline_pos + (close_start_t - clip_start)
     end
+    timeline_pos += clip_end - clip_start
   end
+  close_timeline_pos ||= timeline_pos * 0.8  # fallback: 80% through
+
+  # For classification logging
+  all_clip_groups = []
+  all_clip_groups << { role: 'hook', clips: clips[0..0], beat_text: hook_beat['text'] }
+  if clips.length > 2
+    all_clip_groups << { role: 'talking_point', clips: clips[1..-2], beat_text: tp_beats.map { |tp| tp['text'] }.join(' | ') }
+  end
+  all_clip_groups << { role: 'close', clips: clips[-1..-1], beat_text: close_beat['text'] }
 
   total_duration = clips.sum { |c| c['video_end'] - c['video_start'] }
-  source_material = scope_end - scope_start
+  scope_duration = scope_segments.last['end'] - scope_segments.first['start']
   total_clips = clips.length
 
-  $stderr.puts "  Result: #{total_clips} clips, #{total_duration.round(1)}s output from #{source_material.round(1)}s source"
+  $stderr.puts "  Result: #{total_clips} clips, #{total_duration.round(1)}s output from #{scope_duration.round(1)}s scope"
 
   # --- Generate markers ---
   markers = []
@@ -526,39 +479,29 @@ shorts_to_process.each do |num|
   markers << { 'name' => 'TITLE', 'comment' => "Title: '#{short_def['title']}' — display for 3 seconds.", 'time' => 0.0, 'color' => 'blue' }
   markers << { 'name' => 'MUSIC', 'comment' => 'Music cue: START — low background underscore. Fade in 1s.', 'time' => 0.0, 'color' => 'red' }
 
-  beat_boundaries.each_with_index do |bb, bi|
-    next if bi == 0 # skip first (hook start = timeline 0)
-    prev = beat_boundaries[bi - 1]
-    markers << {
-      'name' => 'TRANSITION',
-      'comment' => "#{prev[:role].gsub('_', ' ').capitalize} → #{bb[:role].gsub('_', ' ').capitalize}. Jump cut.",
-      'time' => bb[:time].round(2),
-      'color' => 'orange'
-    }
-  end
+  markers << {
+    'name' => 'TRANSITION',
+    'comment' => "Hook → Close. Jump cut.",
+    'time' => close_timeline_pos.round(2),
+    'color' => 'orange'
+  }
 
-  # Music close marker
-  close_boundary = beat_boundaries.find { |b| b[:role] == 'close' }
-  if close_boundary
-    markers << { 'name' => 'MUSIC', 'comment' => 'Music cue: RESOLVE — sting on close. Hard stop.', 'time' => close_boundary[:time].round(2), 'color' => 'red' }
-  end
+  markers << { 'name' => 'MUSIC', 'comment' => 'Music cue: RESOLVE — sting on close. Hard stop.', 'time' => close_timeline_pos.round(2), 'color' => 'red' }
 
   # --- Write YAML ---
   yaml_data = {
     'video_path' => video_path,
     'output_dir' => OUTPUT_DIR,
     'editor' => 'fcp7',
-    'name' => "Short_#{padded}_A",
+    'name' => "Dylan Shorts #{padded}",
     'breathing_room_frames' => 3
   }
 
-  if fast_yaml && fast_yaml['sync_audio']
-    yaml_data['sync_audio'] = fast_yaml['sync_audio']
+  if video_info && video_info['sync_audio']
+    yaml_data['sync_audio'] = video_info['sync_audio']
   end
 
-  if fast_yaml && fast_yaml['speech_analysis']
-    yaml_data['speech_analysis'] = fast_yaml['speech_analysis']
-  elsif video_info && video_info['speech_analysis']
+  if video_info && video_info['speech_analysis']
     yaml_data['speech_analysis'] = File.join(TRANSCRIPTS_DIR, video_info['speech_analysis'])
   end
 
@@ -586,7 +529,6 @@ shorts_to_process.each do |num|
   all_clip_groups.each do |group|
     cl = classify_beat(group[:role], group[:beat_text])
     group[:clips].each do |clip|
-      # Find the original transcript text for this clip range
       matching_segs = scope_segments.select { |s| s['start'] >= clip['video_start'] - 0.5 && s['end'] <= clip['video_end'] + 0.5 }
       text = matching_segs.map { |s| s['text'].strip }.join(' ')
       text = text[0..150] if text.length > 150
@@ -614,12 +556,10 @@ shorts_to_process.each do |num|
       'beat' => group[:role],
       'script_text' => group[:beat_text][0..100],
       'matched_clips' => group[:clips].map { |c| "#{c['video_start'].round(2)}-#{c['video_end'].round(2)}" },
-      'match_type' => (group[:role] == 'hook' || group[:role] == 'close') ? 'near_verbatim' : 'thematic',
+      'match_type' => (group[:role] == 'hook' || group[:role] == 'close') ? 'near_verbatim' : 'all_body_content',
       'confidence' => (group[:role] == 'hook' || group[:role] == 'close') ? 'high' : 'medium'
     }
   end
-
-  unmatched = tp_matched.select { |tm| tm[:segments].empty? }.map { |tm| tm[:beat]['text'][0..80] }
 
   arr_log = {
     'arrangement_log' => {
@@ -629,18 +569,21 @@ shorts_to_process.each do |num|
       'short_number' => num,
       'short_title' => short_def['title'],
       'section' => short_def['section'],
+      'video' => video_basename,
+      'hook_score' => hook_pos[:score].round(3),
+      'close_score' => best_close_score.round(3),
       'beat_matching' => beat_log,
       'script_fidelity' => {
-        'total_beats' => beats.length,
-        'matched_beats' => beats.length - unmatched.length,
-        'coverage' => "#{((beats.length - unmatched.length).to_f / beats.length * 100).round}%",
-        'unmatched_beats' => unmatched
+        'hook_found' => hook_pos[:score] > 0.12,
+        'close_found' => best_close_score > 0.12,
+        'total_content_segments' => all_short_segments.length,
+        'total_content_duration' => total_content_dur.round(1)
       },
       'metrics' => {
         'total_clips' => total_clips,
         'output_duration' => total_duration.round(1),
-        'source_material' => source_material.round(1),
-        'reduction' => "#{((1 - total_duration / source_material) * 100).round}%"
+        'scope_duration' => scope_duration.round(1),
+        'reduction' => "#{((1 - total_duration / [scope_duration, 0.1].max) * 100).round}%"
       }
     }
   }
@@ -653,13 +596,12 @@ shorts_to_process.each do |num|
     number: num,
     title: short_def['title'],
     section: short_def['section'],
+    video: video_basename,
     clips: total_clips,
     output_duration: total_duration.round(1),
-    source_material: source_material.round(1),
-    reduction: ((1 - total_duration / source_material) * 100).round,
-    beats_total: beats.length,
-    beats_matched: beats.length - unmatched.length,
-    fidelity: "#{((beats.length - unmatched.length).to_f / beats.length * 100).round}%",
+    scope_duration: scope_duration.round(1),
+    hook_score: hook_pos[:score].round(3),
+    close_score: best_close_score.round(3),
     xml: xml_path
   }
 end
@@ -669,24 +611,23 @@ $stderr.puts "\n\n=========================================="
 $stderr.puts "BRANCH A BATCH REPORT"
 $stderr.puts "=========================================="
 $stderr.puts ""
-$stderr.puts "%-5s %-50s %6s %8s %8s %5s %9s" % ['#', 'Title', 'Clips', 'Output', 'Source', 'Cut%', 'Fidelity']
-$stderr.puts '-' * 95
+$stderr.puts "%-5s %-45s %-20s %6s %8s %6s %6s" % ['#', 'Title', 'Video', 'Clips', 'Output', 'Hook', 'Close']
+$stderr.puts '-' * 100
 
 results.each do |r|
-  $stderr.puts "%-5s %-50s %6d %7.1fs %7.1fs %4d%% %9s" % [
-    "##{r[:number]}", r[:title][0..49], r[:clips], r[:output_duration],
-    r[:source_material], r[:reduction], r[:fidelity]
+  $stderr.puts "%-5s %-45s %-20s %6d %7.1fs %5.2f %5.2f" % [
+    "##{r[:number]}", r[:title][0..44], r[:video][0..19], r[:clips], r[:output_duration],
+    r[:hook_score], r[:close_score]
   ]
 end
 
-$stderr.puts '-' * 95
+$stderr.puts '-' * 100
 total_clips = results.sum { |r| r[:clips] }
 total_output = results.sum { |r| r[:output_duration] }
-total_source = results.sum { |r| r[:source_material] }
-avg_fidelity = results.sum { |r| r[:beats_matched].to_f / r[:beats_total] } / results.length * 100
-$stderr.puts "%-5s %-50s %6d %7.1fs %7.1fs %4d%% %8.0f%%" % [
-  'TOT', "#{results.length} shorts", total_clips, total_output, total_source,
-  ((1 - total_output / total_source) * 100).round, avg_fidelity
+avg_hook = results.sum { |r| r[:hook_score] } / results.length
+avg_close = results.sum { |r| r[:close_score] } / results.length
+$stderr.puts "%-5s %-45s %-20s %6d %7.1fs %5.2f %5.2f" % [
+  'TOT', "#{results.length} shorts", '', total_clips, total_output, avg_hook, avg_close
 ]
 $stderr.puts ""
 $stderr.puts "All outputs in: #{OUTPUT_DIR}"

@@ -49,6 +49,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 - Phase 0: Branch Detection (script parsing)
 - Phase 1: Ingest and Analyze
 - Phase 1.5: Segment Classification
+- Phase 1.5b: Semantic Dedup
 - Phase 1.6: Storyline Discovery
 - Phase 1.7: Template Matching
 - Phase 1.8: Coherence Scoring
@@ -62,9 +63,12 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 1. Run Phase 0 (branch detection) — scan for script, parse if found
 2. Run Phase 1 (ingest) — can be Task agent(s)
 3. Run Phase 1.5 (classification, deep mode) — can be Task agent
-4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb`
+3b. Run Phase 1.5b (semantic dedup) — can be Task agent: `ruby scripts/semantic_dedup.rb`
+4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb` (pass `segments_deduped.yaml` instead of `segments_classified.yaml`)
 5. Run Phase 1.7 (template matching) — can be Task agent: `ruby scripts/match_templates.rb`
-6. Run Phase 1.8 (coherence scoring) — can be Task agent: `ruby scripts/score_coherence.rb --prepare` → agent evaluates each candidate → `ruby scripts/score_coherence.rb --apply`
+6. Run Phase 1.8 (coherence scoring):
+   a. Run `ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml>`
+   b. If `llm_pass_pending: true` in output, run LLM coherence pass (see Phase 1.8 details below)
 7. Return to main conversation → Run Phase 2 (storyline selection) directly via AskUserQuestion
 8. Pass selected storyline(s) + branch assignment into Phase 3 Task agent prompt
 9. Run Phase 3 (arrangement + XML) — Task agent builds one output per selected candidate
@@ -228,6 +232,40 @@ Note: `build_structure_cut.rb` automatically removes internal long pauses (defau
 
 **Caching:** If `segments_classified.yaml` already exists and `transcript_hash` matches the current transcript's MD5, skip re-classifying. If the transcript has changed, re-run.
 
+**Validation (run automatically after classification):**
+
+After writing `segments_classified.yaml`, validate it:
+
+```bash
+ruby scripts/validate_classification.rb <segments_classified.yaml>
+```
+
+Exit codes: 0 = valid, 1 = structural errors, 2 = taxonomy violations, 3 = data errors. The JSON report on stdout lists every violation with segment ID and reason.
+
+**If validation fails:** Re-classify only the invalid segments — do NOT re-run the full classification. Read the JSON report, identify which segments have violations, and fix only those. Then re-validate. Repeat until exit 0.
+
+**Cache validation results:** The JSON report includes a `file_hash` (MD5 of the classified YAML). If the file hasn't changed since the last successful validation, skip re-validating.
+
+### Phase 1.5b: Semantic Dedup (deep mode only)
+
+After classification, run semantic dedup to detect and remove retakes using distillation overlap. This preserves rhetorical repetition while dropping accidental re-recordings.
+
+```bash
+ruby scripts/semantic_dedup.rb <segments_classified.yaml>
+```
+
+**Branch B only.** Branch A inputs (with `segments_used`) are rejected — script-locked recordings don't have distillations.
+
+**What it does:**
+1. Normalizes distillations (lowercase, strip articles/filler words)
+2. Computes Jaccard word overlap on consecutive segment pairs
+3. Applies rules: >=80% overlap + short pause (<500ms) + same states = retake (drop first); >=80% + long pause = rhetorical emphasis (keep); 60-80% = ambiguous (keep, flag for review); <60% = different content (keep)
+4. Writes `segments_deduped.yaml` (same structure, fewer segments) and `semantic_dedup_log.yaml` (decisions log)
+
+**Caching:** Skips if `segments_deduped.yaml` exists with matching `transcript_hash`.
+
+**Output:** `segments_deduped.yaml` in same directory. Pass this file (not `segments_classified.yaml`) to Phase 1.6 and all downstream phases.
+
 ### Phase 1.6: Storyline Discovery (deep mode only)
 
 After classification, run storyline discovery to surface candidate arcs from the classified segments. This produces `storylines.yaml` with ranked storyline candidates for Phase 2 editorial questions.
@@ -265,31 +303,43 @@ Loads 6 narrative templates from `templates/story_structures/` (problem_solution
 
 ### Phase 1.8: Coherence Scoring (deep mode only)
 
-After template matching, add LLM-evaluated narrative coherence and compute combined ranking.
+Two-layer scoring: algorithmic pre-filter + LLM narrative judgment.
 
-**Step 1 — Prepare evaluation payloads:**
 ```bash
-ruby scripts/score_coherence.rb --prepare <storylines_matched.yaml> <segments_classified.yaml>
-```
-Outputs `coherence_prep.yaml` with per-candidate distillation sequences and evaluation prompts.
+# Default: algorithmic + LLM prompts for eligible candidates
+ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml>
 
-**Step 2 — Agent evaluates coherence:**
-For each candidate in `coherence_prep.yaml`, read the `evaluation_prompt` field and score narrative coherence 0-100. Write results to `coherence_scores.yaml`:
-```yaml
-scores:
-  - id: candidate_id
-    coherence_score: 78
-    issues:
-      - "Segments 3-5 repeat similar ideas"
+# Algorithmic-only (skip LLM layer):
+ruby scripts/score_coherence.rb --no-llm <storylines_matched.yaml> <segments_classified.yaml>
 ```
 
-**Step 3 — Apply scores and rank:**
-```bash
-ruby scripts/score_coherence.rb --apply <coherence_prep.yaml> <coherence_scores.yaml>
-```
-Computes `combined_score = state_score × 0.3 + template_fit × 0.4 + coherence_score × 0.3`. Applies quality floor (combined >= 60), ranks within each profile, caps at top 3. Outputs `storylines_scored.yaml`.
+**Layer 1 (algorithmic):** Reconstructs each candidate's distillation arc, scores coherence (incompatible transitions, redundant state clusters, distillation diversity, arc completeness). Fast, deterministic.
 
-**Output:** `storylines_scored.yaml` — each storyline has `coherence` (score + issues), `combined_score`, `quality_pass`, and `rank` (within profile). This is the input for Phase 2 storyline selection.
+**Layer 2 (LLM):** For candidates passing algorithmic threshold (≥ 50), the script embeds an `llm_eval_prompt` in the output. The agent reads each prompt, evaluates narrative coherence, and updates `llm_coherence` + `coherence_score` in place. This happens in the orchestrating conversation, not via API from Ruby.
+
+**Combined score:** `state_score × 0.3 + template_fit × 0.4 + coherence_score × 0.3`
+**Quality floor:** 60. Below = `passed_floor: false`.
+
+**Output fields per storyline:** `algorithmic_coherence`, `llm_coherence` (nil until agent fills), `coherence_score` (= algorithmic until LLM pass), `coherence_issues`, `combined_score`, `passed_floor`, `rank` (within profile, top 3). Top-level: `scoring_mode` (`algorithmic_only` or `algorithmic_plus_llm`), `llm_pass_pending`.
+
+**`--no-llm` mode:** `coherence_score` = `algorithmic_coherence` (final). No prompts generated. Use for fast iteration or when LLM pass isn't needed.
+
+**LLM coherence pass (agent-executed):**
+After `score_coherence.rb` writes `storylines_scored.yaml`, check `llm_pass_pending`. If true:
+
+1. Read `storylines_scored.yaml`.
+2. For each storyline with an `llm_eval_prompt` field:
+   a. Read the prompt and evaluate the distilled clip order as a cold viewer.
+   b. Produce a score (0-100) and list specific issues (or empty list if none).
+   c. Set `llm_coherence` to the score.
+   d. Set `coherence_score` to the LLM score (replaces algorithmic placeholder).
+   e. Merge any LLM-identified issues into `coherence_issues` (prefix with "LLM: ").
+   f. Recompute `combined_score` = `(state_score × 0.3 + template_fit × 0.4 + coherence_score × 0.3).round`.
+   g. Recompute `passed_floor` = `combined_score >= 60`.
+3. Remove `llm_eval_prompt` from all storylines (consumed).
+4. Set `llm_pass_pending` to false.
+5. Re-rank within each profile (passing candidates, top 3 by combined_score).
+6. Write updated `storylines_scored.yaml` back.
 
 ### Phase 2: Storyline Selection — MAIN CONVERSATION ONLY
 
@@ -445,6 +495,19 @@ States ARE used for: marker type selection, pacing, arrangement log.
 7. **Write YAML** — Include `speech_analysis` path. Save to `output/`. Use `video_start`/`video_end` for clip times (Branch A transcript comes from video audio). If dual-system audio and transcript was from WAV, use `audio_start`/`audio_end` instead.
 8. **Generate XML** — `ruby scripts/build_structure_cut.rb <yaml_path>`
 9. **Write arrangement log** — Save `arrangement_log.yaml` alongside the output. For Branch A, the log documents beat matching decisions instead of state-based arrangement. Include: which transcript segments matched each beat, confidence of matches, unmatched beats, unused segments.
+
+**Batch processing (multi-short libraries):**
+
+For libraries with many shorts (e.g., 30 shorts from one recording session), use the batch script:
+
+```bash
+ruby scripts/branch_a_batch.rb --library <library-name> [--shorts 1..5]
+```
+
+- `--library` (required): library name, resolves to `libraries/<name>/library.yaml`
+- `--shorts` (optional): range of shorts to process (e.g., `1..10`). Defaults to all shorts in `script_parsed.yaml`.
+
+The batch script builds a unified timeline across all videos, finds hooks sequentially (forward-only), then processes each short through the Branch A algorithm above.
 
 **Edge cases:**
 - Script beat has no transcript match → Log warning, add NOTE marker: "Script beat not covered: [beat text]"

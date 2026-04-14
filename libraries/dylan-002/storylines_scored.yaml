@@ -1,0 +1,397 @@
+---
+generated_at: '2026-04-14T21:41:58+02:00'
+source: dylan-002
+transcript_hash: 828ae36f24c3ee4571fa82ef3e1303d7
+scoring_mode: algorithmic_plus_llm
+llm_pass_pending: false
+storylines:
+- id: single_longform_structural_business_led
+  profile: best_single_longform
+  state_score: 71
+  template_fit: 64
+  algorithmic_coherence: 60
+  llm_coherence: 45
+  coherence_score: 45
+  coherence_issues:
+  - No close segment — arc ends open
+  - 8-segment competence cluster (redundancy risk)
+  - 'LLM: No narrative close — ends on CTA, not resolution'
+  - 'LLM: List-format comparison body lacks narrative arc — reads as lecture transcript'
+  - 'LLM: Personal tangent (clips 39-45) disconnected from business comparison structure'
+  combined_score: 60
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - fear
+  - curiosity
+  hook_segment: 400.203
+  hook_signal: structural business weakness analysis
+  duration_estimate: 637
+  segment_count: 54
+  arc: Competence proof → vindication + fear → open
+  pitch: Opens on structural business weakness analysis, 53 body segments across 10:37.21,
+    closes on open end
+  template_match:
+    template: origin_story_lesson
+    fit_score: 64
+    completeness: 40
+    order_score: 100
+    missing_beats:
+    - personal_context
+    - discovery
+    - universal_principle
+    matched_beats:
+      struggle:
+        segment_t: 400.203
+        distillation: one-off sales no compounding — popular = hardest
+      result:
+        segment_t: 400.203
+        distillation: one-off sales no compounding — popular = hardest
+  rank: 2
+- id: single_longform_freetostart_trap_led
+  profile: best_single_longform
+  state_score: 71
+  template_fit: 64
+  algorithmic_coherence: 60
+  llm_coherence: 47
+  coherence_score: 47
+  coherence_issues:
+  - No close segment — arc ends open
+  - 8-segment competence cluster (redundancy risk)
+  - 'LLM: No narrative close — ends on CTA'
+  - 'LLM: Hook promise ("free-to-start trap") diluted across too many business model
+    comparisons'
+  - 'LLM: Same list-format structure as other longforms — lecture not narrative'
+  combined_score: 61
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - fear
+  - curiosity
+  hook_segment: 382.267
+  hook_signal: free-to-start trap revealed with timeline
+  duration_estimate: 652
+  segment_count: 55
+  arc: Competence proof → vindication + fear → open
+  pitch: Opens on free-to-start trap revealed with timeline, 54 body segments across
+    10:51.94, closes on open end
+  template_match:
+    template: origin_story_lesson
+    fit_score: 64
+    completeness: 40
+    order_score: 100
+    missing_beats:
+    - personal_context
+    - discovery
+    - universal_principle
+    matched_beats:
+      struggle:
+        segment_t: 382.267
+        distillation: zero cost but 12 months to $1000/month
+      result:
+        segment_t: 382.267
+        distillation: zero cost but 12 months to $1000/month
+  rank: 1
+- id: single_longform_concrete_math_led
+  profile: best_single_longform
+  state_score: 71
+  template_fit: 52
+  algorithmic_coherence: 60
+  llm_coherence: 42
+  coherence_score: 42
+  coherence_issues:
+  - No close segment — arc ends open
+  - 8-segment competence cluster (redundancy risk)
+  - 'LLM: Longest and most diluted at 57 clips with no close'
+  - 'LLM: Hidden truth template only 20% complete — no reveal structure built'
+  - 'LLM: Cold viewer loses thread by clip 15-20'
+  combined_score: 55
+  passed_floor: false
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - fear
+  - curiosity
+  hook_segment: 361.712
+  hook_signal: concrete math reveals brutal economics
+  duration_estimate: 670
+  segment_count: 57
+  arc: Competence proof → fear + vindication → open
+  pitch: Opens on concrete math reveals brutal economics, 56 body segments across
+    11:09.85, closes on open end
+  template_match:
+    template: hidden_truth_reveal
+    fit_score: 52
+    completeness: 20
+    order_score: 100
+    missing_beats:
+    - conventional_wisdom
+    - challenge
+    - hidden_truth
+    - reframe
+    matched_beats:
+      evidence:
+        segment_t: 361.712
+        distillation: 5-10% commission — $100 sale nets $5
+- id: short_freetostart_trap_led
+  profile: best_short
+  state_score: 94
+  template_fit: 44
+  algorithmic_coherence: 100
+  llm_coherence: 62
+  coherence_score: 62
+  combined_score: 64
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - fear
+  - vindication
+  - curiosity
+  hook_segment: 382.267
+  hook_signal: free-to-start trap revealed with timeline
+  close_segment: 455.093
+  close_signal: platform risk insight — moat destroyed
+  duration_estimate: 83
+  segment_count: 6
+  arc: Competence proof → vindication + fear → platform risk insight — moat destroyed
+  pitch: Opens on free-to-start trap revealed with timeline, 4 body segments across
+    1:23.26, closes on platform risk insight — moat destroyed
+  template_match:
+    template: problem_solution
+    fit_score: 44
+    completeness: 40
+    order_score: 50
+    missing_beats:
+    - evidence
+    - solution_reveal
+    - takeaway
+    matched_beats:
+      problem_statement:
+        segment_t: 382.267
+        distillation: zero cost but 12 months to $1000/month
+      proof:
+        segment_t: 382.267
+        distillation: zero cost but 12 months to $1000/month
+  coherence_issues:
+  - 'LLM: All problem, no payoff — opens and closes on failure points'
+  - 'LLM: Clip 4 "next model almost worked" vague without model context'
+  rank: 3
+- id: short_definitive_ranking_led
+  profile: best_short
+  state_score: 90
+  template_fit: 52
+  algorithmic_coherence: 97
+  llm_coherence: 80
+  coherence_score: 80
+  coherence_issues:
+  - 4-segment competence cluster (redundancy risk)
+  - 'LLM: AI contrast (clips 6-7) may confuse cold viewer without explicit reframe'
+  combined_score: 72
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - fear
+  - vindication
+  hook_segment: 988.757
+  hook_signal: definitive ranking with reasoning
+  close_segment: 1110.086
+  close_signal: contrarian AI take — differentiator
+  duration_estimate: 77
+  segment_count: 7
+  arc: Competence proof → fear + aspiration → contrarian ai take — differentiator
+  pitch: Opens on definitive ranking with reasoning, 5 body segments across 1:16.95,
+    closes on contrarian AI take — differentiator
+  template_match:
+    template: personal_transformation
+    fit_score: 52
+    completeness: 20
+    order_score: 100
+    missing_beats:
+    - before_state
+    - turning_point
+    - action
+    - lesson
+    matched_beats:
+      result:
+        segment_t: 1077.822
+        distillation: "$100k/month current revenue"
+  rank: 1
+- id: short_nuanced_ranking_led
+  profile: best_short
+  state_score: 87
+  template_fit: 50
+  algorithmic_coherence: 90
+  llm_coherence: 72
+  coherence_score: 72
+  coherence_issues:
+  - Short body (1 segments) — limited narrative development
+  - 'LLM: No hook or setup framing — jumps straight into comparison'
+  - 'LLM: 3 clips is barely a standalone piece'
+  combined_score: 68
+  passed_floor: true
+  primary_state: competence
+  secondary_states: []
+  hook_segment: 997.625
+  hook_signal: nuanced ranking with tradeoffs
+  close_segment: 1064.815
+  close_signal: final ranking — drop servicing wins
+  duration_estimate: 31
+  segment_count: 3
+  arc: Competence proof → body → final ranking — drop servicing wins
+  pitch: Opens on nuanced ranking with tradeoffs, 1 body segments across 0:31.06,
+    closes on final ranking — drop servicing wins
+  template_match:
+    template: three_item_framework
+    fit_score: 50
+    completeness: 17
+    order_score: 100
+    missing_beats:
+    - hook_claim
+    - item_1
+    - item_2
+    - item_3
+    - application
+    matched_beats:
+      setup:
+        segment_t: 1054.41
+        distillation: dropshipping better — needs capital and stomach
+  rank: 2
+- id: medium_platform_dependency_led
+  profile: best_medium
+  state_score: 98
+  template_fit: 64
+  algorithmic_coherence: 97
+  llm_coherence: 82
+  coherence_score: 82
+  coherence_issues:
+  - 4-segment competence cluster (redundancy risk)
+  - 'LLM: Opening clip assumes viewer knows which platform/model is discussed'
+  combined_score: 80
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - curiosity
+  - vindication
+  hook_segment: 651.368
+  hook_signal: platform dependency risk + IP theft
+  close_segment: 857.438
+  close_signal: flywheel = the structural advantage
+  duration_estimate: 210
+  segment_count: 18
+  arc: Competence proof → vindication + fear → flywheel = the structural advantage
+  pitch: Opens on platform dependency risk + IP theft, 16 body segments across 3:29.61,
+    closes on flywheel = the structural advantage
+  template_match:
+    template: personal_transformation
+    fit_score: 64
+    completeness: 40
+    order_score: 100
+    missing_beats:
+    - before_state
+    - turning_point
+    - action
+    matched_beats:
+      result:
+        segment_t: 753.78
+        distillation: first sale in days — no 3-month ramp
+      lesson:
+        segment_t: 800.135
+        distillation: deeper reason beyond margins coming
+  rank: 2
+- id: medium_numbers_contextualized_led
+  profile: best_medium
+  state_score: 98
+  template_fit: 63
+  algorithmic_coherence: 94
+  llm_coherence: 78
+  coherence_score: 78
+  coherence_issues:
+  - 5-segment competence cluster (redundancy risk)
+  - 'LLM: Opening "$3-4k startup" ambiguous — which business model costs this?'
+  combined_score: 78
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - curiosity
+  - fear
+  hook_segment: 621.987
+  hook_signal: numbers contextualized to broke reality
+  close_segment: 831.433
+  close_signal: solves the moat problem elegantly
+  duration_estimate: 208
+  segment_count: 18
+  arc: Competence proof → fear + outrage → solves the moat problem elegantly
+  pitch: Opens on numbers contextualized to broke reality, 16 body segments across
+    3:27.58, closes on solves the moat problem elegantly
+  template_match:
+    template: personal_transformation
+    fit_score: 63
+    completeness: 60
+    order_score: 67
+    missing_beats:
+    - turning_point
+    - action
+    matched_beats:
+      before_state:
+        segment_t: 621.987
+        distillation: "$3-4k startup 10% margin — broke perspective"
+      result:
+        segment_t: 621.987
+        distillation: "$3-4k startup 10% margin — broke perspective"
+      lesson:
+        segment_t: 800.135
+        distillation: deeper reason beyond margins coming
+  rank: 3
+- id: medium_barrier_elimination_led
+  profile: best_medium
+  state_score: 97
+  template_fit: 68
+  algorithmic_coherence: 97
+  llm_coherence: 85
+  coherence_score: 85
+  coherence_issues:
+  - 4-segment competence cluster (redundancy risk)
+  - 'LLM: Clip 12 "fundamentally different" is a bold claim that may feel unsupported
+    in isolation'
+  combined_score: 82
+  passed_floor: true
+  primary_state: competence
+  secondary_states:
+  - aspiration
+  - vindication
+  - awe
+  hook_segment: 731.103
+  hook_signal: barrier elimination list
+  close_segment: 924.236
+  close_signal: payoff moment — the promise fulfilled
+  duration_estimate: 203
+  segment_count: 16
+  arc: Competence proof → aspiration + awe → payoff moment — the promise fulfilled
+  pitch: Opens on barrier elimination list, 14 body segments across 3:23.34, closes
+    on payoff moment — the promise fulfilled
+  template_match:
+    template: contrarian_argument
+    fit_score: 68
+    completeness: 80
+    order_score: 50
+    missing_beats:
+    - bold_claim
+    matched_beats:
+      target_behavior:
+        segment_t: 772.53
+        distillation: every company buys digital services — massive demand
+      diagnosis:
+        segment_t: 800.135
+        distillation: deeper reason beyond margins coming
+      alternative:
+        segment_t: 731.103
+        distillation: zero startup — no inventory no ads upfront
+      proof:
+        segment_t: 753.78
+        distillation: first sale in days — no 3-month ramp
+  rank: 1
