@@ -49,6 +49,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 - Phase 0: Branch Detection (script parsing)
 - Phase 1: Ingest and Analyze
 - Phase 1.5: Segment Classification
+- Phase 1.5b: Semantic Dedup
 - Phase 1.6: Storyline Discovery
 - Phase 1.7: Template Matching
 - Phase 1.8: Coherence Scoring
@@ -62,7 +63,8 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 1. Run Phase 0 (branch detection) — scan for script, parse if found
 2. Run Phase 1 (ingest) — can be Task agent(s)
 3. Run Phase 1.5 (classification, deep mode) — can be Task agent
-4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb`
+3b. Run Phase 1.5b (semantic dedup) — can be Task agent: `ruby scripts/semantic_dedup.rb`
+4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb` (pass `segments_deduped.yaml` instead of `segments_classified.yaml`)
 5. Run Phase 1.7 (template matching) — can be Task agent: `ruby scripts/match_templates.rb`
 6. Run Phase 1.8 (coherence scoring):
    a. Run `ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml>`
@@ -243,6 +245,26 @@ Exit codes: 0 = valid, 1 = structural errors, 2 = taxonomy violations, 3 = data 
 **If validation fails:** Re-classify only the invalid segments — do NOT re-run the full classification. Read the JSON report, identify which segments have violations, and fix only those. Then re-validate. Repeat until exit 0.
 
 **Cache validation results:** The JSON report includes a `file_hash` (MD5 of the classified YAML). If the file hasn't changed since the last successful validation, skip re-validating.
+
+### Phase 1.5b: Semantic Dedup (deep mode only)
+
+After classification, run semantic dedup to detect and remove retakes using distillation overlap. This preserves rhetorical repetition while dropping accidental re-recordings.
+
+```bash
+ruby scripts/semantic_dedup.rb <segments_classified.yaml>
+```
+
+**Branch B only.** Branch A inputs (with `segments_used`) are rejected — script-locked recordings don't have distillations.
+
+**What it does:**
+1. Normalizes distillations (lowercase, strip articles/filler words)
+2. Computes Jaccard word overlap on consecutive segment pairs
+3. Applies rules: >=80% overlap + short pause (<500ms) + same states = retake (drop first); >=80% + long pause = rhetorical emphasis (keep); 60-80% = ambiguous (keep, flag for review); <60% = different content (keep)
+4. Writes `segments_deduped.yaml` (same structure, fewer segments) and `semantic_dedup_log.yaml` (decisions log)
+
+**Caching:** Skips if `segments_deduped.yaml` exists with matching `transcript_hash`.
+
+**Output:** `segments_deduped.yaml` in same directory. Pass this file (not `segments_classified.yaml`) to Phase 1.6 and all downstream phases.
 
 ### Phase 1.6: Storyline Discovery (deep mode only)
 
