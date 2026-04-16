@@ -9,9 +9,17 @@
 #   ruby scripts/sanity_check.rb <storylines_scored.yaml> <segments_file.yaml> [candidate_ids...]
 #   ruby scripts/sanity_check.rb --skip-sanity-check
 #   ruby scripts/sanity_check.rb --all <storylines_scored.yaml> <segments_file.yaml>
+#   ruby scripts/sanity_check.rb --batch <storylines_scored.yaml> <segments_file.yaml>
+#   ruby scripts/sanity_check.rb --batch --strong-threshold 85 --acceptable-threshold 70 <scored> <segments>
 #
 # candidate_ids: space-separated IDs from storylines_scored.yaml. If omitted, reviews
 #                all passing candidates (rank != nil). Use --all to review everything.
+#
+# --batch: Batch triage mode. Classifies candidates into tiers by combined_score:
+#          Strong (80+): trusted, no logline review needed
+#          Acceptable (65-79): brief summary only
+#          Borderline (60-64): full sanity check
+#          Failed (<60): already filtered by quality floor
 #
 # Output: sanity_check.yaml in same directory as storylines_scored.yaml. Path to stdout.
 # The logline field is nil — agent fills it after reading distilled_segments + logline_prompt.
@@ -28,6 +36,20 @@ if ARGV.delete('--skip-sanity-check')
 end
 
 review_all = ARGV.delete('--all')
+batch_mode = ARGV.delete('--batch')
+
+# Extract threshold overrides (--strong-threshold N, --acceptable-threshold N)
+strong_threshold = 80
+acceptable_threshold = 65
+
+if (idx = ARGV.index('--strong-threshold'))
+  strong_threshold = ARGV.delete_at(idx + 1).to_i
+  ARGV.delete_at(idx)
+end
+if (idx = ARGV.index('--acceptable-threshold'))
+  acceptable_threshold = ARGV.delete_at(idx + 1).to_i
+  ARGV.delete_at(idx)
+end
 
 scored_path = ARGV[0]
 segments_path = ARGV[1]
@@ -304,6 +326,16 @@ def fmt_time(seconds)
   format("%d:%02d", m, s)
 end
 
+def classify_tier(score, strong_threshold, acceptable_threshold)
+  if score >= strong_threshold
+    'strong'
+  elsif score >= acceptable_threshold
+    'acceptable'
+  else
+    'borderline'
+  end
+end
+
 # --- Build review for each candidate ---
 
 reviews = []
@@ -320,6 +352,9 @@ selected.each do |storyline|
     s['passed_floor']
   }.sort_by { |s| -(s['combined_score'] || 0) }
   next_candidate = same_profile.first
+
+  score = storyline['combined_score'] || 0
+  tier = batch_mode ? classify_tier(score, strong_threshold, acceptable_threshold) : nil
 
   review = {
     'id' => storyline['id'],
@@ -345,6 +380,8 @@ selected.each do |storyline|
     'next_candidate_score' => next_candidate&.fetch('combined_score', nil)
   }
 
+  review['tier'] = tier if batch_mode
+
   reviews << review
 end
 
@@ -366,53 +403,116 @@ output = {
   'unused_high_signal' => unused_warnings
 }
 
+if batch_mode
+  strong = reviews.select { |r| r['tier'] == 'strong' }
+  acceptable = reviews.select { |r| r['tier'] == 'acceptable' }
+  borderline = reviews.select { |r| r['tier'] == 'borderline' }
+
+  output['batch_mode'] = true
+  output['thresholds'] = {
+    'strong' => strong_threshold,
+    'acceptable' => acceptable_threshold
+  }
+  output['tiers'] = {
+    'strong' => { 'count' => strong.size, 'ids' => strong.map { |r| r['id'] } },
+    'acceptable' => { 'count' => acceptable.size, 'ids' => acceptable.map { |r| r['id'] } },
+    'borderline' => { 'count' => borderline.size, 'ids' => borderline.map { |r| r['id'] } }
+  }
+end
+
 File.write(output_path, output.to_yaml)
 
 # --- Report ---
 
-$stderr.puts "=" * 60
-$stderr.puts "PRE-BUILD SANITY CHECK"
-$stderr.puts "=" * 60
+if batch_mode
+  strong = reviews.select { |r| r['tier'] == 'strong' }
+  acceptable = reviews.select { |r| r['tier'] == 'acceptable' }
+  borderline = reviews.select { |r| r['tier'] == 'borderline' }
+  buildable = strong.size + acceptable.size
 
-reviews.each do |r|
-  $stderr.puts ""
-  $stderr.puts "CANDIDATE: #{r['id']}"
-  $stderr.puts "Profile: #{r['profile']} | Duration: #{r['duration_estimate']}s | Combined score: #{r['combined_score']}"
-
-  tm = r['template_match']
-  $stderr.puts "Template: #{tm['template']} (#{tm['completeness']}% complete)" if tm
-
-  coh = r['coherence_score']
-  issues = r['coherence_issues']
-  $stderr.puts "Coherence: #{coh} | Issues: #{issues && !issues.empty? ? issues.join(', ') : 'none'}"
-
-  $stderr.puts ""
-  $stderr.puts "About: [logline pending — agent fills]"
-  $stderr.puts "Shape: #{r['shape']}"
-  $stderr.puts ""
-  $stderr.puts "Cold open: #{r['cold_open']['works'] ? 'yes' : 'no'} — #{r['cold_open']['reason']}"
-  $stderr.puts "Close: #{r['close']['works'] ? 'yes' : 'no'} — #{r['close']['reason']}"
-
-  if r['next_candidate_id']
-    $stderr.puts "Swap available: #{r['next_candidate_id']} (score: #{r['next_candidate_score']})"
-  end
-end
-
-if unused_warnings.any?
-  $stderr.puts ""
   $stderr.puts "=" * 60
-  $stderr.puts "WARNING: #{unused_warnings.size} high-signal sequence(s) unused."
+  $stderr.puts "BATCH: #{reviews.size} candidates"
   $stderr.puts "=" * 60
-  unused_warnings.each do |w|
+  $stderr.puts ""
+  $stderr.puts "Strong (#{strong_threshold}+): #{strong.size} — trusted, building without review"
+  $stderr.puts "Acceptable (#{acceptable_threshold}-#{strong_threshold - 1}): #{acceptable.size} — summaries below"
+  $stderr.puts "Borderline (#{acceptable_threshold - 5}-#{acceptable_threshold - 1}): #{borderline.size} — full review required"
+
+  if borderline.any?
     $stderr.puts ""
-    $stderr.puts "Position: #{fmt_time(w['start'])}-#{fmt_time(w['end'])} (#{w['duration']}s, #{w['segment_count']} segments)"
-    $stderr.puts "Distillations:"
-    w['distillations'].each { |d| $stderr.puts "  - \"#{d}\"" }
-    $stderr.puts "States: #{w['states'].join(', ')}"
+    $stderr.puts "BORDERLINE REVIEW:"
+    borderline.each do |r|
+      cold = r['cold_open']['works'] ? nil : "Cold open: no (#{r['cold_open']['reason'].split(';').first.strip})"
+      close = r['close']['works'] ? nil : "Close: no (#{r['close']['reason'].split(';').first.strip})"
+      flags = [cold, close].compact.join(' | ')
+      $stderr.puts "  #{r['id']} — Score #{r['combined_score']} | about: [logline pending] | #{flags}"
+    end
   end
-else
+
+  if acceptable.any?
+    $stderr.puts ""
+    $stderr.puts "ACCEPTABLE (summaries only):"
+    acceptable.each do |r|
+      distilled = r['distilled_segments']&.first || 'no distillation'
+      $stderr.puts "  #{r['id']} — #{r['combined_score']} | \"#{distilled}\""
+    end
+  end
+
+  if unused_warnings.any?
+    $stderr.puts ""
+    $stderr.puts "UNUSED HIGH-SIGNAL: #{unused_warnings.size} sequences flagged."
+    unused_warnings.each do |w|
+      $stderr.puts "  #{fmt_time(w['start'])}-#{fmt_time(w['end'])} (#{w['duration']}s) — #{w['distillations'].first}"
+    end
+  end
+
   $stderr.puts ""
-  $stderr.puts "No unused high-signal sequences detected."
+  $stderr.puts "Build all #{buildable} strong+acceptable, review #{borderline.size} borderline? [y/review all/cancel/build all]"
+else
+  $stderr.puts "=" * 60
+  $stderr.puts "PRE-BUILD SANITY CHECK"
+  $stderr.puts "=" * 60
+
+  reviews.each do |r|
+    $stderr.puts ""
+    $stderr.puts "CANDIDATE: #{r['id']}"
+    $stderr.puts "Profile: #{r['profile']} | Duration: #{r['duration_estimate']}s | Combined score: #{r['combined_score']}"
+
+    tm = r['template_match']
+    $stderr.puts "Template: #{tm['template']} (#{tm['completeness']}% complete)" if tm
+
+    coh = r['coherence_score']
+    issues = r['coherence_issues']
+    $stderr.puts "Coherence: #{coh} | Issues: #{issues && !issues.empty? ? issues.join(', ') : 'none'}"
+
+    $stderr.puts ""
+    $stderr.puts "About: [logline pending — agent fills]"
+    $stderr.puts "Shape: #{r['shape']}"
+    $stderr.puts ""
+    $stderr.puts "Cold open: #{r['cold_open']['works'] ? 'yes' : 'no'} — #{r['cold_open']['reason']}"
+    $stderr.puts "Close: #{r['close']['works'] ? 'yes' : 'no'} — #{r['close']['reason']}"
+
+    if r['next_candidate_id']
+      $stderr.puts "Swap available: #{r['next_candidate_id']} (score: #{r['next_candidate_score']})"
+    end
+  end
+
+  if unused_warnings.any?
+    $stderr.puts ""
+    $stderr.puts "=" * 60
+    $stderr.puts "WARNING: #{unused_warnings.size} high-signal sequence(s) unused."
+    $stderr.puts "=" * 60
+    unused_warnings.each do |w|
+      $stderr.puts ""
+      $stderr.puts "Position: #{fmt_time(w['start'])}-#{fmt_time(w['end'])} (#{w['duration']}s, #{w['segment_count']} segments)"
+      $stderr.puts "Distillations:"
+      w['distillations'].each { |d| $stderr.puts "  - \"#{d}\"" }
+      $stderr.puts "States: #{w['states'].join(', ')}"
+    end
+  else
+    $stderr.puts ""
+    $stderr.puts "No unused high-signal sequences detected."
+  end
 end
 
 $stderr.puts ""

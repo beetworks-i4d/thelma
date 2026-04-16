@@ -4,7 +4,8 @@ require 'tmpdir'
 
 SANITY_SCRIPT = File.expand_path('../../scripts/sanity_check.rb', __dir__)
 
-def run_sanity(scored_yaml, segments_yaml, candidate_ids: [], skip: false, all: false)
+def run_sanity(scored_yaml, segments_yaml, candidate_ids: [], skip: false, all: false,
+               batch: false, strong_threshold: nil, acceptable_threshold: nil)
   Dir.mktmpdir do |dir|
     scored_path = File.join(dir, 'storylines_scored.yaml')
     segments_path = File.join(dir, 'segments_classified.yaml')
@@ -16,6 +17,9 @@ def run_sanity(scored_yaml, segments_yaml, candidate_ids: [], skip: false, all: 
       args << '--skip-sanity-check'
     else
       args << '--all' if all
+      args << '--batch' if batch
+      args += ['--strong-threshold', strong_threshold.to_s] if strong_threshold
+      args += ['--acceptable-threshold', acceptable_threshold.to_s] if acceptable_threshold
       args += [scored_path, segments_path]
       args += candidate_ids unless candidate_ids.empty?
     end
@@ -490,6 +494,347 @@ RSpec.describe 'sanity_check.rb' do
     it 'outputs path to stdout' do
       result = run_sanity(base_scored, base_segments)
       expect(result[:stdout]).to end_with('sanity_check.yaml')
+    end
+
+    it 'does not include tier field without --batch' do
+      result = run_sanity(base_scored, base_segments)
+      result[:result]['candidates'].each do |c|
+        expect(c).not_to have_key('tier')
+      end
+    end
+  end
+
+  # --- Batch mode tests ---
+
+  describe '--batch mode' do
+    def batch_scored
+      # Build a scored file with candidates across all tiers
+      storylines = []
+
+      # Strong tier (80+)
+      3.times do |i|
+        storylines << {
+          'id' => "strong_#{i}", 'profile' => 'best_short',
+          'state_score' => 85 + i, 'template_fit' => 80,
+          'algorithmic_coherence' => 90, 'coherence_score' => 90,
+          'combined_score' => 85 + i, 'passed_floor' => true, 'rank' => i + 1,
+          'primary_state' => 'curiosity',
+          'hook_segment' => 10.0, 'hook_signal' => 'test',
+          'close_segment' => 70.0, 'close_signal' => 'test',
+          'duration_estimate' => 60, 'segment_count' => 5,
+          'scores' => { 'cold_viability' => 15 },
+          'arc' => 'test', 'pitch' => 'test',
+          'template_match' => { 'template' => 'three_item_framework', 'completeness' => 80 }
+        }
+      end
+
+      # Acceptable tier (65-79)
+      2.times do |i|
+        storylines << {
+          'id' => "acceptable_#{i}", 'profile' => 'best_short',
+          'state_score' => 70 + i, 'template_fit' => 65,
+          'algorithmic_coherence' => 75, 'coherence_score' => 75,
+          'combined_score' => 70 + i, 'passed_floor' => true, 'rank' => 4 + i,
+          'primary_state' => 'vindication',
+          'hook_segment' => 10.0, 'hook_signal' => 'test',
+          'close_segment' => 70.0, 'close_signal' => 'test',
+          'duration_estimate' => 55, 'segment_count' => 5,
+          'scores' => { 'cold_viability' => 10 },
+          'arc' => 'test', 'pitch' => 'test',
+          'template_match' => { 'template' => 'problem_solution', 'completeness' => 60 }
+        }
+      end
+
+      # Borderline tier (60-64)
+      2.times do |i|
+        storylines << {
+          'id' => "borderline_#{i}", 'profile' => 'best_short',
+          'state_score' => 62 + i, 'template_fit' => 55,
+          'algorithmic_coherence' => 60, 'coherence_score' => 60,
+          'combined_score' => 62 + i, 'passed_floor' => true, 'rank' => 6 + i,
+          'primary_state' => 'aspiration',
+          'hook_segment' => 10.0, 'hook_signal' => 'test',
+          'close_segment' => 70.0, 'close_signal' => 'test',
+          'duration_estimate' => 45, 'segment_count' => 5,
+          'scores' => { 'cold_viability' => 5 },
+          'arc' => 'test', 'pitch' => 'test',
+          'template_match' => { 'template' => 'none', 'completeness' => 30 }
+        }
+      end
+
+      {
+        'generated_at' => '2026-01-01T00:00:00+00:00',
+        'source' => 'test-batch',
+        'transcript_hash' => 'abc123',
+        'scoring_mode' => 'algorithmic_only',
+        'llm_pass_pending' => false,
+        'storylines' => storylines
+      }
+    end
+
+    describe 'tier classification' do
+      it 'classifies score 80 as strong' do
+        scored = base_scored
+        scored['storylines'][0]['combined_score'] = 80
+        result = run_sanity(scored, base_segments, batch: true)
+        c = result[:result]['candidates'].find { |r| r['combined_score'] == 80 }
+        expect(c['tier']).to eq('strong')
+      end
+
+      it 'classifies score 79 as acceptable' do
+        scored = base_scored
+        scored['storylines'][0]['combined_score'] = 79
+        result = run_sanity(scored, base_segments, batch: true)
+        c = result[:result]['candidates'].find { |r| r['combined_score'] == 79 }
+        expect(c['tier']).to eq('acceptable')
+      end
+
+      it 'classifies score 65 as acceptable' do
+        scored = base_scored
+        scored['storylines'][0]['combined_score'] = 65
+        result = run_sanity(scored, base_segments, batch: true)
+        c = result[:result]['candidates'].find { |r| r['combined_score'] == 65 }
+        expect(c['tier']).to eq('acceptable')
+      end
+
+      it 'classifies score 64 as borderline' do
+        scored = base_scored
+        scored['storylines'][0]['combined_score'] = 64
+        result = run_sanity(scored, base_segments, batch: true)
+        c = result[:result]['candidates'].find { |r| r['combined_score'] == 64 }
+        expect(c['tier']).to eq('borderline')
+      end
+
+      it 'classifies score 60 as borderline' do
+        scored = base_scored
+        scored['storylines'][0]['combined_score'] = 60
+        result = run_sanity(scored, base_segments, batch: true)
+        c = result[:result]['candidates'].find { |r| r['combined_score'] == 60 }
+        expect(c['tier']).to eq('borderline')
+      end
+
+      it 'classifies score 59 as borderline (below default floor)' do
+        scored = base_scored
+        scored['storylines'][0]['combined_score'] = 59
+        result = run_sanity(scored, base_segments, batch: true)
+        c = result[:result]['candidates'].find { |r| r['combined_score'] == 59 }
+        expect(c['tier']).to eq('borderline')
+      end
+    end
+
+    describe 'rollup format' do
+      it 'includes batch_mode flag in output' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        expect(result[:result]['batch_mode']).to be true
+      end
+
+      it 'includes default thresholds in output' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        expect(result[:result]['thresholds']).to eq({ 'strong' => 80, 'acceptable' => 65 })
+      end
+
+      it 'includes tiers with counts and ids' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        tiers = result[:result]['tiers']
+
+        expect(tiers['strong']['count']).to eq(3)
+        expect(tiers['strong']['ids']).to all(start_with('strong_'))
+
+        expect(tiers['acceptable']['count']).to eq(2)
+        expect(tiers['acceptable']['ids']).to all(start_with('acceptable_'))
+
+        expect(tiers['borderline']['count']).to eq(2)
+        expect(tiers['borderline']['ids']).to all(start_with('borderline_'))
+      end
+
+      it 'adds tier field to each candidate' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        result[:result]['candidates'].each do |c|
+          expect(c).to have_key('tier')
+          expect(%w[strong acceptable borderline]).to include(c['tier'])
+        end
+      end
+
+      it 'shows rollup header in stderr' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        expect(result[:stderr]).to include('BATCH: 7 candidates')
+        expect(result[:stderr]).to include('Strong (80+): 3')
+        expect(result[:stderr]).to include('Acceptable (65-79): 2')
+        expect(result[:stderr]).to include('Borderline (60-64): 2')
+      end
+
+      it 'shows borderline review section in stderr' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        expect(result[:stderr]).to include('BORDERLINE REVIEW:')
+        expect(result[:stderr]).to include('borderline_0')
+        expect(result[:stderr]).to include('borderline_1')
+      end
+
+      it 'shows acceptable summaries in stderr' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        expect(result[:stderr]).to include('ACCEPTABLE (summaries only):')
+        expect(result[:stderr]).to include('acceptable_0')
+        expect(result[:stderr]).to include('acceptable_1')
+      end
+
+      it 'shows action prompt in stderr' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        expect(result[:stderr]).to include('Build all 5 strong+acceptable, review 2 borderline?')
+        expect(result[:stderr]).to include('[y/review all/cancel/build all]')
+      end
+    end
+
+    describe 'threshold overrides' do
+      it 'uses custom strong threshold' do
+        result = run_sanity(batch_scored, base_segments, batch: true, strong_threshold: 85)
+        tiers = result[:result]['tiers']
+        # strong_0=85, strong_1=86, strong_2=87 → all strong at 85+
+        # But strong_0 is exactly 85 → strong
+        expect(tiers['strong']['count']).to eq(3)
+        expect(result[:result]['thresholds']['strong']).to eq(85)
+      end
+
+      it 'reclassifies with higher strong threshold' do
+        result = run_sanity(batch_scored, base_segments, batch: true, strong_threshold: 87)
+        tiers = result[:result]['tiers']
+        # Only strong_2 (87) is strong; strong_0 (85) and strong_1 (86) become acceptable
+        expect(tiers['strong']['count']).to eq(1)
+        expect(tiers['acceptable']['count']).to eq(4) # 2 original acceptable + 2 reclassified
+      end
+
+      it 'uses custom acceptable threshold' do
+        result = run_sanity(batch_scored, base_segments, batch: true, acceptable_threshold: 70)
+        tiers = result[:result]['tiers']
+        # acceptable_0=70 is now at boundary → acceptable; acceptable_1=71 → acceptable
+        # borderline_0=62, borderline_1=63 still borderline
+        expect(tiers['acceptable']['count']).to eq(2)
+        expect(result[:result]['thresholds']['acceptable']).to eq(70)
+      end
+
+      it 'reclassifies with higher acceptable threshold' do
+        result = run_sanity(batch_scored, base_segments, batch: true, acceptable_threshold: 72)
+        tiers = result[:result]['tiers']
+        # acceptable_0=70, acceptable_1=71 now borderline (< 72)
+        expect(tiers['borderline']['count']).to eq(4) # 2 original + 2 reclassified
+        expect(tiers['acceptable']['count']).to eq(0)
+      end
+
+      it 'reflects custom thresholds in stderr rollup' do
+        result = run_sanity(batch_scored, base_segments, batch: true, strong_threshold: 90, acceptable_threshold: 75)
+        expect(result[:stderr]).to include('Strong (90+)')
+        expect(result[:stderr]).to include('Acceptable (75-89)')
+        expect(result[:stderr]).to include('Borderline (70-74)')
+      end
+    end
+
+    describe '--batch flag parsing' do
+      it 'activates batch mode with --batch flag' do
+        result = run_sanity(base_scored, base_segments, batch: true)
+        expect(result[:exit_code]).to eq(0)
+        expect(result[:result]['batch_mode']).to be true
+      end
+
+      it 'does not produce batch output without --batch' do
+        result = run_sanity(base_scored, base_segments)
+        expect(result[:result]).not_to have_key('batch_mode')
+        expect(result[:result]).not_to have_key('tiers')
+      end
+
+      it 'combines --batch with --all' do
+        scored = base_scored
+        scored['storylines'] << {
+          'id' => 'unranked_extra', 'profile' => 'best_medium',
+          'state_score' => 30, 'template_fit' => 30,
+          'algorithmic_coherence' => 40, 'coherence_score' => 40,
+          'combined_score' => 33, 'passed_floor' => false,
+          'primary_state' => 'vindication',
+          'hook_segment' => 10.0, 'close_segment' => 70.0,
+          'duration_estimate' => 200, 'segment_count' => 5,
+          'arc' => 'test', 'pitch' => 'test',
+          'template_match' => { 'template' => 'none', 'completeness' => 0 }
+        }
+        result = run_sanity(scored, base_segments, batch: true, all: true)
+        expect(result[:result]['batch_mode']).to be true
+        ids = result[:result]['candidates'].map { |c| c['id'] }
+        expect(ids).to include('unranked_extra')
+        expect(result[:result]['candidates'].find { |c| c['id'] == 'unranked_extra' }['tier']).to eq('borderline')
+      end
+    end
+
+    describe 'all user action paths' do
+      # These tests verify the output format supports each action path.
+      # The script produces data; the agent interprets the action.
+
+      it 'y path: strong+acceptable have tier, borderline identified for review' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        tiers = result[:result]['tiers']
+        buildable_ids = tiers['strong']['ids'] + tiers['acceptable']['ids']
+        borderline_ids = tiers['borderline']['ids']
+
+        expect(buildable_ids.size).to eq(5)
+        expect(borderline_ids.size).to eq(2)
+
+        # Each borderline candidate has full review data
+        borderline_ids.each do |id|
+          c = result[:result]['candidates'].find { |r| r['id'] == id }
+          expect(c['cold_open']).to have_key('works')
+          expect(c['close']).to have_key('works')
+          expect(c['logline_prompt']).to be_a(String)
+        end
+      end
+
+      it 'review all path: all candidates have full review data' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        result[:result]['candidates'].each do |c|
+          expect(c['cold_open']).to have_key('works')
+          expect(c['close']).to have_key('works')
+          expect(c['logline_prompt']).to be_a(String)
+          expect(c['distilled_segments']).to be_an(Array)
+        end
+      end
+
+      it 'build all path: all candidates above floor available' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        # All 7 candidates are ranked, all available for build-all
+        expect(result[:result]['candidates_reviewed']).to eq(7)
+        all_ids = result[:result]['candidates'].map { |c| c['id'] }
+        expect(all_ids.size).to eq(7)
+      end
+
+      it 'cancel path: output file still written for reference' do
+        result = run_sanity(batch_scored, base_segments, batch: true)
+        expect(result[:exit_code]).to eq(0)
+        expect(result[:result]).not_to be_nil
+      end
+    end
+
+    describe 'no borderline candidates' do
+      it 'omits borderline section when none exist' do
+        scored = base_scored
+        # Both candidates are above acceptable (80, 68)
+        result = run_sanity(scored, base_segments, batch: true)
+        expect(result[:stderr]).not_to include('BORDERLINE REVIEW:')
+      end
+
+      it 'shows zero borderline in rollup' do
+        scored = base_scored
+        result = run_sanity(scored, base_segments, batch: true)
+        expect(result[:result]['tiers']['borderline']['count']).to eq(0)
+      end
+    end
+
+    describe 'all strong batch' do
+      it 'handles batch where all candidates are strong' do
+        scored = base_scored
+        scored['storylines'].each { |s| s['combined_score'] = 90 }
+        result = run_sanity(scored, base_segments, batch: true)
+
+        expect(result[:result]['tiers']['strong']['count']).to eq(2)
+        expect(result[:result]['tiers']['acceptable']['count']).to eq(0)
+        expect(result[:result]['tiers']['borderline']['count']).to eq(0)
+
+        expect(result[:stderr]).to include('Build all 2 strong+acceptable, review 0 borderline?')
+      end
     end
   end
 end
