@@ -20,7 +20,7 @@ abort "File not found: #{classified_path}" unless File.exist?(classified_path)
 templates_dir = File.join(File.dirname(__FILE__), '..', 'templates', 'story_structures')
 abort "Templates directory not found: #{templates_dir}" unless Dir.exist?(templates_dir)
 
-templates = Dir.glob(File.join(templates_dir, '*.yaml')).map do |path|
+templates = Dir.glob(File.join(templates_dir, '**', '*.yaml')).map do |path|
   YAML.safe_load(File.read(path))
 end
 abort "No templates found in #{templates_dir}" if templates.empty?
@@ -76,15 +76,23 @@ def score_template(distillations, template)
   order_correct = 0
   matched.each do |m|
     beat_pos = m[:beat]['position']
-    range = POSITION_RANGES[beat_pos]
-    next unless range
 
     # Normalized position of this match within the distillation sequence
     normalized = distillations.length > 1 ? m[:match][:index].to_f / (distillations.length - 1) : 0.5
-    # Score if within expected range (with some tolerance)
+
+    # Handle both label positions ("early") and numeric positions (0.15)
     tolerance = 0.15
-    if normalized >= (range[0] - tolerance) && normalized <= (range[1] + tolerance)
-      order_correct += 1
+    if beat_pos.is_a?(Numeric)
+      beat_tol = m[:beat]['position_tolerance'] || tolerance
+      if (normalized - beat_pos).abs <= [beat_tol + tolerance, 0.25].min
+        order_correct += 1
+      end
+    else
+      range = POSITION_RANGES[beat_pos]
+      next unless range
+      if normalized >= (range[0] - tolerance) && normalized <= (range[1] + tolerance)
+        order_correct += 1
+      end
     end
   end
 
