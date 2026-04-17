@@ -32,6 +32,12 @@ if (idx = ARGV.index('--save-template'))
   ARGV.delete_at(idx)
 end
 
+category = nil
+if (idx = ARGV.index('--category'))
+  category = ARGV.delete_at(idx + 1)
+  ARGV.delete_at(idx)
+end
+
 best_fit_score = nil
 if (idx = ARGV.index('--best-fit-score'))
   best_fit_score = ARGV.delete_at(idx + 1).to_i
@@ -51,6 +57,7 @@ if save_template_path
   abort "synthesized_template has no beats" unless template['beats'] && !template['beats'].empty?
 
   templates_dir = File.join(File.dirname(__FILE__), '..', 'templates', 'story_structures')
+  templates_dir = File.join(templates_dir, category) if category
   FileUtils.mkdir_p(templates_dir)
 
   filename = template['name'].downcase.gsub(/[^a-z0-9]+/, '_').gsub(/^_|_$/, '') + '.yaml'

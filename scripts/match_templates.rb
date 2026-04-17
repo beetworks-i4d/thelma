@@ -48,8 +48,8 @@ POSITION_RANGES = {
 
 # Check if a distillation matches any keyword in a beat's keyword list
 def keyword_match?(distillation, keywords)
-  text = distillation.downcase
-  keywords.any? { |kw| text.include?(kw.downcase) }
+  text = distillation.to_s.downcase
+  keywords.any? { |kw| text.include?(kw.to_s.downcase) }
 end
 
 # Score a single storyline against a single template
@@ -130,15 +130,18 @@ $stderr.puts
 
 storylines.each do |storyline|
   hook_t = storyline['hook_segment'].to_f
-  close_t = storyline['close_segment'].to_f
+  close_t = storyline['close_segment'] ? storyline['close_segment'].to_f : nil
 
   # Reconstruct distillation sequence
   hook_seg = seg_by_t[hook_t]
-  close_seg = seg_by_t[close_t]
+  close_seg = close_t ? seg_by_t[close_t] : nil
 
-  # Body = all segments between hook and close, sorted by t
-  body_segs = segments.select { |s| s['t'].to_f > hook_t && s['t'].to_f < close_t }
-                      .sort_by { |s| s['t'].to_f }
+  # Body = all segments between hook and close (or all after hook if no close), sorted by t
+  body_segs = if close_t
+    segments.select { |s| s['t'].to_f > hook_t && s['t'].to_f < close_t }
+  else
+    segments.select { |s| s['t'].to_f > hook_t }
+  end.sort_by { |s| s['t'].to_f }
 
   distillations = []
   distillations << { t: hook_t, distillation: hook_seg['distillation'] } if hook_seg
