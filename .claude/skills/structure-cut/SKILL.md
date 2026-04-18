@@ -805,7 +805,7 @@ markers:
 - `markers[].time` is TIMELINE position (after clips are assembled sequentially).
 - Breathing room buffer is applied automatically — don't pre-adjust clip times.
 - Offset sign: positive = audio started before video, negative = audio started after.
-- When `speech_analysis` is present, clip start/end times are snapped to the nearest VAD-detected speech boundary (±200ms tolerance). Adjustments logged to stderr.
+- When `speech_analysis` is present, clip start/end times are snapped to the nearest VAD-detected speech boundary (±100ms tolerance). Adjustments logged to stderr.
 - When `speech_analysis` is present, internal pauses above `auto_remove_pauses_above` (default 500ms) are automatically removed. Clips are split at pause boundaries, sub-clips placed back-to-back, yellow NOTE markers added at each join point. Dual-system audio is split in sync.
 - **Output format matching:** The generated XML sequence matches the source video format by default (resolution + frame rate). If `output_format: vertical_short` is set (or auto-detected from folder name containing "short"), the sequence swaps to vertical (e.g., 3840x2160 → 2160x3840) and each clipitem gets a center-crop scale transform. Format confirmation is printed to stderr at start of build.
 
