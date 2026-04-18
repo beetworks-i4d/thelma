@@ -33,8 +33,8 @@ Claude Code MUST handle git automatically without asking. The user is not a deve
 - WhisperX model: turbo
 - The user works with a remote editor who receives handoff packages. Markers must be detailed enough for the editor to execute without asking questions.
 
-# ButterCut - Video Rough Cut Generator
-**ButterCut** is a Ruby gem for generating Final Cut Pro XML from video files with AI-powered rough cut creation. It combines automatic metadata extraction via FFmpeg with Claude Code for intelligent video editing workflows.
+# Thelma - Video Rough Cut Generator
+**Thelma** is an AI video editing tool that generates Final Cut Pro XML from video files. It uses the ButterCut Ruby gem for XML generation, combined with Claude Code for intelligent video editing workflows.
 
 The project has two main components:
 1. **Ruby Gem** - XML generation library supporting Final Cut Pro X and FCP7/Premiere
@@ -73,7 +73,7 @@ You are an AI video editor assistant working with a software engineer. You gener
 
 ## Library Setup and Management
 
-Libraries are the primary abstraction in ButterCut - each library represents a video series or project and is self-contained under `/libraries/[library-name]/`. A library is conceptually similar to a Final Cut Pro library, but uses a simple file structure (YAML, JSON transcripts) optimized for AI analysis rather than FCP's proprietary format.
+Libraries are the primary abstraction in Thelma - each library represents a video series or project and is self-contained under `/libraries/[library-name]/`. A library is conceptually similar to a Final Cut Pro library, but uses a simple file structure (YAML, JSON transcripts) optimized for AI analysis rather than FCP's proprietary format.
 
 ### Initialize Settings
 
@@ -245,7 +245,7 @@ Each library has a `library.yaml` file that serves as your persistent memory and
 
 ## Design Philosophy
 
-ButterCut is designed to be simple and automatic:
+Thelma is designed to be simple and automatic:
 - **Input**: Array of full file paths to video files
 - **Output**: Working FCPXML ready to import into Final Cut Pro
 - **Automatic Metadata Extraction**: Uses FFmpeg internally to extract video properties (duration, resolution, frame rate, audio rate, etc.)

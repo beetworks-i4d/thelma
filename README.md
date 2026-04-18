@@ -1,12 +1,12 @@
-# ButterCut
+# Thelma
 
 **Make Claude your Video Editor**
 
-[buttercut.io](https://buttercut.io)
+[thelma.video](https://thelma.video)
 
 Give Claude Code your video footage. Claude analyzes it, then builds roughcuts and sequences for Final Cut, Premiere, and Resolve.
 
-Behind the scenes Claude uses ButterCut Skills and a little Ruby library to generate timelines for your editor.
+Behind the scenes Claude uses Thelma Skills and a little Ruby library to generate timelines for your editor.
 
 ## Watch the Demo
 
@@ -16,13 +16,13 @@ Behind the scenes Claude uses ButterCut Skills and a little Ruby library to gene
 
 ## Getting Started
 
-[![ButterCut Install Video](https://img.youtube.com/vi/BCMQzg-HiTw/maxresdefault.jpg)](https://www.youtube.com/watch?v=BCMQzg-HiTw)
+[![Thelma Install Video](https://img.youtube.com/vi/BCMQzg-HiTw/maxresdefault.jpg)](https://www.youtube.com/watch?v=BCMQzg-HiTw)
 
-*Click to watch the ButterCut install video on YouTube*
+*Click to watch the Thelma install video on YouTube*
 
-**Clone ButterCut:**
+**Clone Thelma:**
 ```bash
-git clone https://github.com/barefootford/buttercut.git && cd buttercut
+git clone https://github.com/barefootford/thelma.git && cd thelma
 ```
 
 **Open Claude Code:**
@@ -33,9 +33,9 @@ claude
 claude --dangerously-skip-permissions
 ```
 
-**Tell Claude to install ButterCut:**
+**Tell Claude to install Thelma:**
 ```
-> Install ButterCut
+> Install Thelma
 ```
 
 Claude will check your system and install any missing dependencies (Ruby, Python, FFmpeg, WhisperX).
@@ -116,7 +116,7 @@ For direct XML generation without Claude Code, see [docs/basic-xml-generation.md
 
 ## Thanks
 
-ButterCut was inspired by ambitious open source work from [Chris Hocking](https://github.com/CommandPost/CommandPost) and [Andrew Arrow](https://github.com/andrewarrow/cutlass/tree/main).
+Thelma was inspired by ambitious open source work from [Chris Hocking](https://github.com/CommandPost/CommandPost) and [Andrew Arrow](https://github.com/andrewarrow/cutlass/tree/main).
 
 ## License
 

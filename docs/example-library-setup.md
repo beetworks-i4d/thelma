@@ -1,6 +1,6 @@
 # Example: Setting Up a Wedding Video Library
 
-This walkthrough shows a complete example of using ButterCut with Claude Code to analyze wedding footage. The entire process—from initial request to fully analyzed footage—happens in one conversation with automatic parallel processing.
+This walkthrough shows a complete example of using Thelma with Claude Code to analyze wedding footage. The entire process—from initial request to fully analyzed footage—happens in one conversation with automatic parallel processing.
 
 ---
 
@@ -148,8 +148,8 @@ This is wedding reception footage shot on camcorder at night. The venue features
 Now that all footage is analyzed, you can create a rough cut by using the `roughcut` skill. The rough cut generator will use the visual transcripts and audio transcripts to create a Final Cut Pro XML file based on your editorial direction.
 
 All files are saved in:
-- Library: `/Users/andrew/code/buttercut/libraries/wedding/library.yaml`
-- Transcripts: `/Users/andrew/code/buttercut/libraries/wedding/transcripts/`
+- Library: `/Users/andrew/code/thelma/libraries/wedding/library.yaml`
+- Transcripts: `/Users/andrew/code/thelma/libraries/wedding/transcripts/`
 
 ---
 
@@ -213,7 +213,7 @@ Claude can search through transcripts and make selections.
 
 ---
 
-**ButterCut + Claude Code workflow:**
+**Thelma + Claude Code workflow:**
 1. Point Claude at your footage
 2. Claude analyzes everything automatically
 3. Ask Claude for what you want

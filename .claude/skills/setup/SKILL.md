@@ -1,11 +1,11 @@
 ---
 name: setup
-description: Sets up a Mac for ButterCut. Installs all required dependencies (Homebrew, Ruby, Python, FFmpeg, WhisperX). Use when user says "install buttercut", "set up my mac", "get started", "first time setup", "install dependencies" or "check my installation".
+description: Sets up a Mac for Thelma. Installs all required dependencies (Homebrew, Ruby, Python, FFmpeg, WhisperX). Use when user says "install thelma", "set up my mac", "get started", "first time setup", "install dependencies" or "check my installation".
 ---
 
 # Skill: Mac Setup
 
-Sets up a Mac for ButterCut. Two installation paths available based on user preference.
+Sets up a Mac for Thelma. Two installation paths available based on user preference.
 
 ## Step 1: Check Current State
 
@@ -22,7 +22,7 @@ If all dependencies pass, inform the user they're ready to go.
 If dependencies are missing, use AskUserQuestion:
 
 ```
-Question: "How would you like to install ButterCut?"
+Question: "How would you like to install Thelma?"
 Header: "Install type"
 Options:
   1. "Simple (recommended)" - "Fully automatic setup. We'll install everything for you using sensible defaults."
