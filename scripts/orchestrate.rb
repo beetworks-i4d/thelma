@@ -311,10 +311,23 @@ else
 end
 
 # ============================================================
-# PHASE 1.5d: VISUAL ANALYSIS
+# PHASE 1.5d: SCENE DETECTION + VISUAL ANALYSIS
 # ============================================================
 
-phase '1.5d — Visual Analysis'
+phase '1.5d — Scene Detection + Visual Analysis'
+
+scene_changes_path = File.join(library_dir, 'scene_changes.yaml')
+if file_cached?(scene_changes_path)
+  skip 'scene_detection', 'scene_changes.yaml exists'
+else
+  video_file = video['path']
+  if video_file && File.exist?(video_file)
+    step 'scene_detection'
+    run_script('detect_scenes.rb', video_file, '--output', scene_changes_path)
+  else
+    skip 'scene_detection', 'video file not accessible'
+  end
+end
 
 visual_name = video['visual_transcript']
 if visual_name && visual_name.to_s.strip != ''

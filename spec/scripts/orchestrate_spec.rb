@@ -225,26 +225,24 @@ RSpec.describe 'orchestrate.rb' do
 
   describe 'report schema from generate_report' do
     it 'generates valid report YAML with all fields' do
-      # Use dylan-004 library (has all pipeline outputs)
       library_dir = File.expand_path('../../libraries/dylan-004', __dir__)
       next skip('dylan-004 library not available') unless File.exist?(File.join(library_dir, 'library.yaml'))
 
-      stdout, stderr, status = Open3.capture3('ruby', File.expand_path('../../scripts/generate_report.rb', __dir__), library_dir)
-      expect(status.exitstatus).to eq(0)
+      Dir.mktmpdir do |out|
+        stdout, stderr, status = Open3.capture3('ruby', File.expand_path('../../scripts/generate_report.rb', __dir__), library_dir, '--output-dir', out)
+        expect(status.exitstatus).to eq(0)
 
-      report_path = stdout.strip
-      next skip('report not generated') unless File.exist?(report_path)
+        report_path = stdout.strip
+        next skip('report not generated') unless File.exist?(report_path)
 
-      report = YAML.safe_load(File.read(report_path), permitted_classes: [Date])
-      expect(report['video']).to be_a(String)
-      expect(report['duration']).to be > 0
-      expect(report['structure']).to be_a(Hash)
-      expect(report['emotional_architecture']).to be_a(Hash)
-      expect(report['pacing']).to be_a(Hash)
-      expect(report['pacing']['total_segments']).to be > 0
-
-      # Cleanup
-      File.delete(report_path) if File.exist?(report_path)
+        report = YAML.safe_load(File.read(report_path), permitted_classes: [Date])
+        expect(report['video']).to be_a(String)
+        expect(report['duration']).to be > 0
+        expect(report['structure']).to be_a(Hash)
+        expect(report['emotional_architecture']).to be_a(Hash)
+        expect(report['pacing']).to be_a(Hash)
+        expect(report['pacing']['total_segments']).to be > 0
+      end
     end
   end
 end

@@ -13,13 +13,18 @@ require_relative 'load_profile'
 # --- Flag parsing ---
 
 profile_name = nil
+output_dir = nil
 if (idx = ARGV.index('--profile'))
   profile_name = ARGV.delete_at(idx + 1)
   ARGV.delete_at(idx)
 end
+if (idx = ARGV.index('--output-dir'))
+  output_dir = ARGV.delete_at(idx + 1)
+  ARGV.delete_at(idx)
+end
 
 library_path = ARGV[0]
-abort "Usage: ruby scripts/generate_report.rb <library_path> [--profile <name>]" unless library_path
+abort "Usage: ruby scripts/generate_report.rb <library_path> [--profile <name>] [--output-dir <path>]" unless library_path
 
 library_yaml_path = if File.directory?(library_path)
   File.join(library_path, 'library.yaml')
@@ -228,6 +233,22 @@ end
 
 visual_language = { 'talking_head_ratio' => nil }
 
+# Scene detection data
+scene_changes_path = File.join(library_dir, 'scene_changes.yaml')
+if File.exist?(scene_changes_path)
+  scene_data = YAML.safe_load(File.read(scene_changes_path), permitted_classes: [Date])
+  scene_count = scene_data['total_scenes'] || 0
+  scene_ts = scene_data['timestamps'] || []
+
+  visual_language['scene_changes'] = scene_count
+
+  if duration_seconds > 0 && scene_count > 0
+    visual_language['cuts_per_minute'] = (scene_count / (duration_seconds / 60.0)).round(1)
+    visual_language['avg_shot_duration'] = (duration_seconds / scene_count).round(1)
+  end
+end
+
+# Visual transcript data
 visual_path = video['visual_transcript']
 if visual_path
   full_visual_path = File.join(library_dir, 'transcripts', visual_path)
@@ -263,7 +284,7 @@ report = {
 
 # --- Write output ---
 
-reports_dir = File.join(File.dirname(__FILE__), '..', 'reports')
+reports_dir = output_dir || File.join(File.dirname(__FILE__), '..', 'reports')
 FileUtils.mkdir_p(reports_dir)
 output_path = File.join(reports_dir, "#{library_name}_report.yaml")
 File.write(output_path, report.to_yaml)

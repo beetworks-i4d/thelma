@@ -65,8 +65,8 @@ def make_scored(dir, storylines = nil)
   File.write(File.join(dir, 'storylines_scored.yaml'), { 'storylines' => storylines }.to_yaml)
 end
 
-def run_report(dir, flags: {})
-  args = ['ruby', REPORT_SCRIPT, dir]
+def run_report(dir, output_dir:, flags: {})
+  args = ['ruby', REPORT_SCRIPT, dir, '--output-dir', output_dir]
   args += ['--profile', flags[:profile]] if flags[:profile]
   stdout, stderr, status = Open3.capture3(*args)
   result = nil
@@ -94,85 +94,95 @@ RSpec.describe 'generate_report.rb' do
   describe 'report schema' do
     it 'produces all required top-level fields' do
       Dir.mktmpdir do |dir|
-        make_library(dir)
-        make_classified(dir)
-        make_scored(dir)
-        result = run_report(dir)
+        Dir.mktmpdir do |out|
+          make_library(dir)
+          make_classified(dir)
+          make_scored(dir)
+          result = run_report(dir, output_dir: out)
 
-        expect(result[:exit_code]).to eq(0)
-        report = result[:result]
-        expect(report).to have_key('video')
-        expect(report).to have_key('creator')
-        expect(report).to have_key('duration')
-        expect(report).to have_key('analyzed')
-        expect(report).to have_key('structure')
-        expect(report).to have_key('emotional_architecture')
-        expect(report).to have_key('pacing')
-        expect(report).to have_key('audio_delivery')
-        expect(report).to have_key('visual_language')
-        expect(report).to have_key('hook')
-        expect(report).to have_key('close')
+          expect(result[:exit_code]).to eq(0)
+          report = result[:result]
+          expect(report).to have_key('video')
+          expect(report).to have_key('creator')
+          expect(report).to have_key('duration')
+          expect(report).to have_key('analyzed')
+          expect(report).to have_key('structure')
+          expect(report).to have_key('emotional_architecture')
+          expect(report).to have_key('pacing')
+          expect(report).to have_key('audio_delivery')
+          expect(report).to have_key('visual_language')
+          expect(report).to have_key('hook')
+          expect(report).to have_key('close')
+        end
       end
     end
 
     it 'populates structure from scored storylines' do
       Dir.mktmpdir do |dir|
-        make_library(dir)
-        make_classified(dir)
-        make_scored(dir)
-        result = run_report(dir)
-        report = result[:result]
+        Dir.mktmpdir do |out|
+          make_library(dir)
+          make_classified(dir)
+          make_scored(dir)
+          result = run_report(dir, output_dir: out)
+          report = result[:result]
 
-        expect(report['structure']['template_match']).to eq('problem_solution')
-        expect(report['structure']['template_fit']).to eq(76)
-        expect(report['structure']['beat_count']).to eq(3)
-        expect(report['structure']['beats']).to include('problem_statement')
+          expect(report['structure']['template_match']).to eq('problem_solution')
+          expect(report['structure']['template_fit']).to eq(76)
+          expect(report['structure']['beat_count']).to eq(3)
+          expect(report['structure']['beats']).to include('problem_statement')
+        end
       end
     end
 
     it 'populates emotional architecture from segments' do
       Dir.mktmpdir do |dir|
-        make_library(dir)
-        make_classified(dir)
-        make_scored(dir)
-        result = run_report(dir)
-        report = result[:result]
+        Dir.mktmpdir do |out|
+          make_library(dir)
+          make_classified(dir)
+          make_scored(dir)
+          result = run_report(dir, output_dir: out)
+          report = result[:result]
 
-        ea = report['emotional_architecture']
-        expect(ea['primary_states']).to be_an(Array)
-        expect(ea['primary_states'].size).to be <= 3
-        expect(ea['spine']).to be_a(String)
-        expect(ea['state_transitions']).to be_a(Integer)
-        expect(ea['transitions_per_minute']).to be_a(Float)
+          ea = report['emotional_architecture']
+          expect(ea['primary_states']).to be_an(Array)
+          expect(ea['primary_states'].size).to be <= 3
+          expect(ea['spine']).to be_a(String)
+          expect(ea['state_transitions']).to be_a(Integer)
+          expect(ea['transitions_per_minute']).to be_a(Float)
+        end
       end
     end
 
     it 'populates pacing from segments' do
       Dir.mktmpdir do |dir|
-        make_library(dir)
-        make_classified(dir)
-        result = run_report(dir)
-        report = result[:result]
+        Dir.mktmpdir do |out|
+          make_library(dir)
+          make_classified(dir)
+          result = run_report(dir, output_dir: out)
+          report = result[:result]
 
-        pacing = report['pacing']
-        expect(pacing['total_segments']).to eq(3)
-        expect(pacing['avg_segment_duration']).to be > 0
-        expect(pacing['median_segment_duration']).to be > 0
-        expect(pacing['segments_over_12s']).to be_a(Integer)
+          pacing = report['pacing']
+          expect(pacing['total_segments']).to eq(3)
+          expect(pacing['avg_segment_duration']).to be > 0
+          expect(pacing['median_segment_duration']).to be > 0
+          expect(pacing['segments_over_12s']).to be_a(Integer)
+        end
       end
     end
 
     it 'populates hook and close from top storyline' do
       Dir.mktmpdir do |dir|
-        make_library(dir)
-        make_classified(dir)
-        make_scored(dir)
-        result = run_report(dir)
-        report = result[:result]
+        Dir.mktmpdir do |out|
+          make_library(dir)
+          make_classified(dir)
+          make_scored(dir)
+          result = run_report(dir, output_dir: out)
+          report = result[:result]
 
-        expect(report['hook']['duration']).to eq(8.5)
-        expect(report['hook']['state']).to include('competence')
-        expect(report['close']['duration']).to eq(12.0)
+          expect(report['hook']['duration']).to eq(8.5)
+          expect(report['hook']['state']).to include('competence')
+          expect(report['close']['duration']).to eq(12.0)
+        end
       end
     end
   end
@@ -180,30 +190,36 @@ RSpec.describe 'generate_report.rb' do
   describe 'edge cases' do
     it 'handles library with no classification' do
       Dir.mktmpdir do |dir|
-        make_library(dir)
-        result = run_report(dir)
-        expect(result[:exit_code]).to eq(0)
-        expect(result[:result]['pacing']).to eq({})
-        expect(result[:result]['emotional_architecture']).to eq({})
+        Dir.mktmpdir do |out|
+          make_library(dir)
+          result = run_report(dir, output_dir: out)
+          expect(result[:exit_code]).to eq(0)
+          expect(result[:result]['pacing']).to eq({})
+          expect(result[:result]['emotional_architecture']).to eq({})
+        end
       end
     end
 
     it 'handles library with classification but no scoring' do
       Dir.mktmpdir do |dir|
-        make_library(dir)
-        make_classified(dir)
-        result = run_report(dir)
-        expect(result[:exit_code]).to eq(0)
-        expect(result[:result]['structure']).to eq({})
-        expect(result[:result]['pacing']['total_segments']).to eq(3)
+        Dir.mktmpdir do |out|
+          make_library(dir)
+          make_classified(dir)
+          result = run_report(dir, output_dir: out)
+          expect(result[:exit_code]).to eq(0)
+          expect(result[:result]['structure']).to eq({})
+          expect(result[:result]['pacing']['total_segments']).to eq(3)
+        end
       end
     end
 
     it 'calculates duration from HH:MM:SS format' do
       Dir.mktmpdir do |dir|
-        make_library(dir, { 'videos' => [{ 'path' => '/tmp/test.mp4', 'duration' => '01:05:30' }] })
-        result = run_report(dir)
-        expect(result[:result]['duration']).to eq(3930.0)
+        Dir.mktmpdir do |out|
+          make_library(dir, { 'videos' => [{ 'path' => '/tmp/test.mp4', 'duration' => '01:05:30' }] })
+          result = run_report(dir, output_dir: out)
+          expect(result[:result]['duration']).to eq(3930.0)
+        end
       end
     end
   end
@@ -211,10 +227,12 @@ RSpec.describe 'generate_report.rb' do
   describe '--profile flag' do
     it 'sets creator from profile name' do
       Dir.mktmpdir do |dir|
-        make_library(dir)
-        make_classified(dir)
-        result = run_report(dir, flags: { profile: 'dylan' })
-        expect(result[:result]['creator']).to eq('dylan')
+        Dir.mktmpdir do |out|
+          make_library(dir)
+          make_classified(dir)
+          result = run_report(dir, output_dir: out, flags: { profile: 'dylan' })
+          expect(result[:result]['creator']).to eq('dylan')
+        end
       end
     end
   end
