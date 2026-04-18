@@ -35,6 +35,11 @@
 #                                    # are removed by splitting the clip into sub-clips.
 #                                    # Set to 0 or false to disable.
 #
+#   max_segment_duration: 12         # optional, seconds (default 12)
+#                                    # After pause removal, any sub-clip exceeding this
+#                                    # duration is split at the longest internal sentence
+#                                    # boundary (pause >300ms). Set to 0 or false to disable.
+#
 #   markers:
 #     - name: TITLE
 #       comment: "Insert title card"
@@ -202,6 +207,54 @@ end
 
 if pause_removal_threshold && long_pauses
   $stderr.puts "Pause removal: enabled (threshold #{(pause_removal_threshold * 1000).round}ms)"
+end
+
+# === Parse max_segment_duration ===
+max_segment_duration = nil
+if config.key?('max_segment_duration')
+  val = config['max_segment_duration']
+  if val && val != false && val.to_i > 0
+    max_segment_duration = val.to_i
+  end
+else
+  max_segment_duration = 12  # default 12 seconds
+end
+
+if max_segment_duration && long_pauses
+  $stderr.puts "Max segment duration: #{max_segment_duration}s (auto-split at sentence boundaries)"
+end
+
+# Find split points for an oversized clip using internal pauses.
+# Recursively finds the longest pause, splits there, and checks sub-segments.
+# Returns array of video-time split points sorted chronologically.
+SENTENCE_BOUNDARY_THRESHOLD = 0.300  # 300ms minimum pause for sentence boundary
+
+def find_split_points(video_start, video_end, pauses, max_dur, sync_offset, has_sync)
+  duration = video_end - video_start
+  return [] if duration <= max_dur
+
+  # Find the longest qualifying pause inside this range (in video time)
+  best_pause = nil
+  best_dur = 0
+  pauses.each do |p|
+    p_start_v = has_sync ? p['start'] - sync_offset : p['start']
+    next unless p_start_v > video_start + 0.5 && p_start_v < video_end - 0.5
+    next unless p['duration'] >= SENTENCE_BOUNDARY_THRESHOLD
+    if p['duration'] > best_dur
+      best_pause = p
+      best_dur = p['duration']
+    end
+  end
+
+  return [] unless best_pause
+
+  split_v = has_sync ? best_pause['start'] - sync_offset : best_pause['start']
+
+  # Recursively check sub-segments
+  left_splits = find_split_points(video_start, split_v, pauses, max_dur, sync_offset, has_sync)
+  right_splits = find_split_points(split_v, video_end, pauses, max_dur, sync_offset, has_sync)
+
+  left_splits + [split_v] + right_splits
 end
 
 # Snap a time to the nearest speech boundary within tolerance.
@@ -379,6 +432,91 @@ config['clips'].each_with_index do |c, idx|
   end
 end
 
+# === Auto-split oversized segments ===
+split_count = 0
+if max_segment_duration && long_pauses
+  new_clips = []
+  new_wav_clip_info = []
+  new_clip_source_ranges = []
+  new_pause_removal_markers = []
+
+  clips.each_with_index do |clip, ci|
+    if clip[:duration] <= max_segment_duration
+      # Remap any existing pause_removal_markers for this clip
+      pause_removal_markers.each do |prm|
+        if prm[:clip_index] == ci
+          new_pause_removal_markers << prm.merge(clip_index: new_clips.size)
+        end
+      end
+      new_clips << clip
+      new_wav_clip_info << wav_clip_info[ci] if has_sync && ci < wav_clip_info.size
+      new_clip_source_ranges << clip_source_ranges[ci] if ci < clip_source_ranges.size
+      next
+    end
+
+    # Determine clip's video-time range (strip breathing room for split calculation)
+    clip_video_start = clip[:start_at] + buffer
+    clip_video_end = clip[:start_at] + clip[:duration] - buffer
+
+    split_points = find_split_points(clip_video_start, clip_video_end,
+                                      long_pauses, max_segment_duration,
+                                      sync_offset, has_sync)
+
+    if split_points.empty?
+      # No valid split points — remap markers and keep as-is
+      pause_removal_markers.each do |prm|
+        if prm[:clip_index] == ci
+          new_pause_removal_markers << prm.merge(clip_index: new_clips.size)
+        end
+      end
+      new_clips << clip
+      new_wav_clip_info << wav_clip_info[ci] if has_sync && ci < wav_clip_info.size
+      new_clip_source_ranges << clip_source_ranges[ci] if ci < clip_source_ranges.size
+      next
+    end
+
+    # Build sub-clips from split points
+    boundaries = [clip_video_start] + split_points + [clip_video_end]
+    boundaries.each_cons(2).with_index do |(sub_start, sub_end), si|
+      is_first = si == 0
+      is_last = si == boundaries.size - 2
+      start_buf = is_first ? buffer : 0.0
+      end_buf = is_last ? buffer : 0.0
+
+      buffered_start = sub_start - start_buf
+      buffered_start = 0.0 if buffered_start < 0
+      dur = (sub_end - sub_start) + start_buf + end_buf
+
+      new_clips << { path: video_path, start_at: buffered_start, duration: dur }
+
+      wav_s = has_sync ? sub_start + sync_offset : sub_start
+      wav_e = has_sync ? sub_end + sync_offset : sub_end
+      new_clip_source_ranges << { wav_start: wav_s, wav_end: wav_e }
+
+      if has_sync
+        ws = wav_s - start_buf
+        ws = 0.0 if ws < 0
+        new_wav_clip_info << { wav_start: ws, wav_duration: dur }
+      end
+
+      if si > 0
+        new_pause_removal_markers << { clip_index: new_clips.size - 1, pause_ms: 0, auto_split: true }
+        split_count += 1
+      end
+    end
+
+    $stderr.puts "  Clip #{ci + 1}: auto-split #{clip[:duration].round(1)}s → #{boundaries.size - 1} sub-clips at sentence boundaries"
+  end
+
+  if split_count > 0
+    clips = new_clips
+    wav_clip_info = new_wav_clip_info
+    clip_source_ranges = new_clip_source_ranges
+    pause_removal_markers = new_pause_removal_markers
+    $stderr.puts "Auto-split: #{split_count} segments split at sentence boundaries (max #{max_segment_duration}s)"
+  end
+end
+
 # === Build markers (convert string keys to symbols) ===
 markers = (config['markers'] || []).map do |m|
   {
@@ -397,16 +535,23 @@ clips.each do |c|
   cumulative += c[:duration]
 end
 
-# === Add "Auto-removed" markers at split join points ===
+# === Add "Auto-removed" / "Auto-split" markers at split join points ===
 pause_removal_markers.each do |prm|
   tl_time = timeline_positions[prm[:clip_index]].round(2)
+  if prm[:auto_split]
+    comment = "Auto-split: segment exceeded #{max_segment_duration}s"
+    log_msg = "  Auto-split at timeline #{tl_time}s"
+  else
+    comment = "Auto-removed #{prm[:pause_ms]}ms pause"
+    log_msg = "  Auto-removed: #{prm[:pause_ms]}ms pause at timeline #{tl_time}s"
+  end
   markers << {
     name: 'NOTE',
-    comment: "Auto-removed #{prm[:pause_ms]}ms pause",
+    comment: comment,
     time: tl_time,
     color: 'yellow'
   }
-  $stderr.puts "  Auto-removed: #{prm[:pause_ms]}ms pause at timeline #{tl_time}s"
+  $stderr.puts log_msg
 end
 
 # === Add "tighten manually" markers for below-threshold internal pauses ===
