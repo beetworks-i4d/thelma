@@ -86,24 +86,24 @@ Two options depending on how you manage Python:
 Isolates WhisperX dependencies. Creates a wrapper script for easy access.
 
 ```bash
-mkdir -p ~/.buttercut
-python3 -m venv ~/.buttercut/venv
-source ~/.buttercut/venv/bin/activate
+mkdir -p ~/.thelma
+python3 -m venv ~/.thelma/venv
+source ~/.thelma/venv/bin/activate
 pip install --upgrade pip
 pip install whisperx
 deactivate
 
 # Create wrapper script
-cat > ~/.buttercut/whisperx << 'EOF'
+cat > ~/.thelma/whisperx << 'EOF'
 #!/bin/bash
-source ~/.buttercut/venv/bin/activate
+source ~/.thelma/venv/bin/activate
 whisperx "$@"
 deactivate
 EOF
-chmod +x ~/.buttercut/whisperx
+chmod +x ~/.thelma/whisperx
 
 # Add to PATH (adjust for your shell)
-echo 'export PATH="$HOME/.buttercut:$PATH"' >> ~/.zshrc
+echo 'export PATH="$HOME/.thelma:$PATH"' >> ~/.zshrc
 ```
 
 **Option B: Direct pip install**
@@ -116,9 +116,9 @@ pip install whisperx
 
 Ensure `whisperx` is in your PATH.
 
-### 9. ButterCut Ruby Dependencies
+### 9. Thelma Ruby Dependencies
 
-From the buttercut directory:
+From the thelma directory:
 
 ```bash
 bundle install
@@ -138,4 +138,4 @@ All items should show OK.
 
 - The `.mise.toml` file is provided for mise users but is not required
 - WhisperX uses CPU-only mode for simplicity (no CUDA/GPU setup needed)
-- If you use pyenv-virtualenv or similar, you can install whisperx in a dedicated virtualenv instead of `~/.buttercut/venv`
+- If you use pyenv-virtualenv or similar, you can install whisperx in a dedicated virtualenv instead of `~/.thelma/venv`

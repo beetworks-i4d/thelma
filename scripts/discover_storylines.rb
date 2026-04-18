@@ -15,6 +15,7 @@ require 'digest'
 
 classified_path = nil
 library_path = nil
+profile_name = nil
 
 i = 0
 while i < ARGV.length
@@ -22,14 +23,26 @@ while i < ARGV.length
   when '--library'
     library_path = ARGV[i + 1]
     i += 2
+  when '--profile'
+    profile_name = ARGV[i + 1]
+    i += 2
   else
     classified_path = ARGV[i]
     i += 1
   end
 end
 
-abort "Usage: ruby scripts/discover_storylines.rb <segments_classified.yaml> [--library <library.yaml>]" unless classified_path
+abort "Usage: ruby scripts/discover_storylines.rb <segments_classified.yaml> [--library <library.yaml>] [--profile <name>]" unless classified_path
 abort "File not found: #{classified_path}" unless File.exist?(classified_path)
+
+# === Load profile ===
+require_relative 'load_profile'
+profile = if profile_name
+             load_profile_by_name(profile_name)
+           else
+             load_profile(File.basename(File.dirname(classified_path)))
+           end
+template_affinities = profile['template_affinities'] || []
 
 data = YAML.safe_load(File.read(classified_path), permitted_classes: [Date])
 segments = data['segments'] || []
@@ -227,6 +240,12 @@ def score_arc(hook, close, body, all_t_values)
         when 'medium' then 3
         else 0
         end
+  # Audio profile bonus — emphatic delivery boosts hook viability
+  if hook['audio_profile'] == 'emphatic'
+    cv += 3
+  elsif hook['audio_profile'] == 'casual'
+    cv -= 2
+  end
   scores['cold_viability'] = [cv, 15].min
 
   # 5. Closing durability (15 pts)

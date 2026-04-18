@@ -1,15 +1,15 @@
 ---
 name: release
-description: Creates a new ButterCut release with version bump, changelog, git tag, gem build, and GitHub release. Use when publishing a new version.
+description: Creates a new Thelma release with version bump, changelog, git tag, gem build, and GitHub release. Use when publishing a new version.
 ---
 
-# Skill: Release ButterCut
+# Skill: Release Thelma
 
 Guides through the complete release process: version bump, changelog, git operations, gem publishing, and GitHub release creation.
 
 ## When to Use
 
-- Publishing a new version of ButterCut
+- Publishing a new version of Thelma
 - After merging features or fixes that should be released
 - Creating the first v0.1.0 release
 
@@ -183,7 +183,7 @@ Check that everything worked:
 
 Provide summary:
 ```
-✓ ButterCut 0.2.0 released successfully
+✓ Thelma 0.2.0 released successfully
 
   Version: 0.2.0
   Git tag: v0.2.0

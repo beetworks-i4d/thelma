@@ -1,0 +1,95 @@
+---
+name: comparative_walkthrough
+description: Evaluate multiple options against a shared framework, reveal a ranked
+  winner with personal proof
+beats:
+- id: hook_claim
+  description: Bold outcome claim that opens a curiosity loop about which model delivered
+  keywords:
+  - months
+  - 10k
+  - tried
+  - first
+  - money
+  - quit
+  - laptop
+  position: early
+- id: backstory_origin
+  description: Personal origin story establishing relatability and modest starting
+    point
+  keywords:
+  - minimum
+  - wage
+  - call
+  - center
+  - freedom
+  - wanted
+  - googled
+  position: early
+- id: framework_setup
+  description: Introduce evaluation criteria so comparisons feel systematic, not arbitrary
+  keywords:
+  - framework
+  - criteria
+  - evaluate
+  - six
+  - situation
+  - weight
+  position: early_mid
+- id: item_evaluation
+  description: Evaluate each competing option against the framework, exposing weaknesses
+  keywords:
+  - affiliate
+  - dropshipping
+  - fba
+  - margins
+  - cost
+  - moat
+  - returns
+  - commission
+  - pennies
+  position: mid
+- id: winner_reveal
+  description: Reveal the winning option with mechanics explained and clear advantages
+  keywords:
+  - servicing
+  - freelancer
+  - arbitrage
+  - agency
+  - margins
+  - startup
+  - zero
+  position: late_mid
+- id: deeper_insight
+  description: Explain a structural advantage that separates the winner from all alternatives
+  keywords:
+  - moat
+  - proof
+  - compounding
+  - defensible
+  - fundamentally
+  - different
+  position: late_mid
+- id: personal_proof
+  description: Personal results and social proof validating the winner with specific
+    numbers
+  keywords:
+  - "850"
+  - "10k"
+  - "100k"
+  - months
+  - revenue
+  - results
+  - steve
+  position: late
+- id: ranking_summary
+  description: Final ranking of all options evaluated plus call to action
+  keywords:
+  - easiest
+  - costly
+  - capital
+  - cheap
+  - defensible
+  - ranking
+  - cta
+  position: late

@@ -1,9 +1,29 @@
 # Changelog
 
-All notable changes to ButterCut will be documented in this file.
+All notable changes to Thelma (formerly ButterCut) will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.0.0] - 2026-04-18 — v2.0-thelma
+
+Project renamed from ButterCut to Thelma. ButterCut remains as the underlying Ruby gem for XML generation.
+
+### Added
+- **Profile system** (`profiles/`, `scripts/load_profile.rb`) — client profiles with auto-match by folder/library name, deep merge with `_default.yaml` base, `--profile` flag on all pipeline scripts
+- **Audio emotion scoring** (`scripts/audio_emotion.py`, `scripts/audio_emotion.rb`) — per-segment acoustic feature extraction via librosa (energy, pitch, speaking rate, spectral centroid), derives audio_profile labels (emphatic, authoritative, reflective, urgent, building, landing, casual)
+- Starter profiles: `_default.yaml`, `dylan.yaml`, `ivan.yaml`
+- Phase 1.5c (Audio Emotion Scoring) in SKILL.md pipeline
+- Phase 0 profile loading in SKILL.md pipeline
+- 30 new test specs (12 audio emotion + 18 profile system)
+
+### Changed
+- Project identity: ButterCut → Thelma (all docs, skills, setup guides)
+- `update-buttercut` skill renamed to `update-thelma`
+- Emotion markers now include `audio: <profile>` when available
+- Hook scoring in `discover_storylines.rb` boosted for emphatic delivery (+3) and penalized for casual (-2)
+- Combined scoring in `score_coherence.rb` includes template affinity bonus (+5) and closing durability preference (+3)
+- Sanity check thresholds now read from profile as defaults
 
 ## [0.5.0] - 2026-04-15 — v1.1-foundation
 
@@ -70,7 +90,7 @@ ruby scripts/001_migrate_0.2_to_0.3.rb --all
 
 ### Added
 - **backup-library skill**: Creates compressed ZIP backups of libraries (transcripts, roughcuts, YAML - not video files)
-- **update-buttercut skill**: Automatically downloads and installs the latest version while preserving libraries
+- **update skill**: Automatically downloads and installs the latest version while preserving libraries
 - **Flexible setup options**: Simple mise-based install for beginners, advanced checklist for developers
 - `.ruby-version` and `.python-version` files for broad version manager support (rbenv, pyenv, asdf, etc.)
 - Install location check to warn about problematic directories
@@ -100,7 +120,7 @@ ruby scripts/001_migrate_0.2_to_0.3.rb --all
 ## [0.1.0] - 2025-01-15
 
 ### Added
-- Initial release of ButterCut gem
+- Initial release of ButterCut gem (now Thelma)
 - FCPX XML generation (FCPXML 1.8 format)
 - FCP7/Premiere XML generation (xmeml version 5)
 - Automatic video metadata extraction via FFmpeg

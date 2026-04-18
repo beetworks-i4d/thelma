@@ -50,6 +50,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 - Phase 1: Ingest and Analyze
 - Phase 1.5: Segment Classification
 - Phase 1.5b: Semantic Dedup
+- Phase 1.5c: Audio Emotion Scoring
 - Phase 1.6: Storyline Discovery
 - Phase 1.7: Template Matching
 - Phase 1.8: Coherence Scoring
@@ -65,6 +66,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 2. Run Phase 1 (ingest) — can be Task agent(s)
 3. Run Phase 1.5 (classification, deep mode) — can be Task agent
 3b. Run Phase 1.5b (semantic dedup) — can be Task agent: `ruby scripts/semantic_dedup.rb`
+3c. Run Phase 1.5c (audio emotion) — can be Task agent: `ruby scripts/audio_emotion.rb <wav_path> <segments_classified.yaml> [library.yaml]`
 4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb` (pass `segments_deduped.yaml` instead of `segments_classified.yaml`)
 5. Run Phase 1.7 (template matching) — can be Task agent: `ruby scripts/match_templates.rb`
 6. Run Phase 1.8 (coherence scoring):
@@ -80,9 +82,19 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 
 ## Process
 
-### Phase 0: Branch Detection (before ingest)
+### Phase 0: Profile Loading + Branch Detection (before ingest)
 
-Scan the project folder for script files. This determines which deep-mode branch to use.
+**Load client profile first.** The profile provides defaults for all downstream phases (max_segment_duration, snap tolerance, template affinities, scoring thresholds, etc.). Auto-matches by library/folder name against profiles in `profiles/`:
+
+```bash
+# Auto-match: library name "dylan-shorts-batch-1" → matches profiles/dylan.yaml
+# Explicit: --profile dylan on any script
+# No match: falls back to profiles/_default.yaml
+```
+
+Profile values are fallback defaults — per-cut YAML config and CLI flags always override. Pass `--profile <name>` to scripts when running manually.
+
+**Then scan for script files.** This determines which deep-mode branch to use.
 
 1. **Scan for scripts:** Look for `.txt`, `.pdf`, `.md`, `.docx` files in the project folder root. Exclude:
    - Files inside `output/` (generated XMLs, arrangement logs, treated audio)
@@ -216,6 +228,7 @@ segments:
 - `notes`: short editorial note (10 words max)
 - `rationale`: 5-15 word explanation of WHY these states were chosen. Written DURING classification, not post-hoc. If uncertain, say so.
 - `confidence`: high/medium/low — how certain the classification is. High = clear signal, single interpretation. Medium = reasonable but other states possible. Low = ambiguous, judgment call.
+- `signpost`: true/false — Whether the segment is meta-commentary announcing upcoming content rather than delivering it. Patterns: "here's how I...", "before I go through...", "let me walk you through...", "so what I'm going to do is...", "in this video I'm going to...", "what we're going to cover is...". Default false, only set true when the pattern is clear.
 
 **Pass 3 — Stumble detection:** During Pass 1 filtering, when a stumble pattern is detected (repeated words, false start followed by clean retake) that falls INSIDE a content segment's boundaries and can't be cleanly cut without splitting the clip, record it:
 
@@ -267,6 +280,34 @@ ruby scripts/semantic_dedup.rb <segments_classified.yaml>
 **Caching:** Skips if `segments_deduped.yaml` exists with matching `transcript_hash`.
 
 **Output:** `segments_deduped.yaml` in same directory. Pass this file (not `segments_classified.yaml`) to Phase 1.6 and all downstream phases.
+
+### Phase 1.5c: Audio Emotion Scoring (deep mode only)
+
+After classification (and dedup if applicable), run audio emotion analysis to extract vocal delivery features from the production audio. This enriches `segments_classified.yaml` with acoustic metadata that improves hook scoring and provides delivery context for the editor.
+
+```bash
+ruby scripts/audio_emotion.rb <wav_path> <segments_classified.yaml> [library.yaml]
+```
+
+**What it does:**
+1. Loads the production WAV and computes a speaker baseline (RMS energy, F0 pitch, spectral centroid, speaking rate)
+2. For each classified segment, extracts acoustic features relative to the baseline
+3. Derives an `audio_profile` label from feature combinations: `emphatic`, `authoritative`, `reflective`, `urgent`, `building`, `landing`, or `casual`
+4. Merges `audio_profile`, `audio_energy`, `audio_pitch_trend`, and `audio_speaking_rate` into `segments_classified.yaml`
+5. Writes raw features to `[basename]_audio_features.yaml`
+
+**Audio profiles:**
+- `emphatic`: high energy + wide pitch range + fast speaking (strong hooks)
+- `authoritative`: high energy + narrow pitch + normal rate (credibility segments)
+- `reflective`: low energy + narrow pitch + slow rate (introspective moments)
+- `urgent`: high energy + rising pitch + fast rate (call-to-action moments)
+- `building`: energy trend rising over segment (escalation)
+- `landing`: energy trend falling over segment (resolution)
+- `casual`: near baseline on all features (conversational delivery)
+
+**Integration:** `build_structure_cut.rb` includes `audio_profile` in emotion marker comments. `discover_storylines.rb` boosts cold_viability score for emphatic hooks (+3) and penalizes casual hooks (-2).
+
+**Caching:** Skips if `audio_features` is already set in library.yaml for this video.
 
 ### Phase 1.6: Storyline Discovery (deep mode only)
 
@@ -593,7 +634,10 @@ Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyli
    - This is the same reconstruction used by `match_templates.rb` and `score_coherence.rb`
 
 3. **Arrange clips** — Default order is chronological: hook → body segments sorted by `t` → close. The storyline discovery already selected segments that form a coherent arc. Agent may reorder body segments for pacing if it has specific framework reasons, but chronological is the default.
-   - **Post-tertiary cutoff** still applies — close segment is always the last clip
+   - **Hook boundary protection (mandatory):** When a segment is the hook (first clip), always include the COMPLETE segment from its `t` through `e`. Never trim the beginning of a hook — the audience needs to hear from the first word. The discovery phase selected this segment for its cold-viable opening.
+   - **CTA preservation (mandatory):** NEVER cut a segment whose distillation contains CTA language: "next video", "free training", "check out", "link in description", "go watch", "subscribe", "comment below", "sign up", "download", "click the link", "follow me". CTA segments are editorial decisions for the human editor — preserve them all. This overrides post-tertiary cutoff, spike filtering, and agent discretion. Log: "CTA preserved — editor decides placement".
+   - **Signpost auto-cut:** Segments with `signpost: true` are cut by default — they preview content without delivering it. Log each signpost cut in the arrangement log. Exception: keep if it's the ONLY segment matching a template beat, and add a NOTE marker: "Signpost segment — editor may want to trim".
+   - **Post-tertiary cutoff** still applies (except for CTA segments) — close segment is always the last content clip
    - **Avoid adjacent horizontally incompatible states** (e.g., don't place sensual before calm, schadenfreude before awe)
    - **Maintain spine state** carrying across vertical layers
    - Agent may cut body segments that are redundant or weaken pacing — log every cut with reason
@@ -602,9 +646,10 @@ Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyli
 
 5. **Integrity validation** — Before generating YAML, validate the structure:
    - **Source-of-truth check:** Every clip must match a `t` value in `segments_classified.yaml`
-   - No clips after the close segment (post-tertiary cutoff)
+   - No clips after the close segment (post-tertiary cutoff), except CTA segments
    - Are any horizontally incompatible states adjacent?
    - Does the spine carry top-to-bottom?
+   - **CTA check:** Are all CTA segments present? (Check distillations for CTA keywords)
 
    Log any violations as warnings. If running a single candidate, present to user. If batch (multi-output), log and continue.
 
@@ -612,6 +657,7 @@ Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyli
    - Example: `~/Desktop/RAW/Dylan 004/output/dylan-004_single_longform_threeitem_framework_led.yaml`
    - Set `output_dir` in the YAML to this same project output folder — this controls where `build_structure_cut.rb` writes the XML
    - **Do NOT use `libraries/[library-name]/roughcuts/`** — that directory is for internal library data, not deliverable outputs
+   - Hook clip must use the full segment boundaries from classification: `audio_start: [hook.t]` / `audio_end: [hook.e]`. Do not trim or sub-select within the hook segment.
    - Include `speech_analysis` path for snap-to-boundary
    - Include `classification` path pointing to `segments_classified.yaml` (or `segments_deduped.yaml`) to enable emotion markers in the output XML
    - Classification `t`/`e` values inherit the time domain of the source transcript. If the transcript was generated from the production WAV (dual-system audio), use `audio_start`/`audio_end`. If from video audio, use `video_start`/`video_end`. Check `library.yaml` — if `sync_audio` exists AND the transcript filename matches the WAV (not the video), times are WAV-relative → use `audio_start`/`audio_end`.
@@ -805,7 +851,8 @@ markers:
 - `markers[].time` is TIMELINE position (after clips are assembled sequentially).
 - Breathing room buffer is applied automatically — don't pre-adjust clip times.
 - Offset sign: positive = audio started before video, negative = audio started after.
-- When `speech_analysis` is present, clip start/end times are snapped to the nearest VAD-detected speech boundary (±200ms tolerance). Adjustments logged to stderr.
+- When `speech_analysis` is present, clip start/end times are snapped to the nearest VAD-detected speech boundary (±100ms tolerance). Adjustments logged to stderr.
+- When `speech_analysis` is present, segments exceeding `max_segment_duration` (default 12s) are auto-split at the longest internal sentence boundary (pause >300ms). Set to 0 or false to disable. NOTE markers added at split points.
 - When `speech_analysis` is present, internal pauses above `auto_remove_pauses_above` (default 500ms) are automatically removed. Clips are split at pause boundaries, sub-clips placed back-to-back, yellow NOTE markers added at each join point. Dual-system audio is split in sync.
 - **Output format matching:** The generated XML sequence matches the source video format by default (resolution + frame rate). If `output_format: vertical_short` is set (or auto-detected from folder name containing "short"), the sequence swaps to vertical (e.g., 3840x2160 → 2160x3840) and each clipitem gets a center-crop scale transform. Format confirmation is printed to stderr at start of build.
 

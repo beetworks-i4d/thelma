@@ -2,11 +2,11 @@
 
 Fully automatic installation. Run each step in order, waiting for each to complete. Don't move forward until each step is successful. This may be a non-technical user so adjust your explanations accordingly.
 
-**Note:** ButterCut encourages the use of the CPU version of WhisperX only. This simplifies installation and works reliably on all modern Macs with Apple Silicon.
+**Note:** Thelma encourages the use of the CPU version of WhisperX only. This simplifies installation and works reliably on all modern Macs with Apple Silicon.
 
 ## Step 0: Check Install Location
 
-Check the current working directory. Warn if ButterCut is in a problematic location:
+Check the current working directory. Warn if Thelma is in a problematic location:
 
 **Problematic locations:**
 - `~/Desktop/` - Desktop gets cluttered, easy to accidentally delete
@@ -15,18 +15,18 @@ Check the current working directory. Warn if ButterCut is in a problematic locat
 - Any path containing spaces - Some CLI tools have issues
 
 **Recommended locations:**
-- `~/code/buttercut`
-- `~/projects/buttercut`
+- `~/code/thelma`
+- `~/projects/thelma`
 
 If in a problematic location, ask if they'd like to move it. If yes:
 
 1. Run `mkdir -p ~/code` (or `~/projects` if that exists)
-2. Run `cp -R [current-path] ~/code/buttercut`
+2. Run `cp -R [current-path] ~/code/thelma`
 3. Tell the user:
    ```
-   I've copied ButterCut to ~/code/buttercut. To finish:
+   I've copied Thelma to ~/code/thelma. To finish:
    1. Delete [current-path] (drag to Trash)
-   2. Run this in Terminal: cd ~/code/buttercut && claude
+   2. Run this in Terminal: cd ~/code/thelma && claude
    ```
 
 If they prefer to stay in the current location, continue with setup.
@@ -100,7 +100,7 @@ Verify: `mise --version`
 
 ## Step 4: Ruby and Python via Mise
 
-From the buttercut directory:
+From the thelma directory:
 
 ```bash
 mise trust
@@ -131,13 +131,13 @@ which ffmpeg || brew install ffmpeg
 ## Step 7: WhisperX Virtual Environment
 
 ```bash
-mkdir -p ~/.buttercut
+mkdir -p ~/.thelma
 
-if [ ! -d ~/.buttercut/venv ]; then
-  python3 -m venv ~/.buttercut/venv
+if [ ! -d ~/.thelma/venv ]; then
+  python3 -m venv ~/.thelma/venv
 fi
 
-source ~/.buttercut/venv/bin/activate
+source ~/.thelma/venv/bin/activate
 pip install --upgrade pip
 pip install whisperx
 deactivate
@@ -146,26 +146,26 @@ deactivate
 ## Step 8: WhisperX Wrapper Script
 
 ```bash
-cat > ~/.buttercut/whisperx << 'EOF'
+cat > ~/.thelma/whisperx << 'EOF'
 #!/bin/bash
-source ~/.buttercut/venv/bin/activate
+source ~/.thelma/venv/bin/activate
 whisperx "$@"
 deactivate
 EOF
-chmod +x ~/.buttercut/whisperx
+chmod +x ~/.thelma/whisperx
 ```
 
 ## Step 9: Add to PATH
 
 ```bash
 if [[ "$SHELL" == *"zsh"* ]]; then
-  grep -q 'buttercut' ~/.zshrc 2>/dev/null || echo 'export PATH="$HOME/.buttercut:$PATH"' >> ~/.zshrc
+  grep -q 'thelma' ~/.zshrc 2>/dev/null || echo 'export PATH="$HOME/.thelma:$PATH"' >> ~/.zshrc
 elif [[ "$SHELL" == *"bash"* ]]; then
-  grep -q 'buttercut' ~/.bash_profile 2>/dev/null || echo 'export PATH="$HOME/.buttercut:$PATH"' >> ~/.bash_profile
+  grep -q 'thelma' ~/.bash_profile 2>/dev/null || echo 'export PATH="$HOME/.thelma:$PATH"' >> ~/.bash_profile
 fi
 ```
 
-## Step 10: Install ButterCut Dependencies
+## Step 10: Install Thelma Dependencies
 
 ```bash
 bundle install
@@ -180,6 +180,6 @@ Tell user to open a new terminal window for all changes to take effect.
 - **Xcode stuck**: `sudo rm -rf /Library/Developer/CommandLineTools` then retry
 - **Homebrew not in PATH**: Run `eval "$(/opt/homebrew/bin/brew shellenv)"`
 - **Mise not activating**: Open new terminal, run `mise doctor`
-- **Wrong Ruby/Python**: Run `mise trust && mise install` from buttercut directory
-- **WhisperX not found**: Ensure `~/.buttercut` is in PATH, open new terminal
-- **WhisperX import errors**: The wrapper script handles venv activation automatically; ensure you're using `~/.buttercut/whisperx` not calling whisperx directly
+- **Wrong Ruby/Python**: Run `mise trust && mise install` from thelma directory
+- **WhisperX not found**: Ensure `~/.thelma` is in PATH, open new terminal
+- **WhisperX import errors**: The wrapper script handles venv activation automatically; ensure you're using `~/.thelma/whisperx` not calling whisperx directly

@@ -37,10 +37,24 @@ end
 
 review_all = ARGV.delete('--all')
 batch_mode = ARGV.delete('--batch')
+profile_name = nil
+if (idx = ARGV.index('--profile'))
+  profile_name = ARGV.delete_at(idx + 1)
+  ARGV.delete_at(idx)
+end
+
+# Load profile for threshold defaults
+require_relative 'load_profile'
+profile = if profile_name
+             load_profile_by_name(profile_name)
+           else
+             load_profile('_default')
+           end
 
 # Extract threshold overrides (--strong-threshold N, --acceptable-threshold N)
-strong_threshold = 80
-acceptable_threshold = 65
+# CLI flags override profile values override hardcoded defaults
+strong_threshold = profile['strong_threshold'] || 80
+acceptable_threshold = profile['acceptable_threshold'] || 65
 
 if (idx = ARGV.index('--strong-threshold'))
   strong_threshold = ARGV.delete_at(idx + 1).to_i

@@ -363,10 +363,157 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
 
+  end
+
+  describe 'snap-to-boundary tolerance' do
+    it 'snaps clip boundaries within 100ms of speech segments' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.05, 'end' => 2.95 }
+          ],
+          'long_pauses' => []
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 3.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        _stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('snapped')
+      end
+    end
+
+    it 'does not snap when boundary is beyond 100ms tolerance' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.2, 'end' => 2.7 }
+          ],
+          'long_pauses' => []
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 3.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        _stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('snapped')
+      end
+    end
+  end
+
+  describe 'auto-split long segments' do
+    it 'splits a segment exceeding max_segment_duration at a sentence boundary' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 0.5, 'end' => 3.8 }
+          ],
+          'long_pauses' => [
+            { 'start' => 2.0, 'end' => 2.4, 'duration' => 0.4 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['max_segment_duration'] = 2
+        config['auto_remove_pauses_above'] = false
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 3.8 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('auto-split')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clipitems.size).to eq(2)
+      end
+    end
+
+    it 'does not split when no pauses >300ms exist' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 0.5, 'end' => 3.8 }
+          ],
+          'long_pauses' => [
+            { 'start' => 2.0, 'end' => 2.2, 'duration' => 0.2 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['max_segment_duration'] = 2
+        config['auto_remove_pauses_above'] = false
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 3.8 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('Auto-split:')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clipitems.size).to eq(1)
+      end
+    end
+
+    it 'disables auto-split when max_segment_duration is 0' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 0.5, 'end' => 3.8 }
+          ],
+          'long_pauses' => [
+            { 'start' => 2.0, 'end' => 2.4, 'duration' => 0.4 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['max_segment_duration'] = 0
+        config['auto_remove_pauses_above'] = false
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 3.8 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clipitems.size).to eq(1)
+      end
+    end
+  end
+
+  describe 'emotion markers (continued)' do
     it 'preserves NOTE markers alongside emotion markers' do
       Dir.mktmpdir do |dir|
+        class_data = {
+          'segments' => [
+            { 't' => 1.5, 'e' => 3.0, 'states' => %w[vindication curiosity],
+              'distillation' => 'system rigged but you win', 'signal' => 'named target',
+              'dur' => 'identity', 'narrative_role' => 'primary', 'confidence' => 'high' }
+          ]
+        }
         class_path = File.join(dir, 'segments_classified.yaml')
-        File.write(class_path, classification_data.to_yaml)
+        File.write(class_path, class_data.to_yaml)
 
         config = base_config(dir)
         config['classification'] = class_path
