@@ -1,0 +1,19 @@
+name: _default
+description: "Base defaults for all content"
+content_type: auto
+default_arrival_context: algorithmic_feed
+closing_durability_preference: identity
+format_defaults:
+  shorts:
+    orientation: vertical
+    target_duration: 30-60
+  longform:
+    orientation: horizontal
+    target_duration: 480-900
+analysis_depth_default: deep
+branch_preference: auto
+include_ctas: true
+max_segment_duration: 12
+snap_end_tolerance_ms: 100
+strong_threshold: 80
+acceptable_threshold: 65

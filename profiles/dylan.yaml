@@ -1,0 +1,12 @@
+name: dylan
+description: "Dylan's talking-head business/entrepreneurship content"
+content_type: talking_head_business
+primary_state_preferences:
+  - vindication
+  - aspiration
+  - competence
+template_affinities:
+  - three_item_framework
+  - contrarian_argument
+  - comparative_walkthrough
+notes: "Recordings often have hooks/closes first, bodies later in same file. Dual-system audio (ZOOM recorder). 1.15x tempo boost in final render."

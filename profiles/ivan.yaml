@@ -1,0 +1,12 @@
+name: ivan
+description: "Ivan's brand strategy and content operations content"
+content_type: talking_head_business
+primary_state_preferences:
+  - competence
+  - vindication
+  - curiosity
+template_affinities:
+  - hidden_truth_reveal
+  - problem_solution
+  - three_item_framework
+notes: "Solo recording, no dual-system audio typically. Content tends toward analytical/framework-heavy."
