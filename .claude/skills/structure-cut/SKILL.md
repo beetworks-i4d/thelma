@@ -50,6 +50,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 - Phase 1: Ingest and Analyze
 - Phase 1.5: Segment Classification
 - Phase 1.5b: Semantic Dedup
+- Phase 1.5c: Audio Emotion Scoring
 - Phase 1.6: Storyline Discovery
 - Phase 1.7: Template Matching
 - Phase 1.8: Coherence Scoring
@@ -65,6 +66,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 2. Run Phase 1 (ingest) — can be Task agent(s)
 3. Run Phase 1.5 (classification, deep mode) — can be Task agent
 3b. Run Phase 1.5b (semantic dedup) — can be Task agent: `ruby scripts/semantic_dedup.rb`
+3c. Run Phase 1.5c (audio emotion) — can be Task agent: `ruby scripts/audio_emotion.rb <wav_path> <segments_classified.yaml> [library.yaml]`
 4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb` (pass `segments_deduped.yaml` instead of `segments_classified.yaml`)
 5. Run Phase 1.7 (template matching) — can be Task agent: `ruby scripts/match_templates.rb`
 6. Run Phase 1.8 (coherence scoring):
@@ -268,6 +270,34 @@ ruby scripts/semantic_dedup.rb <segments_classified.yaml>
 **Caching:** Skips if `segments_deduped.yaml` exists with matching `transcript_hash`.
 
 **Output:** `segments_deduped.yaml` in same directory. Pass this file (not `segments_classified.yaml`) to Phase 1.6 and all downstream phases.
+
+### Phase 1.5c: Audio Emotion Scoring (deep mode only)
+
+After classification (and dedup if applicable), run audio emotion analysis to extract vocal delivery features from the production audio. This enriches `segments_classified.yaml` with acoustic metadata that improves hook scoring and provides delivery context for the editor.
+
+```bash
+ruby scripts/audio_emotion.rb <wav_path> <segments_classified.yaml> [library.yaml]
+```
+
+**What it does:**
+1. Loads the production WAV and computes a speaker baseline (RMS energy, F0 pitch, spectral centroid, speaking rate)
+2. For each classified segment, extracts acoustic features relative to the baseline
+3. Derives an `audio_profile` label from feature combinations: `emphatic`, `authoritative`, `reflective`, `urgent`, `building`, `landing`, or `casual`
+4. Merges `audio_profile`, `audio_energy`, `audio_pitch_trend`, and `audio_speaking_rate` into `segments_classified.yaml`
+5. Writes raw features to `[basename]_audio_features.yaml`
+
+**Audio profiles:**
+- `emphatic`: high energy + wide pitch range + fast speaking (strong hooks)
+- `authoritative`: high energy + narrow pitch + normal rate (credibility segments)
+- `reflective`: low energy + narrow pitch + slow rate (introspective moments)
+- `urgent`: high energy + rising pitch + fast rate (call-to-action moments)
+- `building`: energy trend rising over segment (escalation)
+- `landing`: energy trend falling over segment (resolution)
+- `casual`: near baseline on all features (conversational delivery)
+
+**Integration:** `build_structure_cut.rb` includes `audio_profile` in emotion marker comments. `discover_storylines.rb` boosts cold_viability score for emphatic hooks (+3) and penalizes casual hooks (-2).
+
+**Caching:** Skips if `audio_features` is already set in library.yaml for this video.
 
 ### Phase 1.6: Storyline Discovery (deep mode only)
 
