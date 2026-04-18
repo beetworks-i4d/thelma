@@ -15,6 +15,7 @@ require 'digest'
 
 classified_path = nil
 library_path = nil
+profile_name = nil
 
 i = 0
 while i < ARGV.length
@@ -22,14 +23,26 @@ while i < ARGV.length
   when '--library'
     library_path = ARGV[i + 1]
     i += 2
+  when '--profile'
+    profile_name = ARGV[i + 1]
+    i += 2
   else
     classified_path = ARGV[i]
     i += 1
   end
 end
 
-abort "Usage: ruby scripts/discover_storylines.rb <segments_classified.yaml> [--library <library.yaml>]" unless classified_path
+abort "Usage: ruby scripts/discover_storylines.rb <segments_classified.yaml> [--library <library.yaml>] [--profile <name>]" unless classified_path
 abort "File not found: #{classified_path}" unless File.exist?(classified_path)
+
+# === Load profile ===
+require_relative 'load_profile'
+profile = if profile_name
+             load_profile_by_name(profile_name)
+           else
+             load_profile(File.basename(File.dirname(classified_path)))
+           end
+template_affinities = profile['template_affinities'] || []
 
 data = YAML.safe_load(File.read(classified_path), permitted_classes: [Date])
 segments = data['segments'] || []

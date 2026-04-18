@@ -80,11 +80,24 @@ def orient_label(w, h)
 end
 
 no_emotion_markers = !!ARGV.delete('--no-emotion-markers')
+profile_name = nil
+if (idx = ARGV.index('--profile'))
+  profile_name = ARGV.delete_at(idx + 1)
+  ARGV.delete_at(idx)
+end
 yaml_path = ARGV[0]
 abort "Usage: ruby scripts/build_structure_cut.rb <yaml_path>" unless yaml_path
 abort "YAML not found: #{yaml_path}" unless File.exist?(yaml_path)
 
 config = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
+
+# === Load profile (fallback defaults) ===
+require_relative 'load_profile'
+profile = if profile_name
+             load_profile_by_name(profile_name)
+           else
+             load_profile(config['name'] || File.basename(yaml_path, '.yaml'))
+           end
 
 # === Validate required fields ===
 %w[video_path output_dir clips].each do |key|
@@ -217,7 +230,7 @@ if config.key?('max_segment_duration')
     max_segment_duration = val.to_i
   end
 else
-  max_segment_duration = 12  # default 12 seconds
+  max_segment_duration = profile['max_segment_duration'] || 12
 end
 
 if max_segment_duration && long_pauses
@@ -260,7 +273,7 @@ end
 # Snap a time to the nearest speech boundary within tolerance.
 # boundary_type: :start snaps to segment starts, :end snaps to segment ends.
 # Returns [snapped_time, adjustment] or [original_time, 0.0] if no match.
-SNAP_TOLERANCE = 0.100  # ±100ms
+SNAP_TOLERANCE = (profile['snap_end_tolerance_ms'] || 100) / 1000.0
 END_BUFFER = 0.100      # 100ms after speech end for breathing room
 
 def snap_to_boundary(time, segments, boundary_type, tolerance = SNAP_TOLERANCE)

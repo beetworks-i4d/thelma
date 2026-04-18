@@ -21,9 +21,14 @@ require 'set'
 
 # Parse flags
 no_llm = ARGV.delete('--no-llm')
+profile_name = nil
+if (idx = ARGV.index('--profile'))
+  profile_name = ARGV.delete_at(idx + 1)
+  ARGV.delete_at(idx)
+end
 matched_path = ARGV[0]
 classified_path = ARGV[1]
-abort "Usage: ruby scripts/score_coherence.rb [--no-llm] <storylines_matched.yaml> <segments_classified.yaml>" unless matched_path && classified_path
+abort "Usage: ruby scripts/score_coherence.rb [--no-llm] [--profile <name>] <storylines_matched.yaml> <segments_classified.yaml>" unless matched_path && classified_path
 abort "File not found: #{matched_path}" unless File.exist?(matched_path)
 abort "File not found: #{classified_path}" unless File.exist?(classified_path)
 
@@ -34,6 +39,16 @@ storylines = matched_data['storylines'] || []
 segments = classified_data['segments'] || []
 
 abort "No storylines found in #{matched_path}" if storylines.empty?
+
+# === Load profile ===
+require_relative 'load_profile'
+profile = if profile_name
+             load_profile_by_name(profile_name)
+           else
+             load_profile(File.basename(File.dirname(matched_path)))
+           end
+template_affinities = profile['template_affinities'] || []
+closing_durability_pref = profile['closing_durability_preference']
 
 # Segment lookup by t-value
 seg_by_t = {}
@@ -190,6 +205,20 @@ storylines.each do |storyline|
   coherence_score = algorithmic_coherence
 
   combined = (state_score * 0.3 + template_fit * 0.4 + coherence_score * 0.3).round
+
+  # Profile bonuses: template affinity and closing durability preference
+  matched_template = storyline.dig('template_match', 'template')
+  if matched_template && template_affinities.include?(matched_template)
+    combined += 5
+  end
+  if closing_durability_pref
+    close_t = storyline['close_segment']
+    close_seg = close_t ? seg_by_t[close_t.to_f] : nil
+    if close_seg && close_seg['dur'] == closing_durability_pref
+      combined += 3
+    end
+  end
+
   passed_floor = combined >= 60
 
   entry = {
