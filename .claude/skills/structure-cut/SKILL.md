@@ -82,9 +82,19 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 
 ## Process
 
-### Phase 0: Branch Detection (before ingest)
+### Phase 0: Profile Loading + Branch Detection (before ingest)
 
-Scan the project folder for script files. This determines which deep-mode branch to use.
+**Load client profile first.** The profile provides defaults for all downstream phases (max_segment_duration, snap tolerance, template affinities, scoring thresholds, etc.). Auto-matches by library/folder name against profiles in `profiles/`:
+
+```bash
+# Auto-match: library name "dylan-shorts-batch-1" → matches profiles/dylan.yaml
+# Explicit: --profile dylan on any script
+# No match: falls back to profiles/_default.yaml
+```
+
+Profile values are fallback defaults — per-cut YAML config and CLI flags always override. Pass `--profile <name>` to scripts when running manually.
+
+**Then scan for script files.** This determines which deep-mode branch to use.
 
 1. **Scan for scripts:** Look for `.txt`, `.pdf`, `.md`, `.docx` files in the project folder root. Exclude:
    - Files inside `output/` (generated XMLs, arrangement logs, treated audio)
