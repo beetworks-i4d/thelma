@@ -1,4 +1,5 @@
 name: contrarian_argument
+category: argumentative
 description: "Make a bold claim against common behavior, diagnose why it fails, offer alternative"
 beats:
   - id: bold_claim

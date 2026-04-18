@@ -1,4 +1,5 @@
 name: hidden_truth_reveal
+category: argumentative
 description: "Challenge conventional wisdom and reveal what actually works"
 beats:
   - id: conventional_wisdom

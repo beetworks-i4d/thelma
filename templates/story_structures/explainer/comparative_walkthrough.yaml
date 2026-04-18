@@ -1,5 +1,6 @@
 ---
 name: comparative_walkthrough
+category: explainer
 description: Evaluate multiple options against a shared framework, reveal a ranked
   winner with personal proof
 beats:

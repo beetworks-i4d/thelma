@@ -5,6 +5,9 @@ primary_state_preferences:
   - vindication
   - aspiration
   - competence
+template_categories:
+  - explainer
+  - argumentative
 template_affinities:
   - three_item_framework
   - contrarian_argument

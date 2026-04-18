@@ -1,4 +1,5 @@
 name: three_item_framework
+category: explainer
 description: "Promise a numbered framework, deliver each item, then show how to apply"
 beats:
   - id: hook_claim

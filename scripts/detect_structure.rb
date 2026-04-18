@@ -70,6 +70,7 @@ if save_template_path
   # Write template in library format (compatible with match_templates.rb)
   library_template = {
     'name' => template['name'],
+    'category' => category || template['category'],
     'description' => template['description'],
     'beats' => template['beats'].map { |b|
       {
@@ -182,7 +183,7 @@ position_labels = %w[early early_mid mid late_mid late]
 synthesis_prompt = <<~PROMPT.strip
   You are analyzing distilled segment summaries from video footage to identify its narrative structure. Each line shows durability, confidence, the distilled content, emotional states, and normalized position (0.0=start, 1.0=end).
 
-  Produce a template that describes this content's structure. The template must be compatible with the ButterCut story structure format:
+  Produce a template that describes this content's structure. The template must be compatible with the Thelma story structure format:
 
   ```yaml
   name: snake_case_name

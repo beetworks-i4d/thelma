@@ -8,6 +8,15 @@
 
 require 'yaml'
 require 'date'
+require_relative 'load_profile'
+
+# --- Flag parsing ---
+
+profile_name = nil
+if (idx = ARGV.index('--profile'))
+  profile_name = ARGV.delete_at(idx + 1)
+  ARGV.delete_at(idx)
+end
 
 storylines_path = ARGV[0]
 classified_path = ARGV[1]
@@ -24,6 +33,14 @@ templates = Dir.glob(File.join(templates_dir, '**', '*.yaml')).map do |path|
   YAML.safe_load(File.read(path))
 end
 abort "No templates found in #{templates_dir}" if templates.empty?
+
+# --- Profile-based category filtering ---
+profile = profile_name ? load_profile_by_name(profile_name) : load_profile(File.basename(File.dirname(storylines_path)))
+template_categories = profile['template_categories'] || []
+unless template_categories.empty?
+  templates = templates.select { |t| template_categories.include?(t['category']) }
+  abort "No templates match categories #{template_categories.inspect}" if templates.empty?
+end
 
 # --- Load data ---
 storylines_data = YAML.safe_load(File.read(storylines_path), permitted_classes: [Date])
