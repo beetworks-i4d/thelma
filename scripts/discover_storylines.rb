@@ -227,6 +227,12 @@ def score_arc(hook, close, body, all_t_values)
         when 'medium' then 3
         else 0
         end
+  # Audio profile bonus — emphatic delivery boosts hook viability
+  if hook['audio_profile'] == 'emphatic'
+    cv += 3
+  elsif hook['audio_profile'] == 'casual'
+    cv -= 2
+  end
   scores['cold_viability'] = [cv, 15].min
 
   # 5. Closing durability (15 pts)

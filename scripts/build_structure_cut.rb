@@ -599,6 +599,7 @@ if classification_segments
     comment_parts = ["states: #{states_str}"]
     comment_parts << "role: #{seg['narrative_role'] || 'unclassified'}"
     comment_parts << "signal: #{seg['signal']}" if seg['signal']
+    comment_parts << "audio: #{seg['audio_profile']}" if seg['audio_profile']
     comment_parts << "confidence: #{seg['confidence'] || 'unknown'}"
     comment_parts << "t=#{seg_t}"
 
