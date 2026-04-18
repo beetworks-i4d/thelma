@@ -216,6 +216,7 @@ segments:
 - `notes`: short editorial note (10 words max)
 - `rationale`: 5-15 word explanation of WHY these states were chosen. Written DURING classification, not post-hoc. If uncertain, say so.
 - `confidence`: high/medium/low — how certain the classification is. High = clear signal, single interpretation. Medium = reasonable but other states possible. Low = ambiguous, judgment call.
+- `signpost`: true/false — Whether the segment is meta-commentary announcing upcoming content rather than delivering it. Patterns: "here's how I...", "before I go through...", "let me walk you through...", "so what I'm going to do is...", "in this video I'm going to...", "what we're going to cover is...". Default false, only set true when the pattern is clear.
 
 **Pass 3 — Stumble detection:** During Pass 1 filtering, when a stumble pattern is detected (repeated words, false start followed by clean retake) that falls INSIDE a content segment's boundaries and can't be cleanly cut without splitting the clip, record it:
 
@@ -593,7 +594,10 @@ Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyli
    - This is the same reconstruction used by `match_templates.rb` and `score_coherence.rb`
 
 3. **Arrange clips** — Default order is chronological: hook → body segments sorted by `t` → close. The storyline discovery already selected segments that form a coherent arc. Agent may reorder body segments for pacing if it has specific framework reasons, but chronological is the default.
-   - **Post-tertiary cutoff** still applies — close segment is always the last clip
+   - **Hook boundary protection (mandatory):** When a segment is the hook (first clip), always include the COMPLETE segment from its `t` through `e`. Never trim the beginning of a hook — the audience needs to hear from the first word. The discovery phase selected this segment for its cold-viable opening.
+   - **CTA preservation (mandatory):** NEVER cut a segment whose distillation contains CTA language: "next video", "free training", "check out", "link in description", "go watch", "subscribe", "comment below", "sign up", "download", "click the link", "follow me". CTA segments are editorial decisions for the human editor — preserve them all. This overrides post-tertiary cutoff, spike filtering, and agent discretion. Log: "CTA preserved — editor decides placement".
+   - **Signpost auto-cut:** Segments with `signpost: true` are cut by default — they preview content without delivering it. Log each signpost cut in the arrangement log. Exception: keep if it's the ONLY segment matching a template beat, and add a NOTE marker: "Signpost segment — editor may want to trim".
+   - **Post-tertiary cutoff** still applies (except for CTA segments) — close segment is always the last content clip
    - **Avoid adjacent horizontally incompatible states** (e.g., don't place sensual before calm, schadenfreude before awe)
    - **Maintain spine state** carrying across vertical layers
    - Agent may cut body segments that are redundant or weaken pacing — log every cut with reason
@@ -602,9 +606,10 @@ Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyli
 
 5. **Integrity validation** — Before generating YAML, validate the structure:
    - **Source-of-truth check:** Every clip must match a `t` value in `segments_classified.yaml`
-   - No clips after the close segment (post-tertiary cutoff)
+   - No clips after the close segment (post-tertiary cutoff), except CTA segments
    - Are any horizontally incompatible states adjacent?
    - Does the spine carry top-to-bottom?
+   - **CTA check:** Are all CTA segments present? (Check distillations for CTA keywords)
 
    Log any violations as warnings. If running a single candidate, present to user. If batch (multi-output), log and continue.
 
@@ -612,6 +617,7 @@ Phase 2 provides selected storylines from `storylines_scored.yaml`. Each storyli
    - Example: `~/Desktop/RAW/Dylan 004/output/dylan-004_single_longform_threeitem_framework_led.yaml`
    - Set `output_dir` in the YAML to this same project output folder — this controls where `build_structure_cut.rb` writes the XML
    - **Do NOT use `libraries/[library-name]/roughcuts/`** — that directory is for internal library data, not deliverable outputs
+   - Hook clip must use the full segment boundaries from classification: `audio_start: [hook.t]` / `audio_end: [hook.e]`. Do not trim or sub-select within the hook segment.
    - Include `speech_analysis` path for snap-to-boundary
    - Include `classification` path pointing to `segments_classified.yaml` (or `segments_deduped.yaml`) to enable emotion markers in the output XML
    - Classification `t`/`e` values inherit the time domain of the source transcript. If the transcript was generated from the production WAV (dual-system audio), use `audio_start`/`audio_end`. If from video audio, use `video_start`/`video_end`. Check `library.yaml` — if `sync_audio` exists AND the transcript filename matches the WAV (not the video), times are WAV-relative → use `audio_start`/`audio_end`.
