@@ -1,4 +1,5 @@
 name: origin_story_lesson
+category: narrative
 description: "Tell a personal origin story that delivers a universal principle"
 beats:
   - id: personal_context

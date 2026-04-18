@@ -1,4 +1,5 @@
 name: personal_transformation
+category: narrative
 description: "Share a personal before/after journey with a universal lesson"
 beats:
   - id: before_state

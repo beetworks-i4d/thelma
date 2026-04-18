@@ -337,10 +337,10 @@ ruby scripts/discover_storylines.rb <segments_classified.yaml> [--library <libra
 After storyline discovery, score each candidate against narrative templates.
 
 ```bash
-ruby scripts/match_templates.rb <storylines.yaml> <segments_classified.yaml>
+ruby scripts/match_templates.rb <storylines.yaml> <segments_classified.yaml> [--profile <name>]
 ```
 
-Loads 6 narrative templates from `templates/story_structures/` (problem_solution, personal_transformation, hidden_truth_reveal, three_item_framework, contrarian_argument, origin_story_lesson). For each storyline candidate, reconstructs the distillation sequence (hook → body → close) and scores keyword-based beat matches against each template. Picks the best-fitting template.
+Loads narrative templates from `templates/story_structures/` subdirectories (argumentative/, explainer/, narrative/). If a profile has `template_categories` set, only templates in those categories are matched. For each storyline candidate, reconstructs the distillation sequence (hook → body → close) and scores keyword-based beat matches against each template. Picks the best-fitting template.
 
 **Output:** `storylines_matched.yaml` — same as storylines.yaml but with `template_match` appended to each candidate (template name, fit_score 0-100, completeness %, order_score, matched/missing beats).
 

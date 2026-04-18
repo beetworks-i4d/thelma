@@ -5,6 +5,9 @@ primary_state_preferences:
   - competence
   - vindication
   - curiosity
+template_categories:
+  - argumentative
+  - explainer
 template_affinities:
   - hidden_truth_reveal
   - problem_solution

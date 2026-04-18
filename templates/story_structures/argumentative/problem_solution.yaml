@@ -1,4 +1,5 @@
 name: problem_solution
+category: argumentative
 description: "Present a problem, show evidence, reveal solution, prove it works"
 beats:
   - id: problem_statement
