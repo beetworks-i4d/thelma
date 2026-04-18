@@ -1,0 +1,647 @@
+#!/usr/bin/env ruby
+# Thelma Pipeline Orchestrator
+# Deterministic pipeline runner. Replaces SKILL.md as pipeline brain.
+# Checks cache at each step, skips completed phases, aborts loud on failure.
+#
+# Usage:
+#   ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only]
+#
+# --analyze-only is shorthand for --branch C.
+# Branch C runs Phases 1-1.8, generates report, exits without arrangement or XML.
+
+require 'yaml'
+require 'date'
+require 'json'
+require 'open3'
+require 'digest'
+require 'fileutils'
+require_relative 'load_profile'
+require_relative 'llm_client'
+
+SCRIPTS_DIR = File.dirname(__FILE__)
+ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
+
+# --- CLI parsing ---
+
+library_name = nil
+profile_name = nil
+branch_override = nil
+analyze_only = false
+
+args = ARGV.dup
+while args.any?
+  case args.first
+  when '--library'
+    args.shift
+    library_name = args.shift
+  when '--profile'
+    args.shift
+    profile_name = args.shift
+  when '--branch'
+    args.shift
+    branch_override = args.shift&.upcase
+  when '--analyze-only'
+    args.shift
+    analyze_only = true
+  else
+    abort "Unknown argument: #{args.first}\n" \
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only]"
+  end
+end
+
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only]" unless library_name
+
+branch_override = 'C' if analyze_only
+
+# --- Helpers ---
+
+def phase(name)
+  $stderr.puts "\n#{'=' * 60}"
+  $stderr.puts "PHASE: #{name}"
+  $stderr.puts '=' * 60
+end
+
+def step(name)
+  $stderr.puts "  >> #{name}"
+end
+
+def skip(name, reason = 'cached')
+  $stderr.puts "  -- #{name} [SKIP: #{reason}]"
+end
+
+def run_script(script, *args)
+  cmd = ['ruby', File.join(SCRIPTS_DIR, script)] + args.map(&:to_s)
+  $stderr.puts "  $ #{cmd.join(' ')}"
+  stdout, stderr, status = Open3.capture3(*cmd)
+  $stderr.puts stderr unless stderr.strip.empty?
+  unless status.success?
+    abort "\nPIPELINE ABORT: #{script} failed (exit #{status.exitstatus})\n#{stderr}"
+  end
+  stdout.strip
+end
+
+def run_command(cmd_str)
+  $stderr.puts "  $ #{cmd_str}"
+  stdout, stderr, status = Open3.capture3(cmd_str)
+  $stderr.puts stderr unless stderr.strip.empty?
+  unless status.success?
+    abort "\nPIPELINE ABORT: command failed (exit #{status.exitstatus})\n  #{cmd_str}\n#{stderr}"
+  end
+  stdout.strip
+end
+
+def file_cached?(path)
+  path && File.exist?(path) && File.size(path) > 0
+end
+
+# --- Load library ---
+
+library_dir = File.join(ROOT_DIR, 'libraries', library_name)
+library_yaml_path = File.join(library_dir, 'library.yaml')
+abort "Library not found: #{library_dir}" unless File.exist?(library_yaml_path)
+
+library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+video = library['videos']&.first
+abort "No videos in library.yaml" unless video
+
+video_path = video['path']
+abort "Video file not found: #{video_path}" unless File.exist?(video_path.to_s)
+
+transcripts_dir = File.join(library_dir, 'transcripts')
+FileUtils.mkdir_p(transcripts_dir)
+
+$stderr.puts "Thelma Pipeline — #{library_name}"
+$stderr.puts "Video: #{File.basename(video_path)}"
+
+# --- Load profile ---
+
+profile = profile_name ? load_profile_by_name(profile_name) : load_profile(library_name)
+$stderr.puts "Profile: #{profile['name']} (merged with defaults)"
+
+# --- Branch detection ---
+
+branch = branch_override
+
+unless branch
+  # Auto-detect: Branch A if script_parsed exists, else Branch B
+  script_parsed_path = File.join(library_dir, 'script_parsed.yaml')
+  if library['script_parsed'] || File.exist?(script_parsed_path)
+    branch = 'A'
+  else
+    branch = 'B'
+  end
+end
+
+$stderr.puts "Branch: #{branch}#{analyze_only ? ' (analyze-only)' : ''}"
+
+# ============================================================
+# PHASE 1: INGEST
+# ============================================================
+
+phase '1 — Ingest'
+
+# 1a. Audio cleanup
+basename = File.basename(video_path, File.extname(video_path))
+
+# Determine the audio source: production audio or video audio
+has_sync = video.key?('sync_audio') && video['sync_audio']
+if has_sync
+  production_audio = video['sync_audio']['path']
+  treated_basename = File.basename(production_audio, File.extname(production_audio))
+else
+  production_audio = nil
+  treated_basename = basename
+end
+
+treated_wav = File.join(transcripts_dir, "#{treated_basename}_treated.wav")
+
+if file_cached?(treated_wav)
+  skip 'audio_cleanup', 'treated WAV exists'
+else
+  step 'audio_cleanup'
+  input = production_audio || video_path
+  run_script('audio_cleanup.rb', input, transcripts_dir)
+end
+
+# 1b. WhisperX transcription
+transcript_name = video['transcript']
+transcript_path = transcript_name ? File.join(transcripts_dir, transcript_name) : nil
+
+if transcript_path && file_cached?(transcript_path)
+  skip 'whisperx', 'transcript exists'
+else
+  step 'whisperx transcription'
+  whisperx_bin = File.expand_path('~/.thelma/whisperx')
+  whisperx_bin = 'whisperx' unless File.exist?(whisperx_bin)
+  lang_code = library['language'] == 'english' ? 'en' : (library['language'] || 'en')
+  whisper_model = 'turbo'
+
+  run_command("#{whisperx_bin} #{treated_wav} --model #{whisper_model} --language #{lang_code} " \
+              "--output_format json --output_dir #{transcripts_dir} --compute_type int8")
+
+  # Find the generated transcript
+  expected = File.join(transcripts_dir, "#{treated_basename}_treated.json")
+  if File.exist?(expected)
+    transcript_path = expected
+    transcript_name = File.basename(expected)
+    $stderr.puts "  Transcript: #{transcript_name}"
+  else
+    abort "PIPELINE ABORT: WhisperX did not produce expected output: #{expected}"
+  end
+end
+
+# 1c. Audio sync offset (dual-system only)
+if has_sync
+  offset = video.dig('sync_audio', 'offset')
+  if offset
+    skip 'audio_sync_offset', "cached (#{offset}s)"
+  else
+    step 'audio_sync_offset'
+    run_script('audio_sync_offset.rb', video_path, production_audio, library_yaml_path)
+  end
+end
+
+# 1d. Speech analysis (VAD)
+speech_analysis_name = video['speech_analysis']
+speech_analysis_path = speech_analysis_name ? File.join(transcripts_dir, speech_analysis_name) : nil
+
+if speech_analysis_path && file_cached?(speech_analysis_path)
+  skip 'audio_analysis (VAD)', 'speech analysis exists'
+else
+  step 'audio_analysis (VAD)'
+  audio_input = has_sync ? production_audio : video_path
+  run_script('audio_analysis.rb', audio_input, library_yaml_path)
+end
+
+# 1e. Transcript cleanup
+cleaned_name = video['cleaned_transcript']
+cleaned_path = cleaned_name ? File.join(transcripts_dir, cleaned_name) : nil
+
+if cleaned_path && file_cached?(cleaned_path)
+  skip 'transcript_cleanup', 'cleaned transcript exists'
+else
+  step 'transcript_cleanup'
+  sa_flag = speech_analysis_path && file_cached?(speech_analysis_path) ? ['--speech-analysis', speech_analysis_path, '--protect-rhetorical'] : []
+  run_script('transcript_cleanup.rb', transcript_path, *sa_flag)
+end
+
+# 1f. Parse script (Branch A only)
+if branch == 'A'
+  script_parsed_path = File.join(library_dir, 'script_parsed.yaml')
+  if file_cached?(script_parsed_path)
+    skip 'parse_script', 'script_parsed.yaml exists'
+  else
+    step 'parse_script'
+    # Look for script files in project folder
+    project_dir = File.dirname(video_path)
+    script_files = Dir.glob(File.join(project_dir, '*.{txt,md,pdf,docx}'))
+                      .reject { |f| f.include?('output/') || f.include?('_treated') || f.include?('_cleaned') }
+    if script_files.any?
+      run_script('parse_script.rb', script_files.first, transcripts_dir)
+    else
+      $stderr.puts "  WARNING: Branch A but no script file found in #{project_dir}"
+      $stderr.puts "  Falling back to Branch B"
+      branch = 'B'
+    end
+  end
+end
+
+# ============================================================
+# PHASE 1.5: CLASSIFICATION
+# ============================================================
+
+phase '1.5 — Classification'
+
+classified_path = File.join(library_dir, 'segments_classified.yaml')
+
+if file_cached?(classified_path)
+  # Verify hash matches current transcript
+  existing = YAML.safe_load(File.read(classified_path), permitted_classes: [Date])
+  current_transcript = cleaned_path && file_cached?(cleaned_path) ? cleaned_path : transcript_path
+  current_hash = Digest::MD5.hexdigest(File.read(current_transcript)) if current_transcript
+  cached_hash = existing['transcript_hash']
+
+  if cached_hash && current_hash && cached_hash == current_hash
+    skip 'classification', 'segments_classified.yaml matches transcript hash'
+  else
+    step 'classification (hash mismatch — re-running)'
+    classify(current_transcript, classified_path, profile)
+  end
+else
+  step 'classification (LLM call)'
+  current_transcript = cleaned_path && file_cached?(cleaned_path) ? cleaned_path : transcript_path
+  classify(current_transcript, classified_path, profile)
+end
+
+# Validate classification
+step 'validate_classification'
+run_script('validate_classification.rb', classified_path)
+
+# Semantic dedup (Branch B only)
+if branch == 'B'
+  deduped_path = File.join(library_dir, 'segments_deduped.yaml')
+  if file_cached?(deduped_path)
+    skip 'semantic_dedup', 'segments_deduped.yaml exists'
+  else
+    step 'semantic_dedup'
+    run_script('semantic_dedup.rb', classified_path)
+  end
+  # Use deduped for downstream if available
+  segments_path = file_cached?(deduped_path) ? deduped_path : classified_path
+else
+  segments_path = classified_path
+end
+
+# ============================================================
+# PHASE 1.5c: AUDIO EMOTION
+# ============================================================
+
+phase '1.5c — Audio Emotion'
+
+audio_features_name = video['audio_features']
+if audio_features_name
+  skip 'audio_emotion', 'audio_features cached in library.yaml'
+else
+  if file_cached?(treated_wav)
+    step 'audio_emotion'
+    run_script('audio_emotion.rb', treated_wav, classified_path, library_yaml_path)
+  else
+    skip 'audio_emotion', 'no treated WAV available'
+  end
+end
+
+# ============================================================
+# PHASE 1.5d: VISUAL ANALYSIS
+# ============================================================
+
+phase '1.5d — Visual Analysis'
+
+visual_name = video['visual_transcript']
+if visual_name && visual_name.to_s.strip != ''
+  skip 'visual_analysis', 'visual_transcript exists'
+else
+  step 'visual_analysis'
+  $stderr.puts "  NOTE: Visual analysis requires Claude vision. Run analyze-video skill separately."
+  $stderr.puts "  Continuing without visual transcript."
+end
+
+# ============================================================
+# BRANCH C: GENERATE REPORT AND EXIT
+# ============================================================
+
+if branch == 'C'
+  # Continue through storyline scoring before generating report
+
+  phase '1.6 — Storyline Discovery'
+  storylines_path = File.join(library_dir, 'storylines.yaml')
+  if file_cached?(storylines_path)
+    skip 'discover_storylines', 'storylines.yaml exists'
+  else
+    step 'discover_storylines'
+    profile_flag = profile_name ? ['--profile', profile_name] : []
+    run_script('discover_storylines.rb', segments_path, '--library', library_yaml_path, *profile_flag)
+  end
+
+  phase '1.7 — Template Matching'
+  matched_path = File.join(library_dir, 'storylines_matched.yaml')
+  storylines_file = file_cached?(storylines_path) ? storylines_path : File.join(library_dir, 'storylines.yaml')
+  step 'match_templates'
+  profile_flag = profile_name ? ['--profile', profile_name] : []
+  run_script('match_templates.rb', storylines_file, classified_path, *profile_flag)
+
+  phase '1.8 — Coherence Scoring'
+  matched_file = File.join(library_dir, 'storylines_matched.yaml')
+  step 'score_coherence (algorithmic only)'
+  profile_flag = profile_name ? ['--profile', profile_name] : []
+  run_script('score_coherence.rb', '--no-llm', *profile_flag, matched_file, classified_path)
+
+  phase 'C — Generate Report'
+  step 'generate_report'
+  profile_flag = profile_name ? ['--profile', profile_name] : []
+  report_path = run_script('generate_report.rb', library_dir, *profile_flag)
+
+  $stderr.puts "\n#{'=' * 60}"
+  $stderr.puts "PIPELINE COMPLETE (Branch C — analyze-only)"
+  $stderr.puts "Report: #{report_path}"
+  $stderr.puts '=' * 60
+  puts report_path
+  exit 0
+end
+
+# ============================================================
+# PHASE 1.6: STORYLINE DISCOVERY
+# ============================================================
+
+phase '1.6 — Storyline Discovery'
+
+storylines_path = File.join(library_dir, 'storylines.yaml')
+if file_cached?(storylines_path)
+  skip 'discover_storylines', 'storylines.yaml exists'
+else
+  step 'discover_storylines'
+  profile_flag = profile_name ? ['--profile', profile_name] : []
+  run_script('discover_storylines.rb', segments_path, '--library', library_yaml_path, *profile_flag)
+end
+
+# ============================================================
+# PHASE 1.7: TEMPLATE MATCHING
+# ============================================================
+
+phase '1.7 — Template Matching'
+
+step 'match_templates'
+profile_flag = profile_name ? ['--profile', profile_name] : []
+run_script('match_templates.rb', storylines_path, classified_path, *profile_flag)
+
+# ============================================================
+# PHASE 1.8: COHERENCE SCORING
+# ============================================================
+
+phase '1.8 — Coherence Scoring'
+
+matched_path = File.join(library_dir, 'storylines_matched.yaml')
+step 'score_coherence'
+profile_flag = profile_name ? ['--profile', profile_name] : []
+run_script('score_coherence.rb', *profile_flag, matched_path, classified_path)
+
+# ============================================================
+# PHASE 1.9: SANITY CHECK
+# ============================================================
+
+phase '1.9 — Sanity Check'
+
+scored_path = File.join(library_dir, 'storylines_scored.yaml')
+step 'sanity_check'
+profile_flag = profile_name ? ['--profile', profile_name] : []
+run_script('sanity_check.rb', *profile_flag, scored_path, segments_path)
+
+# ============================================================
+# PHASE 2: USER SELECTION (Interactive)
+# ============================================================
+
+phase '2 — Storyline Selection'
+
+scored_data = YAML.safe_load(File.read(scored_path), permitted_classes: [Date])
+storylines = scored_data['storylines'] || []
+passing = storylines.select { |s| s['passed_floor'] }
+
+if passing.empty?
+  $stderr.puts "  No candidates passed quality floor (combined >= 60)."
+  $stderr.puts "  Showing all candidates:"
+  passing = storylines.sort_by { |s| -(s['combined_score'] || 0) }
+end
+
+$stderr.puts "\n  Available storyline candidates:"
+passing.each_with_index do |s, i|
+  tm = s['template_match'] || {}
+  $stderr.puts "    #{i + 1}. #{s['id']} — score #{s['combined_score']}"
+  $stderr.puts "       Template: #{tm['template']} (#{tm['completeness']}% complete)"
+  $stderr.puts "       Duration: ~#{(s['duration_estimate'].to_f / 60).round(1)} min"
+end
+
+$stderr.puts "\n  Select candidates (comma-separated numbers, or 'all'):"
+$stderr.print "  > "
+selection = $stdin.gets&.strip
+
+selected = if selection == 'all' || selection.nil? || selection.empty?
+  passing
+else
+  indices = selection.split(',').map { |s| s.strip.to_i - 1 }
+  indices.map { |i| passing[i] }.compact
+end
+
+if selected.empty?
+  abort "PIPELINE ABORT: No candidates selected."
+end
+
+$stderr.puts "  Selected: #{selected.map { |s| s['id'] }.join(', ')}"
+
+# ============================================================
+# PHASE 3: ARRANGEMENT + BUILD
+# ============================================================
+
+phase '3 — Arrangement & Build'
+
+project_dir = File.dirname(video_path)
+output_dir = File.join(project_dir, 'output')
+FileUtils.mkdir_p(output_dir)
+
+editor = library['editor'] || 'fcp7'
+editor = 'fcp7' if editor == 'premiere'
+
+selected.each do |storyline|
+  step "arranging #{storyline['id']}"
+
+  # Reconstruct segment list from classification
+  classified_data = YAML.safe_load(File.read(classified_path), permitted_classes: [Date])
+  all_segments = classified_data['segments'] || []
+  seg_by_t = {}
+  all_segments.each { |s| seg_by_t[s['t'].to_f] = s }
+
+  hook_t = storyline['hook_segment'].to_f
+  close_t = storyline['close_segment']&.to_f
+
+  hook_seg = seg_by_t[hook_t]
+  close_seg = close_t ? seg_by_t[close_t] : nil
+
+  body_segs = if close_t
+    all_segments.select { |s| s['t'].to_f > hook_t && s['t'].to_f < close_t }
+  else
+    all_segments.select { |s| s['t'].to_f > hook_t }
+  end.sort_by { |s| s['t'].to_f }
+
+  # Build clips in chronological order
+  clips = []
+  ordered = []
+  ordered << hook_seg if hook_seg
+  ordered += body_segs
+  ordered << close_seg if close_seg
+
+  # Filter: cut signposts, low-confidence tertiary-only segments
+  ordered = ordered.select do |seg|
+    next true if seg == hook_seg || seg == close_seg # always keep hook/close
+    next true if (seg['distillation'] || '').downcase.match?(/next video|free training|check out|link in|subscribe|comment below|sign up|download|click|follow me/) # CTA preservation
+    next false if seg['signpost'] # cut signposts
+    next false if seg['confidence'] == 'low' && seg['roles'] == ['tertiary']
+    true
+  end
+
+  # Determine time domain
+  time_key_start = has_sync ? 'audio_start' : 'video_start'
+  time_key_end = has_sync ? 'audio_end' : 'video_end'
+
+  ordered.each do |seg|
+    clips << { time_key_start => seg['t'].to_f, time_key_end => seg['e'].to_f }
+  end
+
+  # Determine output format
+  output_format = storyline['id'].include?('short') ? 'vertical_short' : 'match_source'
+
+  # Build structure cut YAML
+  yaml_name = "#{library_name}_#{storyline['id']}"
+  yaml_path = File.join(output_dir, "#{yaml_name}.yaml")
+
+  structure_cut = {
+    'video_path' => video_path,
+    'output_dir' => output_dir,
+    'editor' => editor,
+    'name' => yaml_name,
+    'output_format' => output_format,
+    'clips' => clips,
+    'markers' => [],
+    'classification' => classified_path
+  }
+
+  # Add sync audio if dual-system
+  if has_sync
+    structure_cut['sync_audio'] = {
+      'path' => video.dig('sync_audio', 'path'),
+      'offset' => video.dig('sync_audio', 'offset')
+    }
+  end
+
+  # Add speech analysis if available
+  if speech_analysis_path && file_cached?(speech_analysis_path)
+    structure_cut['speech_analysis'] = speech_analysis_path
+  end
+
+  File.write(yaml_path, structure_cut.to_yaml)
+  $stderr.puts "  YAML: #{yaml_path}"
+
+  # Build XML
+  step "build_structure_cut #{yaml_name}"
+  profile_flag = profile_name ? ['--profile', profile_name] : []
+  run_script('build_structure_cut.rb', yaml_path, *profile_flag)
+end
+
+# ============================================================
+# PHASE 4: PRESENT
+# ============================================================
+
+phase '4 — Output'
+
+xml_files = Dir.glob(File.join(output_dir, '*.xml')).sort_by { |f| File.mtime(f) }.last(selected.size)
+
+$stderr.puts "\n  Built #{selected.size} structure cut(s):"
+xml_files.each do |xml|
+  $stderr.puts "    #{xml}"
+end
+
+$stderr.puts "\n  Import into #{library['editor'] || 'Premiere'} via File > Import"
+
+$stderr.puts "\n#{'=' * 60}"
+$stderr.puts "PIPELINE COMPLETE (Branch #{branch})"
+$stderr.puts '=' * 60
+
+puts xml_files.join("\n")
+
+# --- Classification helper ---
+BEGIN {
+  def classify(transcript_path, output_path, profile)
+    abort "PIPELINE ABORT: No transcript found for classification" unless transcript_path && File.exist?(transcript_path)
+
+    transcript_data = JSON.parse(File.read(transcript_path))
+    segments = transcript_data['segments'] || []
+    abort "PIPELINE ABORT: No segments in transcript" if segments.empty?
+
+    # Build segment listing for prompt
+    segment_lines = segments.map { |s|
+      "[#{s['start']&.round(2)}-#{s['end']&.round(2)}] #{s['text']&.strip}"
+    }.join("\n")
+
+    transcript_hash = Digest::MD5.hexdigest(File.read(transcript_path))
+
+    states_list = %w[vindication outrage awe competence fear schadenfreude amusement
+                     catharsis nostalgia belonging escape calm aspiration sensual curiosity]
+
+    prompt = <<~PROMPT
+      You are classifying video transcript segments using the Content Psychopharmacology framework.
+
+      For each segment below, produce a YAML entry with these fields:
+      - t: start time (seconds)
+      - e: end time (seconds)
+      - states: [primary_state, optional_companion_1, optional_companion_2] from: #{states_list.join(', ')}
+      - distillation: 5-word max summary of WHAT the segment says (the idea, not delivery)
+      - signal: short description of the visible/verbal element triggering the state
+      - dur: spike (momentary), mood (emotional tone), or identity (lasting impact)
+      - roles: [primary, secondary, tertiary] — content importance
+      - notes: 10-word max editorial note
+      - rationale: 5-15 word explanation of why these states
+      - confidence: high, medium, or low
+      - signpost: true if meta-commentary announcing content without delivering it, false otherwise
+
+      Rules:
+      - Skip segments under 3 seconds or obvious filler (um, uh, false starts)
+      - Primary state is FIRST in the states array
+      - distillation must be 5 words or fewer
+      - Keep numbers literal in distillation
+
+      Transcript segments:
+      #{segment_lines}
+
+      Respond with ONLY valid YAML. Start with:
+      ```yaml
+      transcript_hash: #{transcript_hash}
+      segments:
+      ```
+    PROMPT
+
+    response = LLMClient.call(prompt, call_type: 'classification', profile: profile)
+
+    # Extract YAML from response (may be wrapped in markdown code block)
+    yaml_text = response.gsub(/\A```ya?ml\s*/, '').gsub(/```\s*\z/, '').strip
+
+    begin
+      classified = YAML.safe_load(yaml_text, permitted_classes: [Date])
+    rescue Psych::SyntaxError => e
+      abort "PIPELINE ABORT: Classification LLM returned invalid YAML\n#{e.message}\n\nResponse:\n#{yaml_text[0..500]}"
+    end
+
+    classified['transcript_hash'] = transcript_hash
+    classified['recording'] = File.basename(transcript_path)
+    classified['classified_at'] = Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z')
+
+    File.write(output_path, classified.to_yaml)
+    $stderr.puts "  Classification saved: #{output_path}"
+  end
+}
