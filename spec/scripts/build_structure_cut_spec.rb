@@ -835,4 +835,201 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
   end
+
+  describe 'checklist markers from edit patterns' do
+    let(:checklist_classification) do
+      {
+        'segments' => [
+          {
+            't' => 1.5, 'e' => 3.0,
+            'states' => %w[aspiration competence],
+            'distillation' => 'seven months to quitting',
+            'signal' => 'specific timeline', 'dur' => 'identity',
+            'narrative_role' => 'claim', 'confidence' => 'high'
+          },
+          {
+            't' => 5.5, 'e' => 7.0,
+            'states' => %w[competence],
+            'distillation' => 'framework explained',
+            'signal' => 'teaching moment', 'dur' => 'mood',
+            'narrative_role' => 'evidence', 'confidence' => 'high'
+          }
+        ]
+      }
+    end
+
+    let(:edit_patterns) do
+      {
+        'patterns_from' => 1,
+        'video_overlay_patterns' => [
+          { 'trigger' => 'narrative_role = claim', 'frequency' => '4/7', 'typical_duration' => 3.2, 'note' => 'overlays on claim segments' },
+          { 'trigger' => 'dur = identity', 'frequency' => '6/10', 'typical_duration' => 3.5, 'note' => 'overlays on identity segments' }
+        ],
+        'audio_overlay_patterns' => [],
+        'pacing_observations' => {}
+      }
+    end
+
+    it 'generates SUGGEST markers when edit_patterns.yaml exists' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, checklist_classification.to_yaml)
+        patterns_path = File.join(dir, 'edit_patterns.yaml')
+        File.write(patterns_path, edit_patterns.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        config['edit_patterns'] = patterns_path
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        suggest_markers = doc.xpath('//sequence/marker').select { |m| m.at_xpath('name').text.start_with?('SUGGEST:') }
+        expect(suggest_markers.size).to be >= 1
+      end
+    end
+
+    it 'matches narrative_role trigger to correct segments' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, checklist_classification.to_yaml)
+        patterns_path = File.join(dir, 'edit_patterns.yaml')
+        File.write(patterns_path, edit_patterns.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        config['edit_patterns'] = patterns_path
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, _, _ = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        doc = Nokogiri::XML(File.read(stdout.strip))
+
+        suggest_comments = doc.xpath('//sequence/marker').select { |m|
+          m.at_xpath('name').text.start_with?('SUGGEST:')
+        }.map { |m| m.at_xpath('comment').text }
+
+        # First segment (claim) should match narrative_role = claim
+        claim_matches = suggest_comments.select { |c| c.include?('narrative_role = claim') }
+        expect(claim_matches.size).to be >= 1
+        expect(claim_matches.first).to include('4/7')
+      end
+    end
+
+    it 'matches dur trigger to correct segments' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, checklist_classification.to_yaml)
+        patterns_path = File.join(dir, 'edit_patterns.yaml')
+        File.write(patterns_path, edit_patterns.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        config['edit_patterns'] = patterns_path
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, _, _ = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        doc = Nokogiri::XML(File.read(stdout.strip))
+
+        suggest_comments = doc.xpath('//sequence/marker').select { |m|
+          m.at_xpath('name').text.start_with?('SUGGEST:')
+        }.map { |m| m.at_xpath('comment').text }
+
+        # First segment (identity) should match dur = identity
+        identity_matches = suggest_comments.select { |c| c.include?('dur = identity') }
+        expect(identity_matches.size).to be >= 1
+        expect(identity_matches.first).to include('6/10')
+      end
+    end
+
+    it 'sets correct pproColor on SUGGEST markers' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, checklist_classification.to_yaml)
+        patterns_path = File.join(dir, 'edit_patterns.yaml')
+        File.write(patterns_path, edit_patterns.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        config['edit_patterns'] = patterns_path
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, _, _ = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        doc = Nokogiri::XML(File.read(stdout.strip))
+
+        suggest = doc.xpath('//sequence/marker').find { |m| m.at_xpath('name').text.start_with?('SUGGEST:') }
+        expect(suggest).not_to be_nil
+        ppro = suggest.at_xpath('pproColor')&.text&.to_i
+        expect(ppro).to eq(4292131840)  # PPRO_SUGGEST (Cyan)
+      end
+    end
+
+    it 'generates no SUGGEST markers without edit_patterns' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, checklist_classification.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        suggest_markers = doc.xpath('//sequence/marker').select { |m| m.at_xpath('name').text.start_with?('SUGGEST:') }
+        expect(suggest_markers.size).to eq(0)
+      end
+    end
+
+    it 'suppresses SUGGEST markers with --markers-only-structure' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, checklist_classification.to_yaml)
+        patterns_path = File.join(dir, 'edit_patterns.yaml')
+        File.write(patterns_path, edit_patterns.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        config['edit_patterns'] = patterns_path
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, _, _ = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path, '--markers-only-structure')
+        doc = Nokogiri::XML(File.read(stdout.strip))
+
+        suggest_markers = doc.xpath('//sequence/marker').select { |m| m.at_xpath('name').text.start_with?('SUGGEST:') }
+        expect(suggest_markers.size).to eq(0)
+      end
+    end
+
+    it 'auto-detects edit_patterns.yaml from classification directory' do
+      Dir.mktmpdir do |dir|
+        class_path = File.join(dir, 'segments_classified.yaml')
+        File.write(class_path, checklist_classification.to_yaml)
+        # Write patterns in same dir as classification (auto-detect)
+        patterns_path = File.join(dir, 'edit_patterns.yaml')
+        File.write(patterns_path, edit_patterns.to_yaml)
+
+        config = base_config(dir)
+        config['classification'] = class_path
+        # NOT setting config['edit_patterns'] — should auto-detect
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, stderr, _ = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        doc = Nokogiri::XML(File.read(stdout.strip))
+
+        suggest_markers = doc.xpath('//sequence/marker').select { |m| m.at_xpath('name').text.start_with?('SUGGEST:') }
+        expect(suggest_markers.size).to be >= 1
+        expect(stderr).to include('Auto-loaded edit patterns')
+      end
+    end
+  end
 end

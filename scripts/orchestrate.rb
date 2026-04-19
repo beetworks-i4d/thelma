@@ -575,6 +575,12 @@ selected.each do |storyline|
     structure_cut['speech_analysis'] = speech_analysis_path
   end
 
+  # Add edit patterns if available
+  edit_patterns_path = File.join(library_dir, 'edit_patterns.yaml')
+  if file_cached?(edit_patterns_path)
+    structure_cut['edit_patterns'] = edit_patterns_path
+  end
+
   File.write(yaml_path, structure_cut.to_yaml)
   $stderr.puts "  YAML: #{yaml_path}"
 
