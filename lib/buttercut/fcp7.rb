@@ -6,7 +6,7 @@ class ButterCut
   # Final Cut Pro 7 XML Interchange Format (version 5).
   # This structure can be imported by legacy FCP as well as Adobe Premiere Pro.
   class FCP7 < EditorBase
-    MARKER_COLORS = %w[blue green orange purple red yellow].freeze
+    MARKER_COLORS = %w[blue green orange purple red yellow white].freeze
 
     # FCP7 xmeml uses RGBA sub-elements (0-255) for marker colors
     MARKER_COLOR_RGB = {
@@ -16,6 +16,7 @@ class ButterCut
       'purple' => { red: 190, green: 73,  blue: 255, alpha: 255 },
       'red'    => { red: 255, green: 38,  blue: 38,  alpha: 255 },
       'yellow' => { red: 255, green: 255, blue: 0,   alpha: 255 },
+      'white'  => { red: 255, green: 255, blue: 255, alpha: 255 },
     }.freeze
 
     MARKER_CATEGORIES = {
@@ -382,12 +383,28 @@ class ButterCut
 
     def build_marker(xml, marker, timeline_frame_duration)
       frame = marker_frame(marker, timeline_frame_duration)
+
+      # Range markers: if :out_time is set, compute out frame; otherwise point marker (-1)
+      out_frame = if marker[:out_time]
+        out_fraction = seconds_to_fraction(marker[:out_time])
+        aligned = round_to_frame_boundary(out_fraction, timeline_frame_duration)
+        frames_for_fraction(aligned, timeline_frame_duration)
+      elsif marker[:out_frame]
+        marker[:out_frame].to_i
+      else
+        -1
+      end
+
       rgb = MARKER_COLOR_RGB[marker[:color]]
       xml.marker do
         xml.name marker[:name]
         xml.comment_ marker[:comment]
         xml.in_ frame
-        xml.out(-1)
+        xml.out out_frame
+        # pproColor takes priority over RGBA sub-elements for Premiere Pro
+        if marker[:pproColor]
+          xml.pproColor marker[:pproColor].to_s
+        end
         xml.color do
           xml.alpha rgb[:alpha]
           xml.red rgb[:red]
@@ -428,6 +445,10 @@ class ButterCut
         end
         unless MARKER_COLORS.include?(marker[:color])
           raise ArgumentError, "Marker at index #{index} has invalid color '#{marker[:color]}'. Must be one of: #{MARKER_COLORS.join(', ')}"
+        end
+        # Validate out_time/out_frame if present (range markers)
+        if marker[:out_time] && marker[:time] && marker[:out_time].to_f < marker[:time].to_f
+          raise ArgumentError, "Marker at index #{index} has out_time before in time"
         end
       end
     end
