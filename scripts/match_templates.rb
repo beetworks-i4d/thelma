@@ -34,12 +34,20 @@ templates = Dir.glob(File.join(templates_dir, '**', '*.yaml')).map do |path|
 end
 abort "No templates found in #{templates_dir}" if templates.empty?
 
-# --- Profile-based category filtering ---
+# --- Profile-based category filtering (with content type fallback) ---
 profile = profile_name ? load_profile_by_name(profile_name) : load_profile(File.basename(File.dirname(storylines_path)))
-template_categories = profile['template_categories'] || []
+
+# Load library.yaml for content type detection results
+library_yaml_path = File.join(File.dirname(storylines_path), 'library.yaml')
+library_data = File.exist?(library_yaml_path) ? YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date]) : nil
+
+template_categories = template_categories_for(profile, library_data)
 unless template_categories.empty?
   templates = templates.select { |t| template_categories.include?(t['category']) }
-  abort "No templates match categories #{template_categories.inspect}" if templates.empty?
+  if templates.empty?
+    $stderr.puts "WARNING: No templates match categories #{template_categories.inspect}, using all templates"
+    templates = Dir.glob(File.join(templates_dir, '**', '*.yaml')).map { |path| YAML.safe_load(File.read(path)) }
+  end
 end
 
 # --- Load data ---

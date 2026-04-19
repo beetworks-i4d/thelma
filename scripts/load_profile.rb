@@ -83,6 +83,43 @@ def load_profile(library_name_or_folder)
   end
 end
 
+# Content type mapping: content_type → default template categories
+CONTENT_TYPE_TEMPLATE_MAP = {
+  'talking_head_business'   => %w[argumentative explainer],
+  'talking_head_personal'   => %w[narrative explainer],
+  'tutorial_screencast'     => %w[explainer],
+  'tutorial_demonstration'  => %w[explainer],
+  'interview'               => %w[narrative],
+  'podcast'                 => %w[narrative],
+  'vlog'                    => %w[narrative],
+  'commentary'              => %w[argumentative],
+  'narrative'               => %w[narrative],
+  'unknown'                 => []
+}.freeze
+
+# Returns effective content type given a profile and library data.
+# Profile explicit type wins; otherwise uses library's detected type; falls back to 'auto'.
+def effective_content_type(profile, library = nil)
+  profile_ct = profile['content_type']
+  return profile_ct if profile_ct && profile_ct != 'auto'
+
+  if library && library['content_type'].is_a?(Hash)
+    return library['content_type']['detected']
+  end
+
+  'auto'
+end
+
+# Returns template categories for a content type.
+# Profile-level template_categories override content-type defaults.
+def template_categories_for(profile, library = nil)
+  profile_cats = profile['template_categories'] || []
+  return profile_cats unless profile_cats.empty?
+
+  ct = effective_content_type(profile, library)
+  CONTENT_TYPE_TEMPLATE_MAP[ct] || []
+end
+
 # CLI mode: ruby scripts/load_profile.rb <library_name_or_folder>
 if __FILE__ == $PROGRAM_NAME
   name = ARGV[0]

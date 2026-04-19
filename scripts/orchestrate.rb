@@ -247,6 +247,23 @@ if branch == 'A'
 end
 
 # ============================================================
+# PHASE 0: CONTENT TYPE DETECTION
+# ============================================================
+
+phase '0 — Content Type Detection'
+
+existing_ct = library['content_type']
+if existing_ct && existing_ct['detected']
+  skip 'detect_content_type', "#{existing_ct['detected']} (#{existing_ct['source']})"
+else
+  step 'detect_content_type'
+  profile_flag = profile_name ? ['--profile', profile_name] : []
+  run_script('detect_content_type.rb', *profile_flag, library_yaml_path)
+  # Reload library to pick up content_type
+  library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+end
+
+# ============================================================
 # PHASE 1.5: CLASSIFICATION
 # ============================================================
 

@@ -80,6 +80,7 @@ def orient_label(w, h)
 end
 
 no_emotion_markers = !!ARGV.delete('--no-emotion-markers')
+markers_only_structure = !!ARGV.delete('--markers-only-structure')
 profile_name = nil
 if (idx = ARGV.index('--profile'))
   profile_name = ARGV.delete_at(idx + 1)
@@ -190,20 +191,49 @@ if config['speech_analysis']
   $stderr.puts "Loaded speech analysis: #{speech_segments.size} segments, #{long_pauses.size} long pauses"
 end
 
-# === Load classification for emotion markers ===
+# === Load classification for tiered markers ===
 classification_segments = nil
-if config['classification'] && !no_emotion_markers
+classification_branch_a = false
+if config['classification']
   class_path = config['classification']
   if File.exist?(class_path)
     class_data = YAML.safe_load(File.read(class_path), permitted_classes: [Date])
     if class_data.key?('segments_used')
-      $stderr.puts "Classification is Branch A (script-locked) — skipping emotion markers"
+      classification_branch_a = true
+      $stderr.puts "Classification is Branch A (script-locked) — Tier 2/3 markers limited"
     elsif class_data['segments']
       classification_segments = class_data['segments']
-      $stderr.puts "Loaded #{classification_segments.size} classified segments for emotion markers"
+      $stderr.puts "Loaded #{classification_segments.size} classified segments for tiered markers"
     end
   else
-    $stderr.puts "WARNING: Classification not found: #{class_path} — skipping emotion markers"
+    $stderr.puts "WARNING: Classification not found: #{class_path} — skipping classification-based markers"
+  end
+end
+
+# === Load template match data for Tier 1 structure markers ===
+template_match_data = nil
+if config['template_match']
+  tm_path = config['template_match']
+  if File.exist?(tm_path)
+    tm_data = YAML.safe_load(File.read(tm_path), permitted_classes: [Date])
+    storylines = tm_data['storylines'] || []
+    # Use the first (top-scored) storyline's template match
+    template_match_data = storylines.first&.dig('template_match')
+    if template_match_data
+      $stderr.puts "Loaded template match: #{template_match_data['template']} (fit: #{template_match_data['fit_score']})"
+    end
+  end
+elsif config['classification']
+  # Try to find storylines_matched.yaml in same directory as classification
+  class_dir = File.dirname(config['classification'])
+  matched_path = File.join(class_dir, 'storylines_matched.yaml')
+  if File.exist?(matched_path)
+    tm_data = YAML.safe_load(File.read(matched_path), permitted_classes: [Date])
+    storylines = tm_data['storylines'] || []
+    template_match_data = storylines.first&.dig('template_match')
+    if template_match_data
+      $stderr.puts "Auto-loaded template match: #{template_match_data['template']} (fit: #{template_match_data['fit_score']})"
+    end
   end
 end
 
@@ -589,43 +619,321 @@ if long_pauses && speech_segments
   end
 end
 
-# === Add emotion markers from classification ===
-emotion_count = 0
-if classification_segments
-  classification_segments.each do |seg|
-    seg_t = seg['t'].to_f
-    seg_wav_t = has_sync ? seg_t + sync_offset : seg_t
+# =============================================================================
+# THREE-TIER MARKER SYSTEM
+# =============================================================================
+#
+# Tier 1: Structure markers (bright colors, range markers, 5-8 per video)
+# Tier 2: Alert markers (yellow/cyan, point markers, selective)
+# Tier 3: Reference markers (white, point markers, every segment)
+#
+# pproColor values for Premiere Pro:
+#   Hook:          Green  = 4279486782
+#   Section:       Orange = 4280578025
+#   Pivot:         Purple = 4289734556
+#   Reveal/Climax: Red    = 4281678309
+#   Close:         Blue   = 4294153761
+#   Action items:  Yellow = 4281719037
+#   Transitions:   Cyan   = 4292131840
+#   Reference:     Grey   = 4286611584
+# =============================================================================
 
-    clip_idx = clip_source_ranges.each_with_index.find { |csr, _|
-      seg_wav_t >= csr[:wav_start] - 0.05 && seg_wav_t < csr[:wav_end] + 0.05
-    }&.last
-    next unless clip_idx
+PPRO_HOOK     = 4279486782
+PPRO_SECTION  = 4280578025
+PPRO_PIVOT    = 4289734556
+PPRO_REVEAL   = 4281678309
+PPRO_CLOSE    = 4294153761
+PPRO_ACTION   = 4281719037
+PPRO_TRANSITION = 4292131840
+PPRO_REFERENCE = 4286611584
 
-    offset_in_clip = seg_wav_t - clip_source_ranges[clip_idx][:wav_start]
-    tl_time = (timeline_positions[clip_idx] + offset_in_clip).round(2)
+# Helper: find timeline position for a classified segment
+def seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+  seg_t = seg['t'].to_f
+  seg_wav_t = has_sync ? seg_t + sync_offset : seg_t
 
-    primary_state = (seg['states'] || []).first || 'unknown'
-    distillation = seg['distillation'] || ''
-    dur = seg['dur'] || 'mood'
-    states_str = (seg['states'] || []).map { |s| "#{s}(#{dur})" }.join(', ')
+  clip_idx = clip_source_ranges.each_with_index.find { |csr, _|
+    seg_wav_t >= csr[:wav_start] - 0.05 && seg_wav_t < csr[:wav_end] + 0.05
+  }&.last
+  return nil unless clip_idx
 
-    comment_parts = ["states: #{states_str}"]
-    comment_parts << "role: #{seg['narrative_role'] || 'unclassified'}"
-    comment_parts << "signal: #{seg['signal']}" if seg['signal']
-    comment_parts << "audio: #{seg['audio_profile']}" if seg['audio_profile']
-    comment_parts << "confidence: #{seg['confidence'] || 'unknown'}"
-    comment_parts << "t=#{seg_t}"
-
-    markers << {
-      name: "#{primary_state} | #{distillation}",
-      comment: comment_parts.join(' | '),
-      time: tl_time,
-      color: 'purple'
-    }
-    emotion_count += 1
-  end
-  $stderr.puts "Added #{emotion_count} emotion markers"
+  offset_in_clip = seg_wav_t - clip_source_ranges[clip_idx][:wav_start]
+  (timeline_positions[clip_idx] + offset_in_clip).round(2)
 end
+
+def seg_end_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+  seg_e = seg['e'].to_f
+  seg_wav_e = has_sync ? seg_e + sync_offset : seg_e
+
+  clip_idx = clip_source_ranges.each_with_index.find { |csr, _|
+    seg_wav_e >= csr[:wav_start] - 0.05 && seg_wav_e <= csr[:wav_end] + 0.5
+  }&.last
+  return nil unless clip_idx
+
+  offset_in_clip = seg_wav_e - clip_source_ranges[clip_idx][:wav_start]
+  (timeline_positions[clip_idx] + offset_in_clip).round(2)
+end
+
+tier1_markers = []
+tier2_markers = []
+tier3_markers = []
+
+# === TIER 1: Structure Markers ===
+# Only generated when classification segments are available (arranged segments)
+
+if classification_segments && !classification_segments.empty?
+  # Map arranged segments to timeline positions
+  arranged = classification_segments.map { |seg|
+    tl_start = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+    tl_end = seg_end_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+    next nil unless tl_start
+    seg.merge('tl_start' => tl_start, 'tl_end' => tl_end || tl_start + 1.0)
+  }.compact.sort_by { |s| s['tl_start'] }
+
+  if arranged.any?
+    # HOOK: first segment in arrangement
+    hook = arranged.first
+    hook_end = hook['tl_end']
+    tier1_markers << {
+      name: "HOOK: #{hook['distillation'] || 'opening'}",
+      comment: "Structure: hook region | dur: #{(hook_end - hook['tl_start']).round(1)}s | #{hook['dur'] || 'mood'}",
+      time: hook['tl_start'],
+      out_time: hook_end,
+      color: 'green',
+      pproColor: PPRO_HOOK
+    }
+
+    # CLOSE: last identity-durable segment, or just last segment
+    close_candidates = arranged.select { |s| s['dur'] == 'identity' }
+    close = close_candidates.any? ? close_candidates.last : arranged.last
+    if close != hook
+      tier1_markers << {
+        name: "CLOSE: #{close['distillation'] || 'closing'}",
+        comment: "Structure: close region | dur: #{(close['tl_end'] - close['tl_start']).round(1)}s | #{close['dur'] || 'mood'}",
+        time: close['tl_start'],
+        out_time: close['tl_end'],
+        color: 'blue',
+        pproColor: PPRO_CLOSE
+      }
+    end
+
+    # SECTIONS from template beats (if available)
+    if template_match_data && template_match_data['matched_beats']
+      matched_beats = template_match_data['matched_beats']
+      template_name = template_match_data['template'] || 'unknown'
+
+      matched_beats.each do |beat_id, beat_info|
+        next if beat_id == 'hook_claim' || beat_id == 'close' # already covered
+        beat_t = beat_info['segment_t'].to_f
+        beat_seg = arranged.find { |s| (s['t'].to_f - beat_t).abs < 0.1 }
+        next unless beat_seg
+
+        tier1_markers << {
+          name: "SECTION: #{beat_info['distillation'] || beat_id.tr('_', ' ')}",
+          comment: "Structure: #{beat_id} (#{template_name}) | starts at t=#{beat_t.round(1)}",
+          time: beat_seg['tl_start'],
+          out_time: beat_seg['tl_end'],
+          color: 'orange',
+          pproColor: PPRO_SECTION
+        }
+      end
+    else
+      # Fallback: detect topic shifts via distillation clustering
+      # When distillation topic changes significantly between segments, mark section boundary
+      prev_distillation = nil
+      arranged.each_with_index do |seg, idx|
+        next if idx == 0 || seg == close # skip hook and close
+        curr_distillation = (seg['distillation'] || '').downcase.split(/\s+/)
+        if prev_distillation
+          # Simple overlap check — if fewer than 1 word overlaps, it's a topic shift
+          overlap = (curr_distillation & prev_distillation).size
+          if overlap == 0 && curr_distillation.size >= 2
+            tier1_markers << {
+              name: "SECTION: #{seg['distillation'] || 'topic shift'}",
+              comment: "Structure: topic shift detected at segment #{idx + 1}",
+              time: seg['tl_start'],
+              out_time: seg['tl_end'],
+              color: 'orange',
+              pproColor: PPRO_SECTION
+            }
+          end
+        end
+        prev_distillation = curr_distillation
+      end
+    end
+
+    # PIVOT: segment with identity durability + state shift mid-video, or highest-scored identity segment
+    mid_start = arranged.size / 4
+    mid_end = arranged.size * 3 / 4
+    mid_range = arranged[mid_start..mid_end] || []
+    pivot = mid_range.find { |s| s['dur'] == 'identity' && s != hook && s != close }
+    if pivot
+      tier1_markers << {
+        name: "PIVOT: #{pivot['distillation'] || 'turning point'}",
+        comment: "Structure: emotional pivot | #{(pivot['states'] || []).join(', ')} | #{pivot['dur']}",
+        time: pivot['tl_start'],
+        out_time: pivot['tl_end'],
+        color: 'purple',
+        pproColor: PPRO_PIVOT
+      }
+    end
+
+    # REVEAL: highest-confidence identity segment (not hook/close/pivot)
+    reveal_candidates = arranged.select { |s|
+      s['confidence'] == 'high' && s != hook && s != close && s != pivot
+    }
+    reveal = reveal_candidates.max_by { |s|
+      score = 0
+      score += 2 if s['dur'] == 'identity'
+      score += 1 if s['dur'] == 'mood'
+      score += 1 if (s['roles'] || []).include?('primary')
+      score
+    }
+    if reveal
+      tier1_markers << {
+        name: "REVEAL: #{reveal['distillation'] || 'payoff'}",
+        comment: "Structure: reveal/climax | #{(reveal['states'] || []).join(', ')} | confidence: #{reveal['confidence']}",
+        time: reveal['tl_start'],
+        out_time: reveal['tl_end'],
+        color: 'red',
+        pproColor: PPRO_REVEAL
+      }
+    end
+  end
+end
+
+$stderr.puts "Tier 1 (structure): #{tier1_markers.size} markers" if tier1_markers.any?
+
+# === TIER 2: Alert Markers ===
+# Generated unless --markers-only-structure is set
+
+unless markers_only_structure
+  if classification_segments && !classification_segments.empty? && !classification_branch_a
+    arranged = classification_segments.map { |seg|
+      tl_start = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+      next nil unless tl_start
+      seg.merge('tl_start' => tl_start)
+    }.compact.sort_by { |s| s['tl_start'] }
+
+    # State transitions: where primary state changes between adjacent segments
+    arranged.each_cons(2) do |prev_seg, curr_seg|
+      prev_state = (prev_seg['states'] || []).first
+      curr_state = (curr_seg['states'] || []).first
+      if prev_state && curr_state && prev_state != curr_state
+        tier2_markers << {
+          name: "TRANSITION: #{prev_state} \u2192 #{curr_state}",
+          comment: "State change: #{prev_state}(#{prev_seg['dur']}) → #{curr_state}(#{curr_seg['dur']}) | pacing shift point",
+          time: curr_seg['tl_start'],
+          color: 'blue',
+          pproColor: PPRO_TRANSITION
+        }
+      end
+    end
+
+    # Durability shifts: where durability class changes
+    arranged.each_cons(2) do |prev_seg, curr_seg|
+      prev_dur = prev_seg['dur']
+      curr_dur = curr_seg['dur']
+      if prev_dur && curr_dur && prev_dur != curr_dur
+        # Only flag significant shifts (spike→mood, mood→identity, identity→spike)
+        shift_map = { 'spike' => 0, 'mood' => 1, 'identity' => 2 }
+        if shift_map[prev_dur] && shift_map[curr_dur]
+          tier2_markers << {
+            name: "SHIFT: #{prev_dur} \u2192 #{curr_dur}",
+            comment: "Durability shift: #{prev_dur} → #{curr_dur} | pacing change point",
+            time: curr_seg['tl_start'],
+            color: 'blue',
+            pproColor: PPRO_TRANSITION
+          }
+        end
+      end
+    end
+
+    # Signpost segments: flagged for cutting
+    arranged.each do |seg|
+      if seg['signpost']
+        tier2_markers << {
+          name: "SIGNPOST: cut candidate",
+          comment: "Signpost: meta-commentary | \"#{seg['distillation']}\" | consider removing",
+          time: seg['tl_start'],
+          color: 'yellow',
+          pproColor: PPRO_ACTION
+        }
+      end
+    end
+
+    # Long segments > max_segment_duration
+    max_dur_check = max_segment_duration || 12
+    arranged.each do |seg|
+      seg_duration = seg['e'].to_f - seg['t'].to_f
+      if seg_duration > max_dur_check
+        tier2_markers << {
+          name: "SPLIT: #{seg_duration.round(1)}s segment",
+          comment: "Long segment: #{seg_duration.round(1)}s exceeds #{max_dur_check}s | consider splitting | \"#{seg['distillation']}\"",
+          time: seg['tl_start'],
+          color: 'yellow',
+          pproColor: PPRO_ACTION
+        }
+      end
+    end
+
+    # Low confidence segments
+    arranged.each do |seg|
+      if seg['confidence'] == 'low'
+        tier2_markers << {
+          name: "REVIEW: low confidence",
+          comment: "Low confidence classification | \"#{seg['distillation']}\" | verify clip works in context",
+          time: seg['tl_start'],
+          color: 'yellow',
+          pproColor: PPRO_ACTION
+        }
+      end
+    end
+  end
+end
+
+$stderr.puts "Tier 2 (alerts): #{tier2_markers.size} markers" if tier2_markers.any?
+
+# === TIER 3: Reference Markers (per-segment classification) ===
+# Suppressed by --no-emotion-markers or --markers-only-structure
+
+tier3_count = 0
+unless no_emotion_markers || markers_only_structure
+  if classification_segments && !classification_branch_a
+    classification_segments.each do |seg|
+      tl_time = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+      next unless tl_time
+
+      seg_t = seg['t'].to_f
+      primary_state = (seg['states'] || []).first || 'unknown'
+      distillation = seg['distillation'] || ''
+      dur = seg['dur'] || 'mood'
+      states_str = (seg['states'] || []).map { |s| "#{s}(#{dur})" }.join(', ')
+
+      comment_parts = ["states: #{states_str}"]
+      comment_parts << "role: #{seg['narrative_role'] || 'unclassified'}"
+      comment_parts << "signal: #{seg['signal']}" if seg['signal']
+      comment_parts << "audio: #{seg['audio_profile']}" if seg['audio_profile']
+      comment_parts << "confidence: #{seg['confidence'] || 'unknown'}"
+      comment_parts << "t=#{seg_t}"
+
+      tier3_markers << {
+        name: "#{primary_state}(#{dur}) | #{distillation}",
+        comment: comment_parts.join(' | '),
+        time: tl_time,
+        color: 'white',
+        pproColor: PPRO_REFERENCE
+      }
+      tier3_count += 1
+    end
+  end
+end
+
+$stderr.puts "Tier 3 (reference): #{tier3_count} markers" if tier3_count > 0
+
+# === Combine markers: Tier 1 first, then Tier 2, then Tier 3 ===
+# This ordering ensures structure markers appear first in Premiere's marker panel
+markers = tier1_markers + tier2_markers + markers + tier3_markers
 
 if removed_pause_count > 0
   $stderr.puts "Pause removal: #{removed_pause_count} pauses removed (#{(total_removed_ms / 1000.0).round(1)}s total)"
@@ -775,7 +1083,7 @@ secs = (total_duration % 60).round
 puts output_path
 $stderr.puts "Structure cut generated: #{output_path}"
 summary = "Duration: #{mins}:#{format('%02d', secs)} | Clips: #{clips.length} | Markers: #{markers.length}"
-summary += " | Emotion: #{emotion_count}" if emotion_count > 0
+summary += " (T1:#{tier1_markers.size} T2:#{tier2_markers.size} T3:#{tier3_count})" if tier1_markers.any? || tier2_markers.any? || tier3_count > 0
 summary += " | Pauses removed: #{removed_pause_count} (#{(total_removed_ms / 1000.0).round(1)}s)" if removed_pause_count > 0
 $stderr.puts summary
 if has_sync

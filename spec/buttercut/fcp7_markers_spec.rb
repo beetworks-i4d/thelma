@@ -207,6 +207,92 @@ RSpec.describe ButterCut::FCP7, 'markers' do
     end
   end
 
+  describe 'pproColor tag' do
+    let(:ppro_markers) do
+      [
+        { name: 'HOOK', comment: 'Opening hook', time: 1.0, color: 'green', pproColor: 4279486782 }
+      ]
+    end
+
+    let(:generator) { described_class.new(clips, markers: ppro_markers) }
+    let(:doc) { Nokogiri::XML(generator.to_xml) }
+
+    it 'includes pproColor element in marker' do
+      marker = doc.at_xpath('//sequence/marker')
+      ppro = marker.at_xpath('pproColor')
+      expect(ppro).not_to be_nil
+      expect(ppro.text).to eq('4279486782')
+    end
+
+    it 'still includes color RGBA sub-elements alongside pproColor' do
+      marker = doc.at_xpath('//sequence/marker')
+      color = marker.at_xpath('color')
+      expect(color).not_to be_nil
+      expect(color.at_xpath('green').text.to_i).to eq(196)
+    end
+  end
+
+  describe 'range markers' do
+    let(:range_markers) do
+      [
+        { name: 'HOOK', comment: 'Opening region', time: 1.0, out_time: 5.0, color: 'green' }
+      ]
+    end
+
+    let(:generator) { described_class.new(clips, markers: range_markers) }
+    let(:doc) { Nokogiri::XML(generator.to_xml) }
+
+    it 'sets out frame from out_time (not -1)' do
+      marker = doc.at_xpath('//sequence/marker')
+      out_val = marker.at_xpath('out').text.to_i
+      # 25fps: 5.0s = 125 frames
+      expect(out_val).to eq(125)
+    end
+
+    it 'sets in frame from time' do
+      marker = doc.at_xpath('//sequence/marker')
+      in_val = marker.at_xpath('in').text.to_i
+      # 25fps: 1.0s = 25 frames
+      expect(in_val).to eq(25)
+    end
+  end
+
+  describe 'range markers with out_frame' do
+    let(:frame_range_markers) do
+      [
+        { name: 'SECTION', comment: 'Section A', frame: 50, out_frame: 200, color: 'orange' }
+      ]
+    end
+
+    let(:generator) { described_class.new(clips, markers: frame_range_markers) }
+    let(:doc) { Nokogiri::XML(generator.to_xml) }
+
+    it 'uses out_frame directly' do
+      marker = doc.at_xpath('//sequence/marker')
+      expect(marker.at_xpath('in').text.to_i).to eq(50)
+      expect(marker.at_xpath('out').text.to_i).to eq(200)
+    end
+  end
+
+  describe 'white color support' do
+    let(:white_markers) do
+      [
+        { name: 'Reference', comment: 'Tier 3', frame: 10, color: 'white' }
+      ]
+    end
+
+    let(:generator) { described_class.new(clips, markers: white_markers) }
+    let(:doc) { Nokogiri::XML(generator.to_xml) }
+
+    it 'accepts white as a valid marker color' do
+      marker = doc.at_xpath('//sequence/marker')
+      color = marker.at_xpath('color')
+      expect(color.at_xpath('red').text.to_i).to eq(255)
+      expect(color.at_xpath('green').text.to_i).to eq(255)
+      expect(color.at_xpath('blue').text.to_i).to eq(255)
+    end
+  end
+
   describe 'factory integration' do
     before do
       allow_any_instance_of(ButterCut::FCP7).to receive(:extract_metadata_from_ffprobe) do |_instance, path|
