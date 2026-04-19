@@ -258,7 +258,7 @@ if existing_ct && existing_ct['detected']
 else
   step 'detect_content_type'
   profile_flag = profile_name ? ['--profile', profile_name] : []
-  run_script('detect_content_type.rb', library_yaml_path, *profile_flag)
+  run_script('detect_content_type.rb', *profile_flag, library_yaml_path)
   # Reload library to pick up content_type
   library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
 end

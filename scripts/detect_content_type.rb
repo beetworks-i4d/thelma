@@ -28,6 +28,7 @@ CONTENT_TYPES = {
 # --- CLI parsing ---
 
 profile_name = nil
+positional = []
 args = ARGV.dup
 while args.any?
   case args.first
@@ -35,11 +36,11 @@ while args.any?
     args.shift
     profile_name = args.shift
   else
-    break
+    positional << args.shift
   end
 end
 
-library_yaml_path = args.shift
+library_yaml_path = positional.first
 abort "Usage: ruby scripts/detect_content_type.rb <library.yaml> [--profile <name>]" unless library_yaml_path
 abort "Library not found: #{library_yaml_path}" unless File.exist?(library_yaml_path)
 
