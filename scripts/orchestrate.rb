@@ -15,6 +15,7 @@ require 'json'
 require 'open3'
 require 'digest'
 require 'fileutils'
+require 'shellwords'
 require_relative 'load_profile'
 require_relative 'llm_client'
 
@@ -176,8 +177,8 @@ else
   lang_code = library['language'] == 'english' ? 'en' : (library['language'] || 'en')
   whisper_model = 'turbo'
 
-  run_command("#{whisperx_bin} #{treated_wav} --model #{whisper_model} --language #{lang_code} " \
-              "--output_format json --output_dir #{transcripts_dir} --compute_type int8")
+  run_command("#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} --model #{whisper_model} --language #{lang_code} " \
+              "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} --compute_type int8")
 
   # Find the generated transcript
   expected = File.join(transcripts_dir, "#{treated_basename}_treated.json")
