@@ -5,7 +5,7 @@ require 'open3'
 require 'date'
 require 'fileutils'
 
-DETECT_SCRIPT = File.expand_path('../../scripts/detect_content_type.rb', __dir__)
+DETECT_CONTENT_TYPE_SCRIPT = File.expand_path('../../scripts/detect_content_type.rb', __dir__)
 
 RSpec.describe 'detect_content_type.rb' do
   # --- Helpers ---
@@ -53,10 +53,10 @@ RSpec.describe 'detect_content_type.rb' do
     path
   end
 
-  def run_detect(library_yaml, profile: nil)
+  def run_detect_ct(library_yaml, profile: nil)
     args = [library_yaml]
     args.unshift('--profile', profile) if profile
-    stdout, stderr, status = Open3.capture3('ruby', DETECT_SCRIPT, *args)
+    stdout, stderr, status = Open3.capture3('ruby', DETECT_CONTENT_TYPE_SCRIPT, *args)
     [stdout.strip, stderr, status]
   end
 
@@ -85,18 +85,22 @@ RSpec.describe 'detect_content_type.rb' do
 
   def interview_transcript_segments
     texts = [
-      "So tell me about your background. How did you get started in this field?",
-      "Well, I've been doing this for about 15 years now. I started as an intern.",
-      "That's fascinating. What do you think makes your approach unique?",
+      "So tell me about your background? How did you get started in this field?",
+      "Well I've been doing this for about 15 years now.",
+      "What do you think makes your approach unique? Why is it different?",
       "I think it's the combination of traditional methods with new technology.",
-      "Can you explain that a bit more for our audience?",
-      "Sure. So what we do is we take the old school approach and we layer in AI.",
-      "How do you see the industry changing in the next five years?",
-      "Great question. I think we'll see a massive shift toward automation.",
-      "What advice would you give someone just starting out?",
+      "Can you explain that a bit more for our audience? How does it work?",
+      "Sure so what we do is we take the old school approach and we layer in AI.",
+      "How do you see the industry changing in the next five years? What trends?",
+      "Great question I think we'll see a massive shift toward automation.",
+      "What advice would you give someone just starting out? Where should they begin?",
       "Don't try to do everything at once. Focus on one thing and master it.",
-      "That's really helpful. You said earlier that you started with nothing.",
-      "Right, I had zero clients and zero reputation. It was all cold outreach.",
+      "That's really helpful. You said earlier that you started with nothing?",
+      "Right I had zero clients and zero reputation. It was all cold outreach.",
+      "What was the turning point for you? When did things start clicking?",
+      "I asked myself that same question. The answer was persistence.",
+      "How do you handle failure? What keeps you going?",
+      "I just try to learn from every mistake and keep moving forward.",
     ]
     texts.each_with_index.map { |text, i|
       { 'start' => i * 30.0, 'end' => (i + 1) * 30.0, 'text' => text }
@@ -147,13 +151,13 @@ RSpec.describe 'detect_content_type.rb' do
 
   describe 'CLI validation' do
     it 'exits 1 with usage when no arguments' do
-      _, stderr, status = Open3.capture3('ruby', DETECT_SCRIPT)
+      _, stderr, status = Open3.capture3('ruby', DETECT_CONTENT_TYPE_SCRIPT)
       expect(status.exitstatus).to eq(1)
       expect(stderr).to include('Usage')
     end
 
     it 'exits 1 when library.yaml not found' do
-      _, stderr, status = Open3.capture3('ruby', DETECT_SCRIPT, '/nonexistent/library.yaml')
+      _, stderr, status = Open3.capture3('ruby', DETECT_CONTENT_TYPE_SCRIPT, '/nonexistent/library.yaml')
       expect(status.exitstatus).to eq(1)
       expect(stderr).to include('Library not found')
     end
@@ -168,7 +172,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, stderr, status = run_detect(yaml_path)
+        stdout, stderr, status = run_detect_ct(yaml_path)
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('talking_head_business')
 
@@ -198,7 +202,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['visual_transcript'] = visual_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, _, status = run_detect(yaml_path)
+        stdout, _, status = run_detect_ct(yaml_path)
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('talking_head_business')
 
@@ -228,7 +232,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, _, status = run_detect(yaml_path)
+        stdout, _, status = run_detect_ct(yaml_path)
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('talking_head_personal')
 
@@ -257,7 +261,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['visual_transcript'] = visual_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, _, status = run_detect(yaml_path)
+        stdout, _, status = run_detect_ct(yaml_path)
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('tutorial_screencast')
 
@@ -277,7 +281,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, _, status = run_detect(yaml_path)
+        stdout, _, status = run_detect_ct(yaml_path)
         expect(status.exitstatus).to eq(0)
         # Without screencast visuals, should detect tutorial_demonstration
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
@@ -297,7 +301,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, _, status = run_detect(yaml_path)
+        stdout, _, status = run_detect_ct(yaml_path)
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('interview')
 
@@ -318,7 +322,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, _, status = run_detect(yaml_path)
+        stdout, _, status = run_detect_ct(yaml_path)
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('podcast')
 
@@ -356,7 +360,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['visual_transcript'] = visual_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, _, status = run_detect(yaml_path)
+        stdout, _, status = run_detect_ct(yaml_path)
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('vlog')
 
@@ -373,13 +377,20 @@ RSpec.describe 'detect_content_type.rb' do
         yaml_path, transcripts_dir, library = make_library(dir)
         library['videos'][0]['duration'] = '1:30'  # Short
 
-        # Fast WPM, single speaker, no instructional language
+        # Very fast speech — dense text packed into short segments to push WPM > 180
+        # Also avoid business keywords to prevent talking_head_business from winning
         fast_text = "This is absolutely insane look at what they just did this is " \
-                    "the worst take I've ever seen and honestly I can't believe anyone " \
+                    "the worst take I have ever seen and honestly I cannot believe anyone " \
                     "would think this is a good idea let me break down exactly why " \
                     "this is wrong and why everyone is losing their minds over this " \
                     "so basically what happened is they completely botched the whole thing " \
-                    "and now everyone is scrambling to figure out what went wrong "
+                    "and now everyone is scrambling to figure out what went wrong and " \
+                    "it is actually hilarious because they were so confident about it " \
+                    "and it just blew up in their face like nobody could have predicted " \
+                    "this level of incompetence it truly is something else entirely " \
+                    "and the reactions from the community have been absolutely priceless " \
+                    "people are roasting them left and right calling them out on every " \
+                    "single mistake they made throughout this entire debacle "
         segments = 3.times.map { |i|
           { 'start' => i * 30.0, 'end' => (i + 1) * 30.0, 'text' => fast_text }
         }
@@ -387,7 +398,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, _, status = run_detect(yaml_path)
+        stdout, _, status = run_detect_ct(yaml_path)
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('commentary')
 
@@ -406,7 +417,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        run_detect(yaml_path)
+        run_detect_ct(yaml_path)
         result_minimal = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
         confidence_minimal = result_minimal['content_type']['confidence']
 
@@ -425,7 +436,7 @@ RSpec.describe 'detect_content_type.rb' do
         make_scene_changes(dir, [0.0, 120.0, 350.0])
 
         File.write(yaml_path, YAML.dump(library))
-        run_detect(yaml_path)
+        run_detect_ct(yaml_path)
         result_rich = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
         confidence_rich = result_rich['content_type']['confidence']
 
@@ -440,7 +451,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        run_detect(yaml_path)
+        run_detect_ct(yaml_path)
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
         conf = result['content_type']['confidence']
         expect(conf).to be >= 0.0
@@ -457,7 +468,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        run_detect(yaml_path)
+        run_detect_ct(yaml_path)
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
         expect(result['content_type']['signals']['wpm']).to be_a(Integer)
         expect(result['content_type']['signals']['wpm']).to be > 0
@@ -471,7 +482,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        run_detect(yaml_path)
+        run_detect_ct(yaml_path)
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
         expect(result['content_type']['signals']['duration_seconds']).to eq(930)
       end
@@ -486,7 +497,7 @@ RSpec.describe 'detect_content_type.rb' do
 
         make_scene_changes(dir, [0.0, 30.0, 60.0, 120.0, 250.0])
 
-        run_detect(yaml_path)
+        run_detect_ct(yaml_path)
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
         expect(result['content_type']['signals']['scene_changes']).to eq(5)
       end
@@ -498,7 +509,7 @@ RSpec.describe 'detect_content_type.rb' do
       Dir.mktmpdir do |dir|
         yaml_path, _, _ = make_library(dir)
 
-        stdout, stderr, status = run_detect(yaml_path, profile: 'dylan')
+        stdout, stderr, status = run_detect_ct(yaml_path, profile: 'dylan')
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('talking_head_business')
         expect(stderr).to include('set by profile')
@@ -517,7 +528,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        stdout, stderr, status = run_detect(yaml_path, profile: '_default')
+        stdout, stderr, status = run_detect_ct(yaml_path, profile: '_default')
         expect(status.exitstatus).to eq(0)
         expect(stderr).to include('Content type detected')
 
@@ -530,7 +541,7 @@ RSpec.describe 'detect_content_type.rb' do
       Dir.mktmpdir do |dir|
         yaml_path, _, _ = make_library(dir)
 
-        stdout, _, status = run_detect(yaml_path, profile: 'ivan')
+        stdout, _, status = run_detect_ct(yaml_path, profile: 'ivan')
         expect(status.exitstatus).to eq(0)
         expect(stdout).to eq('talking_head_business')
 
@@ -545,7 +556,7 @@ RSpec.describe 'detect_content_type.rb' do
       Dir.mktmpdir do |dir|
         yaml_path, _, _ = make_library(dir)
 
-        stdout, _, status = run_detect(yaml_path, profile: '_default')
+        stdout, _, status = run_detect_ct(yaml_path, profile: '_default')
         expect(status.exitstatus).to eq(0)
 
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
@@ -567,7 +578,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        _, _, status = run_detect(yaml_path, profile: '_default')
+        _, _, status = run_detect_ct(yaml_path, profile: '_default')
         expect(status.exitstatus).to eq(0)
       end
     end
@@ -580,7 +591,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['visual_transcript'] = 'nonexistent.json'
         File.write(yaml_path, YAML.dump(library))
 
-        _, _, status = run_detect(yaml_path, profile: '_default')
+        _, _, status = run_detect_ct(yaml_path, profile: '_default')
         expect(status.exitstatus).to eq(0)
       end
     end
@@ -593,7 +604,7 @@ RSpec.describe 'detect_content_type.rb' do
         File.write(yaml_path, YAML.dump(library))
 
         # No scene_changes.yaml — should still work
-        _, _, status = run_detect(yaml_path, profile: '_default')
+        _, _, status = run_detect_ct(yaml_path, profile: '_default')
         expect(status.exitstatus).to eq(0)
 
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
@@ -610,7 +621,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        run_detect(yaml_path)
+        run_detect_ct(yaml_path)
 
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
         ct = result['content_type']
@@ -630,7 +641,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        run_detect(yaml_path)
+        run_detect_ct(yaml_path)
 
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
         expect(result['last_updated']).to eq(Date.today.to_s)
@@ -647,7 +658,7 @@ RSpec.describe 'detect_content_type.rb' do
         library['videos'][0]['cleaned_transcript'] = transcript_name
         File.write(yaml_path, YAML.dump(library))
 
-        run_detect(yaml_path)
+        run_detect_ct(yaml_path)
 
         result = YAML.safe_load(File.read(yaml_path), permitted_classes: [Date])
         expect(result['user_context']).to eq('Important context here')
