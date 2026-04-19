@@ -597,6 +597,18 @@ xml_files.each do |xml|
   $stderr.puts "    #{xml}"
 end
 
+# Export packaging briefs
+if profile.fetch('generate_packaging_brief', true)
+  xml_files.each do |xml_path|
+    step "export_packaging_brief #{File.basename(xml_path)}"
+    profile_flag = profile_name ? ['--profile', profile_name] : []
+    run_script('export_packaging_brief.rb',
+      '--library-dir', library_dir,
+      '--output', xml_path,
+      *profile_flag)
+  end
+end
+
 $stderr.puts "\n  Import into #{library['editor'] || 'Premiere'} via File > Import"
 
 $stderr.puts "\n#{'=' * 60}"
