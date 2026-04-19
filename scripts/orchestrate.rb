@@ -575,6 +575,12 @@ selected.each do |storyline|
     structure_cut['speech_analysis'] = speech_analysis_path
   end
 
+  # Add edit patterns if available
+  edit_patterns_path = File.join(library_dir, 'edit_patterns.yaml')
+  if file_cached?(edit_patterns_path)
+    structure_cut['edit_patterns'] = edit_patterns_path
+  end
+
   File.write(yaml_path, structure_cut.to_yaml)
   $stderr.puts "  YAML: #{yaml_path}"
 
@@ -595,6 +601,18 @@ xml_files = Dir.glob(File.join(output_dir, '*.xml')).sort_by { |f| File.mtime(f)
 $stderr.puts "\n  Built #{selected.size} structure cut(s):"
 xml_files.each do |xml|
   $stderr.puts "    #{xml}"
+end
+
+# Export packaging briefs
+if profile.fetch('generate_packaging_brief', true)
+  xml_files.each do |xml_path|
+    step "export_packaging_brief #{File.basename(xml_path)}"
+    profile_flag = profile_name ? ['--profile', profile_name] : []
+    run_script('export_packaging_brief.rb',
+      '--library-dir', library_dir,
+      '--output', xml_path,
+      *profile_flag)
+  end
 end
 
 $stderr.puts "\n  Import into #{library['editor'] || 'Premiere'} via File > Import"

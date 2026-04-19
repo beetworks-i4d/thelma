@@ -237,6 +237,24 @@ elsif config['classification']
   end
 end
 
+# === Load edit patterns for checklist markers ===
+edit_patterns = nil
+if config['edit_patterns']
+  ep_path = config['edit_patterns']
+  if File.exist?(ep_path)
+    edit_patterns = YAML.safe_load(File.read(ep_path), permitted_classes: [Date])
+    $stderr.puts "Loaded edit patterns: #{(edit_patterns['video_overlay_patterns'] || []).size} video, #{(edit_patterns['audio_overlay_patterns'] || []).size} audio"
+  end
+elsif config['classification']
+  # Auto-detect in same directory as classification
+  class_dir = File.dirname(config['classification'])
+  ep_path = File.join(class_dir, 'edit_patterns.yaml')
+  if File.exist?(ep_path)
+    edit_patterns = YAML.safe_load(File.read(ep_path), permitted_classes: [Date])
+    $stderr.puts "Auto-loaded edit patterns: #{(edit_patterns['video_overlay_patterns'] || []).size} video, #{(edit_patterns['audio_overlay_patterns'] || []).size} audio"
+  end
+end
+
 # === Parse auto_remove_pauses_above ===
 pause_removal_threshold = nil
 if config.key?('auto_remove_pauses_above')
@@ -635,6 +653,7 @@ end
 #   Close:         Blue   = 4294153761
 #   Action items:  Yellow = 4281719037
 #   Transitions:   Cyan   = 4292131840
+#   Suggestions:   Cyan   = 4292131840
 #   Reference:     Grey   = 4286611584
 # =============================================================================
 
@@ -645,6 +664,7 @@ PPRO_REVEAL   = 4281678309
 PPRO_CLOSE    = 4294153761
 PPRO_ACTION   = 4281719037
 PPRO_TRANSITION = 4292131840
+PPRO_SUGGEST  = 4292131840
 PPRO_REFERENCE = 4286611584
 
 # Helper: find timeline position for a classified segment
@@ -894,6 +914,46 @@ end
 
 $stderr.puts "Tier 2 (alerts): #{tier2_markers.size} markers" if tier2_markers.any?
 
+# === CHECKLIST: Production design suggestions from edit patterns ===
+checklist_markers = []
+unless markers_only_structure
+  if edit_patterns && classification_segments && !classification_branch_a
+    video_patterns = edit_patterns['video_overlay_patterns'] || []
+
+    classification_segments.each do |seg|
+      tl_time = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+      next unless tl_time
+
+      matching_patterns = []
+
+      video_patterns.each do |pattern|
+        trigger = pattern['trigger'] || ''
+        if trigger.start_with?('narrative_role = ')
+          role = trigger.sub('narrative_role = ', '')
+          matching_patterns << pattern if seg['narrative_role'] == role
+        elsif trigger.start_with?('dur = ')
+          dur_val = trigger.sub('dur = ', '')
+          matching_patterns << pattern if seg['dur'] == dur_val
+        end
+      end
+
+      matching_patterns.each do |pattern|
+        freq = pattern['frequency'] || '?'
+        dur_s = pattern['typical_duration'] ? "~#{pattern['typical_duration']}s" : ''
+        note = pattern['note'] || pattern['trigger']
+        checklist_markers << {
+          name: "SUGGEST: #{note}",
+          comment: "Production pattern: #{pattern['trigger']} | #{freq} past edits | #{dur_s} typical | \"#{seg['distillation']}\"",
+          time: tl_time,
+          color: 'blue',
+          pproColor: PPRO_SUGGEST
+        }
+      end
+    end
+  end
+end
+$stderr.puts "Checklist (suggestions): #{checklist_markers.size} markers" if checklist_markers.any?
+
 # === TIER 3: Reference Markers (per-segment classification) ===
 # Suppressed by --no-emotion-markers or --markers-only-structure
 
@@ -933,7 +993,7 @@ $stderr.puts "Tier 3 (reference): #{tier3_count} markers" if tier3_count > 0
 
 # === Combine markers: Tier 1 first, then Tier 2, then Tier 3 ===
 # This ordering ensures structure markers appear first in Premiere's marker panel
-markers = tier1_markers + tier2_markers + markers + tier3_markers
+markers = tier1_markers + tier2_markers + checklist_markers + markers + tier3_markers
 
 if removed_pause_count > 0
   $stderr.puts "Pause removal: #{removed_pause_count} pauses removed (#{(total_removed_ms / 1000.0).round(1)}s total)"
