@@ -277,7 +277,7 @@ RSpec.describe 'build_structure_cut.rb' do
       }
     end
 
-    it 'generates markers with correct name format: primary_state | distillation' do
+    it 'generates Tier 3 markers with state(dur) | distillation format' do
       Dir.mktmpdir do |dir|
         class_path = File.join(dir, 'segments_classified.yaml')
         File.write(class_path, classification_data.to_yaml)
@@ -292,12 +292,13 @@ RSpec.describe 'build_structure_cut.rb' do
 
         doc = Nokogiri::XML(File.read(stdout.strip))
         marker_names = doc.xpath('//sequence/marker/name').map(&:text)
-        expect(marker_names).to include('vindication | system rigged but you win')
-        expect(marker_names).to include('competence | three-step framework reveal')
+        # Tier 3 markers use format: "state(dur) | distillation"
+        expect(marker_names).to include('vindication(identity) | system rigged but you win')
+        expect(marker_names).to include('competence(spike) | three-step framework reveal')
       end
     end
 
-    it 'generates comments with all pipe-separated payload fields' do
+    it 'generates Tier 3 comments with all pipe-separated payload fields' do
       Dir.mktmpdir do |dir|
         class_path = File.join(dir, 'segments_classified.yaml')
         File.write(class_path, classification_data.to_yaml)
@@ -312,13 +313,14 @@ RSpec.describe 'build_structure_cut.rb' do
 
         doc = Nokogiri::XML(File.read(stdout.strip))
         comments = doc.xpath('//sequence/marker/comment').map(&:text)
-        emotion_comment = comments.find { |c| c.include?('vindication(identity)') }
-        expect(emotion_comment).not_to be_nil
-        expect(emotion_comment).to include('states: vindication(identity), curiosity(identity)')
-        expect(emotion_comment).to include('role: primary')
-        expect(emotion_comment).to include('signal: named target, specific claim')
-        expect(emotion_comment).to include('confidence: high')
-        expect(emotion_comment).to include('t=1.5')
+        # Find Tier 3 reference marker comment (contains "states:")
+        ref_comment = comments.find { |c| c.include?('states: vindication(identity)') }
+        expect(ref_comment).not_to be_nil
+        expect(ref_comment).to include('states: vindication(identity), curiosity(identity)')
+        expect(ref_comment).to include('role: primary')
+        expect(ref_comment).to include('signal: named target, specific claim')
+        expect(ref_comment).to include('confidence: high')
+        expect(ref_comment).to include('t=1.5')
       end
     end
 
@@ -341,7 +343,7 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
 
-    it 'skips emotion markers when --no-emotion-markers flag is set' do
+    it 'skips Tier 3 markers when --no-emotion-markers flag is set but keeps Tier 1/2' do
       Dir.mktmpdir do |dir|
         class_path = File.join(dir, 'segments_classified.yaml')
         File.write(class_path, classification_data.to_yaml)
@@ -353,13 +355,16 @@ RSpec.describe 'build_structure_cut.rb' do
 
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, '--no-emotion-markers', yaml_path)
         expect(status.exitstatus).to eq(0)
-        expect(stderr).not_to include('Added')
-        expect(stderr).not_to include('emotion markers')
 
         doc = Nokogiri::XML(File.read(stdout.strip))
         marker_names = doc.xpath('//sequence/marker/name').map(&:text)
-        emotion_markers = marker_names.select { |n| n.include?('|') }
-        expect(emotion_markers).to be_empty
+        # Tier 3 (reference) markers should NOT be present
+        tier3 = marker_names.select { |n| n.match?(/^\w+\(\w+\) \|/) }
+        expect(tier3).to be_empty
+
+        # Tier 1 (structure) markers SHOULD still be present
+        tier1 = marker_names.select { |n| n.start_with?('HOOK:') || n.start_with?('CLOSE:') }
+        expect(tier1).not_to be_empty
       end
     end
 
@@ -532,9 +537,301 @@ RSpec.describe 'build_structure_cut.rb' do
         # User-defined markers preserved
         expect(comments).to include('Check audio levels')
         expect(comments).to include('Insert title card')
-        # Emotion markers also present
-        emotion_comments = comments.select { |c| c.include?('states:') }
-        expect(emotion_comments.size).to be >= 1
+        # Tier 3 reference markers also present
+        ref_comments = comments.select { |c| c.include?('states:') }
+        expect(ref_comments.size).to be >= 1
+      end
+    end
+  end
+
+  describe 'three-tier marker system' do
+    let(:multi_segment_classification) do
+      {
+        'segments' => [
+          { 't' => 1.0, 'e' => 3.0, 'states' => %w[vindication curiosity],
+            'distillation' => 'system rigged against you', 'signal' => 'bold claim',
+            'dur' => 'identity', 'narrative_role' => 'primary', 'confidence' => 'high' },
+          { 't' => 3.5, 'e' => 5.0, 'states' => %w[competence aspiration],
+            'distillation' => 'three step framework', 'signal' => 'framework reveal',
+            'dur' => 'mood', 'narrative_role' => 'secondary', 'confidence' => 'high' },
+          { 't' => 5.5, 'e' => 7.0, 'states' => %w[fear outrage],
+            'distillation' => 'year of failing hard', 'signal' => 'vulnerability',
+            'dur' => 'identity', 'narrative_role' => 'primary', 'confidence' => 'medium' },
+          { 't' => 7.5, 'e' => 9.0, 'states' => %w[aspiration competence],
+            'distillation' => 'finally found the path', 'signal' => 'resolution',
+            'dur' => 'identity', 'narrative_role' => 'primary', 'confidence' => 'high',
+            'signpost' => true },
+          { 't' => 9.5, 'e' => 11.0, 'states' => %w[aspiration],
+            'distillation' => 'your turn to start', 'signal' => 'CTA',
+            'dur' => 'identity', 'narrative_role' => 'primary', 'confidence' => 'high' }
+        ]
+      }
+    end
+
+    describe 'Tier 1 structure markers' do
+      it 'generates HOOK marker for first segment' do
+        Dir.mktmpdir do |dir|
+          class_path = File.join(dir, 'segments_classified.yaml')
+          File.write(class_path, multi_segment_classification.to_yaml)
+
+          config = base_config(dir)
+          config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 11.5 }]
+          config['classification'] = class_path
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          hook_markers = doc.xpath('//sequence/marker').select { |m| m.at_xpath('name').text.start_with?('HOOK:') }
+          expect(hook_markers.size).to eq(1)
+          expect(hook_markers.first.at_xpath('name').text).to include('system rigged')
+          # Range marker: out should not be -1
+          expect(hook_markers.first.at_xpath('out').text.to_i).not_to eq(-1)
+        end
+      end
+
+      it 'generates CLOSE marker for last identity segment' do
+        Dir.mktmpdir do |dir|
+          class_path = File.join(dir, 'segments_classified.yaml')
+          File.write(class_path, multi_segment_classification.to_yaml)
+
+          config = base_config(dir)
+          config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 11.5 }]
+          config['classification'] = class_path
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          close_markers = doc.xpath('//sequence/marker').select { |m| m.at_xpath('name').text.start_with?('CLOSE:') }
+          expect(close_markers.size).to eq(1)
+          expect(close_markers.first.at_xpath('out').text.to_i).not_to eq(-1)
+        end
+      end
+
+      it 'includes pproColor tag on structure markers' do
+        Dir.mktmpdir do |dir|
+          class_path = File.join(dir, 'segments_classified.yaml')
+          File.write(class_path, multi_segment_classification.to_yaml)
+
+          config = base_config(dir)
+          config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 11.5 }]
+          config['classification'] = class_path
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          hook = doc.xpath('//sequence/marker').find { |m| m.at_xpath('name').text.start_with?('HOOK:') }
+          expect(hook).not_to be_nil
+          ppro = hook.at_xpath('pproColor')
+          expect(ppro).not_to be_nil
+          expect(ppro.text.to_i).to eq(4279486782)
+        end
+      end
+    end
+
+    describe 'Tier 2 alert markers' do
+      it 'generates TRANSITION markers for state changes' do
+        Dir.mktmpdir do |dir|
+          class_path = File.join(dir, 'segments_classified.yaml')
+          File.write(class_path, multi_segment_classification.to_yaml)
+
+          config = base_config(dir)
+          config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 11.5 }]
+          config['classification'] = class_path
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          transitions = doc.xpath('//sequence/marker').select { |m|
+            m.at_xpath('name').text.start_with?('TRANSITION:')
+          }
+          expect(transitions.size).to be >= 1
+          # Should detect vindication → competence at minimum
+          transition_names = transitions.map { |m| m.at_xpath('name').text }
+          expect(transition_names.any? { |n| n.include?('vindication') && n.include?('competence') }).to be true
+          # Point markers (out = -1)
+          transitions.each { |t| expect(t.at_xpath('out').text.to_i).to eq(-1) }
+        end
+      end
+
+      it 'generates SIGNPOST markers for cut candidates' do
+        Dir.mktmpdir do |dir|
+          class_path = File.join(dir, 'segments_classified.yaml')
+          File.write(class_path, multi_segment_classification.to_yaml)
+
+          config = base_config(dir)
+          config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 11.5 }]
+          config['classification'] = class_path
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          signposts = doc.xpath('//sequence/marker').select { |m|
+            m.at_xpath('name').text.start_with?('SIGNPOST:')
+          }
+          expect(signposts.size).to eq(1)
+          expect(signposts.first.at_xpath('comment').text).to include('meta-commentary')
+        end
+      end
+    end
+
+    describe 'Tier 3 reference markers' do
+      it 'generates per-segment reference markers with grey pproColor' do
+        Dir.mktmpdir do |dir|
+          class_path = File.join(dir, 'segments_classified.yaml')
+          File.write(class_path, multi_segment_classification.to_yaml)
+
+          config = base_config(dir)
+          config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 11.5 }]
+          config['classification'] = class_path
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          ref_markers = doc.xpath('//sequence/marker').select { |m|
+            m.at_xpath('name').text.match?(/^\w+\(\w+\) \|/)
+          }
+          # Should have one per classification segment
+          expect(ref_markers.size).to eq(5)
+
+          # Check pproColor is grey (4286611584)
+          ref_markers.each do |rm|
+            ppro = rm.at_xpath('pproColor')
+            expect(ppro).not_to be_nil
+            expect(ppro.text.to_i).to eq(4286611584)
+          end
+        end
+      end
+    end
+
+    describe 'marker ordering' do
+      it 'places Tier 1 before Tier 2 before Tier 3 in XML' do
+        Dir.mktmpdir do |dir|
+          class_path = File.join(dir, 'segments_classified.yaml')
+          File.write(class_path, multi_segment_classification.to_yaml)
+
+          config = base_config(dir)
+          config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 11.5 }]
+          config['classification'] = class_path
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          all_markers = doc.xpath('//sequence/marker')
+          names = all_markers.map { |m| m.at_xpath('name').text }
+
+          # Find indices
+          tier1_idx = names.each_index.select { |i| names[i].match?(/^(HOOK|CLOSE|SECTION|PIVOT|REVEAL):/) }
+          tier2_idx = names.each_index.select { |i| names[i].match?(/^(TRANSITION|SHIFT|SIGNPOST|SPLIT|REVIEW):/) }
+          tier3_idx = names.each_index.select { |i| names[i].match?(/^\w+\(\w+\) \|/) }
+
+          # Tier 1 should come before Tier 2, which should come before Tier 3
+          if tier1_idx.any? && tier2_idx.any?
+            expect(tier1_idx.max).to be < tier2_idx.min
+          end
+          if tier2_idx.any? && tier3_idx.any?
+            expect(tier2_idx.max).to be < tier3_idx.min
+          end
+        end
+      end
+    end
+
+    describe '--markers-only-structure flag' do
+      it 'generates only Tier 1 markers' do
+        Dir.mktmpdir do |dir|
+          class_path = File.join(dir, 'segments_classified.yaml')
+          File.write(class_path, multi_segment_classification.to_yaml)
+
+          config = base_config(dir)
+          config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 11.5 }]
+          config['classification'] = class_path
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, '--markers-only-structure', yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          all_markers = doc.xpath('//sequence/marker')
+          names = all_markers.map { |m| m.at_xpath('name').text }
+
+          # Only Tier 1 markers
+          tier1 = names.select { |n| n.match?(/^(HOOK|CLOSE|SECTION|PIVOT|REVEAL):/) }
+          tier2 = names.select { |n| n.match?(/^(TRANSITION|SHIFT|SIGNPOST|SPLIT|REVIEW):/) }
+          tier3 = names.select { |n| n.match?(/^\w+\(\w+\) \|/) }
+
+          expect(tier1).not_to be_empty
+          expect(tier2).to be_empty
+          expect(tier3).to be_empty
+        end
+      end
+    end
+
+    describe 'graceful degradation' do
+      it 'generates no tiered markers when classification is absent' do
+        Dir.mktmpdir do |dir|
+          config = base_config(dir)
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          all_markers = doc.xpath('//sequence/marker')
+          # No tiered markers, no crash
+          tier1 = all_markers.select { |m| m.at_xpath('name').text.match?(/^(HOOK|CLOSE|SECTION|PIVOT|REVEAL):/) }
+          expect(tier1).to be_empty
+        end
+      end
+
+      it 'generates Tier 1 markers even with single segment' do
+        Dir.mktmpdir do |dir|
+          single_seg = {
+            'segments' => [{
+              't' => 1.5, 'e' => 3.0,
+              'states' => %w[vindication],
+              'distillation' => 'only segment',
+              'dur' => 'identity',
+              'confidence' => 'high'
+            }]
+          }
+          class_path = File.join(dir, 'segments_classified.yaml')
+          File.write(class_path, single_seg.to_yaml)
+
+          config = base_config(dir)
+          config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 3.5 }]
+          config['classification'] = class_path
+          yaml_path = File.join(dir, 'test.yaml')
+          File.write(yaml_path, config.to_yaml)
+
+          stdout, _, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+          expect(status.exitstatus).to eq(0)
+
+          doc = Nokogiri::XML(File.read(stdout.strip))
+          hooks = doc.xpath('//sequence/marker').select { |m| m.at_xpath('name').text.start_with?('HOOK:') }
+          expect(hooks.size).to eq(1)
+        end
       end
     end
   end
