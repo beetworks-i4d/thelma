@@ -46,7 +46,7 @@ Two modes control the editorial pipeline:
 This skill runs across MULTIPLE phases, some autonomous (Task agents) and some interactive (main conversation). You MUST NOT wrap the entire skill in a single Task call.
 
 **Autonomous phases (CAN run as Task subagents):**
-- Phase 0: Branch Detection (script parsing)
+- Phase 0: Content Type Detection + Branch Detection (script parsing)
 - Phase 1: Ingest and Analyze
 - Phase 1.5: Segment Classification
 - Phase 1.5b: Semantic Dedup
@@ -62,7 +62,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 - Phase 4: Present to User — summary generated from final YAML, presented directly
 
 **Orchestration flow:**
-1. Run Phase 0 (branch detection) — scan for script, parse if found
+1. Run Phase 0 (content type detection + branch detection) — `ruby scripts/detect_content_type.rb <library.yaml> [--profile <name>]` detects content type from transcript/audio/visual/scene signals, routes downstream defaults (template categories, pacing). Skips if profile specifies explicit content_type. Then scan for script, parse if found.
 2. Run Phase 1 (ingest) — can be Task agent(s)
 3. Run Phase 1.5 (classification, deep mode) — can be Task agent
 3b. Run Phase 1.5b (semantic dedup) — can be Task agent: `ruby scripts/semantic_dedup.rb`
