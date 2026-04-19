@@ -346,12 +346,29 @@ else
   end
 end
 
+# Extract frames at scene-change timestamps (or fallback 3-frame for static shots)
+visual_frames_path = File.join(library_dir, 'visual_frames.yaml')
+if file_cached?(visual_frames_path)
+  skip 'extract_visual_frames', 'visual_frames.yaml exists'
+else
+  video_file = video['path']
+  if video_file && File.exist?(video_file)
+    step 'extract_visual_frames'
+    run_script('extract_visual_frames.rb', '--library', library_name, '--video', video_file)
+  else
+    skip 'extract_visual_frames', 'video file not accessible'
+  end
+end
+
 visual_name = video['visual_transcript']
 if visual_name && visual_name.to_s.strip != ''
   skip 'visual_analysis', 'visual_transcript exists'
 else
   step 'visual_analysis'
   $stderr.puts "  NOTE: Visual analysis requires Claude vision. Run analyze-video skill separately."
+  if file_cached?(visual_frames_path)
+    $stderr.puts "  Scene-driven frames ready: #{visual_frames_path}"
+  end
   $stderr.puts "  Continuing without visual transcript."
 end
 
