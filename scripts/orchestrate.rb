@@ -397,6 +397,24 @@ if branch == 'C'
   profile_flag = profile_name ? ['--profile', profile_name] : []
   run_script('match_templates.rb', storylines_file, classified_path, *profile_flag)
 
+  phase '1.7.5 — Adaptive Structure Detection'
+  matched_data_c = YAML.safe_load(File.read(File.join(library_dir, 'storylines_matched.yaml')), permitted_classes: [Date])
+  matched_storylines_c = matched_data_c['storylines'] || []
+  best_fit_c = matched_storylines_c.map { |s| s.dig('template_match', 'fit_score').to_i }.max || 0
+  has_longform_c = matched_storylines_c.any? { |s| s['profile'] == 'best_single_longform' }
+
+  if best_fit_c < 70 || !has_longform_c
+    step 'detect_structure (prompts only — Branch C)'
+    $stderr.puts "  Trigger: best_fit=#{best_fit_c}% (threshold: 70%), longform=#{has_longform_c}"
+    structure_path_c = File.join(library_dir, 'structure_detected.yaml')
+    unless file_cached?(structure_path_c)
+      run_script('detect_structure.rb', segments_path, '--best-fit-score', best_fit_c.to_s)
+    end
+    $stderr.puts "  Prompts generated. LLM synthesis deferred (Branch C is analyze-only)."
+  else
+    skip 'detect_structure', "best_fit=#{best_fit_c}% >= 70% and longform exists"
+  end
+
   phase '1.8 — Coherence Scoring'
   matched_file = File.join(library_dir, 'storylines_matched.yaml')
   step 'score_coherence (algorithmic only)'
@@ -440,6 +458,58 @@ phase '1.7 — Template Matching'
 step 'match_templates'
 profile_flag = profile_name ? ['--profile', profile_name] : []
 run_script('match_templates.rb', storylines_path, classified_path, *profile_flag)
+
+# ============================================================
+# PHASE 1.7.5: ADAPTIVE STRUCTURE DETECTION (conditional)
+# ============================================================
+
+phase '1.7.5 — Adaptive Structure Detection'
+
+matched_data = YAML.safe_load(File.read(File.join(library_dir, 'storylines_matched.yaml')), permitted_classes: [Date])
+matched_storylines = matched_data['storylines'] || []
+
+best_fit = matched_storylines.map { |s| s.dig('template_match', 'fit_score').to_i }.max || 0
+has_longform = matched_storylines.any? { |s| s['profile'] == 'best_single_longform' }
+
+if best_fit < 70 || !has_longform
+  step 'detect_structure'
+  $stderr.puts "  Trigger: best_fit=#{best_fit}% (threshold: 70%), longform=#{has_longform}"
+
+  structure_path = File.join(library_dir, 'structure_detected.yaml')
+  unless file_cached?(structure_path)
+    run_script('detect_structure.rb', segments_path, '--best-fit-score', best_fit.to_s)
+  end
+
+  # Agent fills viability + synthesis via LLM, then saves template
+  detected = YAML.safe_load(File.read(structure_path), permitted_classes: [Date])
+
+  if detected['viability'].nil?
+    # Run viability check
+    viability_response = LLMClient.call(detected['viability_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 200)
+    viability_line = viability_response.strip.lines.first&.strip || ''
+    detected['viability'] = viability_line.split(' — ').first&.strip
+    detected['viability_reason'] = viability_response.strip.lines[1]&.strip
+    File.write(structure_path, detected.to_yaml)
+  end
+
+  if %w[YES PARTIAL].include?(detected['viability']) && detected['synthesized_template'].nil?
+    # Run synthesis
+    synthesis_response = LLMClient.call(detected['synthesis_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 1000)
+    # Parse YAML from response
+    yaml_match = synthesis_response.match(/```yaml\n(.*?)```/m)
+    if yaml_match
+      detected['synthesized_template'] = YAML.safe_load(yaml_match[1])
+      File.write(structure_path, detected.to_yaml)
+
+      # Save template and re-match
+      run_script('detect_structure.rb', segments_path, '--save-template', structure_path)
+      step 're-match templates with synthesized template'
+      run_script('match_templates.rb', storylines_path, classified_path, *profile_flag)
+    end
+  end
+else
+  skip 'detect_structure', "best_fit=#{best_fit}% >= 70% and longform exists"
+end
 
 # ============================================================
 # PHASE 1.8: COHERENCE SCORING
