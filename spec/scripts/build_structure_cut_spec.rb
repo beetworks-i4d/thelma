@@ -1032,4 +1032,141 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
   end
+
+  describe 'multi-track support' do
+    it 'places V2 clips on a separate video track' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 3.0, 'track' => 'V1' },
+          { 'video_start' => 5.0, 'video_end' => 8.0, 'track' => 'V1' },
+          { 'video_start' => 2.0, 'video_end' => 4.0, 'track' => 'V2', 'timeline_offset' => 0.0 }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        video_tracks = doc.xpath('//sequence/media/video/track')
+        expect(video_tracks.size).to eq(2)
+
+        # V1 track has 2 clips, V2 track has 1 clip
+        expect(video_tracks[0].xpath('clipitem').size).to eq(2)
+        expect(video_tracks[1].xpath('clipitem').size).to eq(1)
+      end
+    end
+
+    it 'defaults to V1 when track field is absent' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 3.0 },
+          { 'video_start' => 5.0, 'video_end' => 8.0 }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        video_tracks = doc.xpath('//sequence/media/video/track')
+        expect(video_tracks.size).to eq(1)
+        expect(video_tracks[0].xpath('clipitem').size).to eq(2)
+      end
+    end
+  end
+
+  describe 'natural segmentation' do
+    it 'does not auto-split long clips when max_segment_duration is not set' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 0.5, 'end' => 20.0 }
+          ],
+          'long_pauses' => [
+            { 'start' => 8.0, 'end' => 8.5, 'duration' => 0.5 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['auto_remove_pauses_above'] = false
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 20.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('auto-split')
+        expect(stderr).not_to include('Auto-split')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clipitems.size).to eq(1)
+      end
+    end
+
+    it 'merges segments shorter than min_segment_duration with neighbors' do
+      Dir.mktmpdir do |dir|
+        # Create speech data with two pauses that would create a 1-second middle segment
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.0, 'end' => 10.0 }
+          ],
+          'long_pauses' => [
+            { 'start' => 4.0, 'end' => 4.9, 'duration' => 0.9 },
+            { 'start' => 5.5, 'end' => 6.4, 'duration' => 0.9 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['auto_remove_pauses_above'] = 900
+        config['min_segment_duration'] = 2
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 10.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        # Middle segment (4.9-5.5 = 0.6s) should be merged, resulting in 2 clips not 3
+        expect(clipitems.size).to eq(2)
+      end
+    end
+
+    it 'uses 800ms pause threshold by default from profile' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.0, 'end' => 8.0 }
+          ],
+          'long_pauses' => [
+            { 'start' => 4.0, 'end' => 4.6, 'duration' => 0.6 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        # Don't set auto_remove_pauses_above — let profile default (800ms)
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 8.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        # 600ms pause should NOT be removed (below 800ms threshold)
+        expect(clipitems.size).to eq(1)
+      end
+    end
+  end
 end

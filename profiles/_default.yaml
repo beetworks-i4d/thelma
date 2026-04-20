@@ -13,7 +13,8 @@ format_defaults:
 analysis_depth_default: deep
 branch_preference: auto
 include_ctas: true
-max_segment_duration: 12
+auto_remove_pauses_above: 800
+min_segment_duration: 2
 snap_end_tolerance_ms: 100
 template_categories: []
 strong_threshold: 80

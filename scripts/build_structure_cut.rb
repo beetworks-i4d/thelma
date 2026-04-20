@@ -30,15 +30,18 @@
 #     - video_start: 48.35            # video time — no conversion
 #       video_end: 58.73
 #
-#   auto_remove_pauses_above: 500    # optional, milliseconds (default 500)
+#   auto_remove_pauses_above: 800    # optional, milliseconds (default 800 from profile)
 #                                    # Silero long pauses above this threshold inside a clip
 #                                    # are removed by splitting the clip into sub-clips.
 #                                    # Set to 0 or false to disable.
 #
-#   max_segment_duration: 12         # optional, seconds (default 12)
-#                                    # After pause removal, any sub-clip exceeding this
-#                                    # duration is split at the longest internal sentence
-#                                    # boundary (pause >300ms). Set to 0 or false to disable.
+#   min_segment_duration: 2          # optional, seconds (default 2 from profile)
+#                                    # After pause removal, segments shorter than this
+#                                    # are merged with adjacent segments.
+#
+#   max_segment_duration: 0          # optional, disabled by default (no auto-split)
+#                                    # Legacy: if set, splits clips exceeding this duration
+#                                    # at sentence boundaries. Set to 0 or false to disable.
 #
 #   markers:
 #     - name: TITLE
@@ -263,31 +266,42 @@ if config.key?('auto_remove_pauses_above')
     pause_removal_threshold = val.to_i / 1000.0
   end
 else
-  pause_removal_threshold = 0.5  # default 500ms
+  # Profile-driven default (800ms in _default.yaml), fallback to 800ms
+  profile_pause_ms = profile['auto_remove_pauses_above'] || 800
+  pause_removal_threshold = profile_pause_ms.to_i / 1000.0
 end
 
 if pause_removal_threshold && long_pauses
   $stderr.puts "Pause removal: enabled (threshold #{(pause_removal_threshold * 1000).round}ms)"
 end
 
-# === Parse max_segment_duration ===
+# === Parse min_segment_duration (floor after splits) ===
+min_segment_duration = nil
+if config.key?('min_segment_duration')
+  val = config['min_segment_duration']
+  if val && val != false && val.to_f > 0
+    min_segment_duration = val.to_f
+  end
+else
+  min_segment_duration = (profile['min_segment_duration'] || 2).to_f
+end
+
+# === Parse max_segment_duration (legacy support — disabled by default) ===
 max_segment_duration = nil
 if config.key?('max_segment_duration')
   val = config['max_segment_duration']
   if val && val != false && val.to_i > 0
     max_segment_duration = val.to_i
   end
-else
-  max_segment_duration = profile['max_segment_duration'] || 12
 end
+# NOTE: max_segment_duration no longer has a default. Natural boundaries only.
 
 if max_segment_duration && long_pauses
-  $stderr.puts "Max segment duration: #{max_segment_duration}s (auto-split at sentence boundaries)"
+  $stderr.puts "Max segment duration: #{max_segment_duration}s (legacy auto-split enabled)"
 end
 
-# Find split points for an oversized clip using internal pauses.
-# Recursively finds the longest pause, splits there, and checks sub-segments.
-# Returns array of video-time split points sorted chronologically.
+# Find split points for an oversized clip using internal pauses (legacy).
+# Only used when max_segment_duration is explicitly set in YAML config.
 SENTENCE_BOUNDARY_THRESHOLD = 0.300  # 300ms minimum pause for sentence boundary
 
 def find_split_points(video_start, video_end, pauses, max_dur, sync_offset, has_sync)
@@ -436,15 +450,73 @@ config['clips'].each_with_index do |c, idx|
   # === Build sub-clips (or single clip if no pauses to remove) ===
   if removable_pauses.any?
     # Split at pause boundaries — work in video time
+    # Prefer sentence boundaries within 1s of pause when speech_segments available
     sub_ranges = []
     current_v = start_time
     removable_pauses.each do |p|
       p_start_v = has_sync ? p['start'] - sync_offset : p['start']
       p_end_v = has_sync ? p['end'] - sync_offset : p['end']
+
+      # Refine split to sentence boundary if available within 1s
+      if speech_segments
+        seg_end_target = has_sync ? p['start'] : p_start_v
+        best_boundary = nil
+        best_dist = 1.0  # max 1 second tolerance
+        speech_segments.each do |seg|
+          dist = (seg['end'] - seg_end_target).abs
+          if dist < best_dist
+            best_boundary = seg['end']
+            best_dist = dist
+          end
+        end
+        if best_boundary
+          refined_v = has_sync ? best_boundary - sync_offset : best_boundary
+          # Only use if it's within the clip and doesn't create a too-short segment
+          if refined_v > current_v + 0.5 && refined_v < end_time - 0.5
+            p_start_v = refined_v
+          end
+        end
+      end
+
       sub_ranges << { start: current_v, end: p_start_v }
       current_v = p_end_v
     end
     sub_ranges << { start: current_v, end: end_time }
+
+    # === Minimum segment duration floor: merge short segments with neighbors ===
+    if min_segment_duration && sub_ranges.size > 1
+      merged = true
+      while merged
+        merged = false
+        sub_ranges.each_with_index do |sr, si|
+          seg_dur = sr[:end] - sr[:start]
+          next if seg_dur >= min_segment_duration
+          # Merge with adjacent (prefer longer neighbor)
+          if si == 0
+            # Merge with next — extend next's start backwards (skip the pause)
+            sub_ranges[si + 1][:start] = sr[:start]
+            sub_ranges.delete_at(si)
+          elsif si == sub_ranges.size - 1
+            # Merge with previous — extend previous's end forward (skip the pause)
+            sub_ranges[si - 1][:end] = sr[:end]
+            sub_ranges.delete_at(si)
+          else
+            # Merge with the longer neighbor
+            prev_dur = sub_ranges[si - 1][:end] - sub_ranges[si - 1][:start]
+            next_dur = sub_ranges[si + 1][:end] - sub_ranges[si + 1][:start]
+            if prev_dur >= next_dur
+              sub_ranges[si - 1][:end] = sr[:end]
+            else
+              sub_ranges[si + 1][:start] = sr[:start]
+            end
+            sub_ranges.delete_at(si)
+          end
+          # Recount pauses that actually remain removed
+          merged = true
+          break
+        end
+      end
+    end
 
     removed_ms = removable_pauses.sum { |p| (p['duration'] * 1000).round }
     $stderr.puts "  Clip #{idx + 1}: removing #{removable_pauses.size} pauses (#{removed_ms}ms) → #{sub_ranges.size} sub-clips"
@@ -915,18 +987,19 @@ unless markers_only_structure
       end
     end
 
-    # Long segments > max_segment_duration
-    max_dur_check = max_segment_duration || 12
-    arranged.each do |seg|
-      seg_duration = seg['e'].to_f - seg['t'].to_f
-      if seg_duration > max_dur_check
-        tier2_markers << {
-          name: "SPLIT: #{seg_duration.round(1)}s segment",
-          comment: "Long segment: #{seg_duration.round(1)}s exceeds #{max_dur_check}s | consider splitting | \"#{seg['distillation']}\"",
-          time: seg['tl_start'],
-          color: 'yellow',
-          pproColor: PPRO_ACTION
-        }
+    # Long segments — only flag if max_segment_duration is explicitly set
+    if max_segment_duration
+      arranged.each do |seg|
+        seg_duration = seg['e'].to_f - seg['t'].to_f
+        if seg_duration > max_segment_duration
+          tier2_markers << {
+            name: "SPLIT: #{seg_duration.round(1)}s segment",
+            comment: "Long segment: #{seg_duration.round(1)}s exceeds #{max_segment_duration}s | consider splitting | \"#{seg['distillation']}\"",
+            time: seg['tl_start'],
+            color: 'yellow',
+            pproColor: PPRO_ACTION
+          }
+        end
       end
     end
 
