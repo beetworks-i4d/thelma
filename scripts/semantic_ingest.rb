@@ -135,14 +135,23 @@ $stderr.puts "  Transcripts: #{all_segment_count} segments from #{videos.size} v
 
 audio_summary = ""
 videos.each do |v|
-  af_name = v['audio_features'] || v['speech_analysis']
-  next unless af_name
+  af_name = v['audio_features']
+  af_path = nil
 
-  # Audio features might be in library dir or transcripts dir
-  af_path = File.join(transcripts_dir, af_name.sub('.json', '.yaml'))
-  af_path = File.join(transcripts_dir, af_name) unless File.exist?(af_path)
-  af_path = File.join(library_dir, af_name) unless File.exist?(af_path)
-  next unless File.exist?(af_path)
+  if af_name
+    # Try explicit audio_features field
+    af_path = File.join(transcripts_dir, af_name)
+    af_path = File.join(library_dir, af_name) unless File.exist?(af_path)
+  end
+
+  # Fallback: look for *_audio_features.yaml by convention
+  unless af_path && File.exist?(af_path)
+    basename = File.basename(v['path'], File.extname(v['path']))
+    candidates = Dir.glob(File.join(transcripts_dir, "*audio_features.yaml"))
+    af_path = candidates.find { |p| p.include?(basename) } || candidates.first
+  end
+
+  next unless af_path && File.exist?(af_path)
 
   af = if af_path.end_with?('.yaml')
     YAML.safe_load(File.read(af_path))
