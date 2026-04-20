@@ -69,6 +69,7 @@ This skill runs across MULTIPLE phases, some autonomous (Task agents) and some i
 3c. Run Phase 1.5c (audio emotion) — can be Task agent: `ruby scripts/audio_emotion.rb <wav_path> <segments_classified.yaml> [library.yaml]`
 4. Run Phase 1.6 (storyline discovery) — can be Task agent: `ruby scripts/discover_storylines.rb` (pass `segments_deduped.yaml` instead of `segments_classified.yaml`)
 5. Run Phase 1.7 (template matching) — can be Task agent: `ruby scripts/match_templates.rb`
+5b. Run Phase 1.7.5 (adaptive structure detection) — conditional, triggered when best template fit < 70% or no longform candidate exists
 6. Run Phase 1.8 (coherence scoring):
    a. Run `ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml>`
    b. If `llm_pass_pending: true` in output, run LLM coherence pass (see Phase 1.8 details below)
@@ -343,6 +344,27 @@ ruby scripts/match_templates.rb <storylines.yaml> <segments_classified.yaml> [--
 Loads narrative templates from `templates/story_structures/` subdirectories (argumentative/, explainer/, narrative/). If a profile has `template_categories` set, only templates in those categories are matched. For each storyline candidate, reconstructs the distillation sequence (hook → body → close) and scores keyword-based beat matches against each template. Picks the best-fitting template.
 
 **Output:** `storylines_matched.yaml` — same as storylines.yaml but with `template_match` appended to each candidate (template name, fit_score 0-100, completeness %, order_score, matched/missing beats).
+
+### Phase 1.7.5: Adaptive Structure Detection (conditional, deep mode only)
+
+**Trigger**: Run when EITHER:
+- Best template fit across all candidates < 70%, OR
+- `best_single_longform` profile produced no candidates
+
+**Steps**:
+1. Run `detect_structure.rb`:
+   ```bash
+   ruby scripts/detect_structure.rb libraries/<name>/segments_classified.yaml --best-fit-score <N>
+   ```
+2. Read `structure_detected.yaml` — contains viability_prompt and synthesis_prompt
+3. Run viability_prompt through LLM → fill viability field (YES/PARTIAL/NO)
+4. If YES or PARTIAL: run synthesis_prompt → fill synthesized_template with YAML template
+5. Save: `ruby scripts/detect_structure.rb <segments> --save-template structure_detected.yaml`
+6. Re-run template matching: `ruby scripts/match_templates.rb ...`
+
+**Output:** `structure_detected.yaml` — viability assessment and optionally a synthesized narrative template. If a template is synthesized, it's also saved to `templates/story_structures/` and template matching is re-run.
+
+**`--extra-template` flag:** `match_templates.rb` supports `--extra-template <path>` to load a synthesized template from a file without persisting to the global templates directory.
 
 ### Phase 1.8: Coherence Scoring (deep mode only)
 
