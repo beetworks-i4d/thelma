@@ -79,8 +79,9 @@ end
 # Interleave: V1 clips first (sequential), then V2 clips (each with explicit offset)
 all_clips = v1_clips + v2_clips
 
-# === Build structure cut config ===
-output_dir = File.join(lib_dir, 'output')
+# === Determine output directory (RAW project folder, not library) ===
+video_dir = File.dirname(video_path)
+output_dir = File.join(video_dir, 'output')
 FileUtils.mkdir_p(output_dir)
 
 config = {
