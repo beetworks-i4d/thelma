@@ -23,7 +23,7 @@ llm_routing:
   semantic_ingest: claude-opus-4-6
   classification: claude-sonnet-4-20250514
   coherence: claude-opus-4-6
-  arrangement: claude-sonnet-4-20250514
+  arrangement: claude-opus-4-6
   loglines: claude-sonnet-4-20250514
   structure_detection: claude-opus-4-6
   packaging: claude-sonnet-4-20250514
