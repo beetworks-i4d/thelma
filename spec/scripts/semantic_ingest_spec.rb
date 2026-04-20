@@ -425,6 +425,69 @@ RSpec.describe 'semantic_ingest.rb' do
     end
   end
 
+  describe 'Claude Code mode' do
+    it 'writes pending file and exits 2 when in claude_code mode without API key' do
+      Dir.mktmpdir do |dir|
+        lib_dir = build_test_library(dir)
+        pending_dir = File.join(lib_dir, 'pending_llm_calls')
+
+        env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
+        stdout, stderr, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
+          require 'yaml'
+          require 'fileutils'
+          require_relative '#{File.expand_path('../../scripts/llm_client', __dir__)}'
+
+          # Simulate what semantic_ingest does: mode detection + call with pending_dir
+          LLMClient.mode = :claude_code
+          pending_dir = '#{pending_dir}'
+          begin
+            LLMClient.call("Test prompt for semantic ingest",
+              call_type: 'semantic_ingest', call_name: 'semantic_ingest',
+              pending_dir: pending_dir, max_tokens: 8192)
+          rescue LLMClient::Pending => e
+            $stderr.puts e.message
+            exit 2
+          end
+        RUBY
+        expect(status.exitstatus).to eq(2)
+        expect(stderr).to include('PENDING LLM CALL')
+
+        pending_file = File.join(pending_dir, 'semantic_ingest.yaml')
+        expect(File.exist?(pending_file)).to be true
+
+        data = YAML.safe_load(File.read(pending_file))
+        expect(data['call_name']).to eq('semantic_ingest')
+        expect(data['call_type']).to eq('semantic_ingest')
+        expect(data['prompt']).to include('Test prompt')
+        expect(data['response_path']).to include('semantic_ingest_response.yaml')
+      end
+    end
+
+    it 'reads response file on re-run and returns response' do
+      Dir.mktmpdir do |dir|
+        lib_dir = build_test_library(dir)
+        pending_dir = File.join(lib_dir, 'pending_llm_calls')
+        FileUtils.mkdir_p(pending_dir)
+
+        # Write a response file as Claude Code would
+        File.write(File.join(pending_dir, 'semantic_ingest_response.yaml'),
+          { 'response' => "core_understanding: test result\ncentral_tension: test tension" }.to_yaml)
+
+        env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
+        stdout, stderr, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
+          require_relative '#{File.expand_path('../../scripts/llm_client', __dir__)}'
+
+          result = LLMClient.call("Ignored prompt",
+            call_type: 'semantic_ingest', call_name: 'semantic_ingest',
+            pending_dir: '#{pending_dir}', max_tokens: 8192)
+          puts result
+        RUBY
+        expect(status.exitstatus).to eq(0)
+        expect(stdout).to include('core_understanding: test result')
+      end
+    end
+  end
+
   describe 'multi-video handling' do
     it 'concatenates transcripts from multiple videos with source markers' do
       Dir.mktmpdir do |dir|
