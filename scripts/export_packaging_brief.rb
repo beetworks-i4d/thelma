@@ -406,11 +406,12 @@ def build_title_prompt(hook, spine_state, content_type, template_name)
   PROMPT
 end
 
-def call_llm(prompt, profile)
+def call_llm(prompt, profile, pending_dir: nil, call_name: nil)
   if ENV['THELMA_LLM_STUB']
     return "[LLM stub — packaging suggestion placeholder]"
   end
-  LLMClient.call(prompt, call_type: 'packaging', profile: profile, max_tokens: 500)
+  LLMClient.call(prompt, call_type: 'packaging', profile: profile, max_tokens: 500,
+                 pending_dir: pending_dir, call_name: call_name)
 rescue => e
   $stderr.puts "  LLM call failed: #{e.message}"
   "[LLM unavailable — generate manually]"
@@ -442,7 +443,8 @@ def build_short_brief(hook, content_type, profile)
     Hook type: [curiosity/shock/promise/question]
   PROMPT
 
-  response = call_llm(prompt, profile)
+  brief_pending_dir = File.join(library_dir, 'pending_llm_calls')
+  response = call_llm(prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_short_text')
   lines << "## Text Direction"
   lines << ""
   response.strip.split("\n").each { |l| lines << "- #{l.strip}" unless l.strip.empty? }
@@ -493,8 +495,9 @@ else
   scored_peaks_for_thumb = arranged.map { |seg| [seg, segment_score(seg)] }
     .sort_by { |_, score| -score }
     .first(5)
+  brief_pending_dir = File.join(library_dir, 'pending_llm_calls')
   thumb_prompt = build_thumbnail_prompt(hook, scored_peaks_for_thumb, content_type, arranged)
-  thumb_response = call_llm(thumb_prompt, profile)
+  thumb_response = call_llm(thumb_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_thumbnail')
   sections << "## Thumbnail Direction"
   sections << "Based on hook state + peak moments + content type."
   thumb_response.strip.split("\n").each { |l| sections << "- #{l.strip}" unless l.strip.empty? }
@@ -504,7 +507,7 @@ else
   spine_state = build_spine(arranged).first&.sub('- Spine state: ', '') || 'unknown'
   template_name = storyline&.dig('template_match', 'template')
   title_prompt = build_title_prompt(hook, spine_state, content_type, template_name)
-  title_response = call_llm(title_prompt, profile)
+  title_response = call_llm(title_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_title')
   sections << "## Title Direction"
   sections << "Based on hook promise + spine + content type."
   title_response.strip.split("\n").each { |l| sections << "- #{l.strip}" unless l.strip.empty? }
