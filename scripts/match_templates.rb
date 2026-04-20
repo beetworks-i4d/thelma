@@ -18,6 +18,12 @@ if (idx = ARGV.index('--profile'))
   ARGV.delete_at(idx)
 end
 
+extra_template_path = nil
+if (idx = ARGV.index('--extra-template'))
+  extra_template_path = ARGV.delete_at(idx + 1)
+  ARGV.delete_at(idx)
+end
+
 storylines_path = ARGV[0]
 classified_path = ARGV[1]
 
@@ -33,6 +39,15 @@ templates = Dir.glob(File.join(templates_dir, '**', '*.yaml')).map do |path|
   YAML.safe_load(File.read(path))
 end
 abort "No templates found in #{templates_dir}" if templates.empty?
+
+# Load extra template from file path (e.g. synthesized by detect_structure)
+if extra_template_path && File.exist?(extra_template_path)
+  extra = YAML.safe_load(File.read(extra_template_path))
+  if extra && extra['beats']
+    templates << extra
+    $stderr.puts "Extra template loaded: #{extra['name']}"
+  end
+end
 
 # --- Profile-based category filtering (with content type fallback) ---
 profile = profile_name ? load_profile_by_name(profile_name) : load_profile(File.basename(File.dirname(storylines_path)))
