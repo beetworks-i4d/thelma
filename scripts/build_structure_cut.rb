@@ -355,6 +355,8 @@ clip_source_ranges = []
 pause_removal_markers = []
 removed_pause_count = 0
 total_removed_ms = 0
+# Track V1 timeline duration so V2+ clips can be positioned correctly
+v1_timeline_duration = 0.0
 
 # === Per-clip time domain detection ===
 # Field names are self-describing:
@@ -425,6 +427,12 @@ config['clips'].each_with_index do |c, idx|
     removable_pauses.sort_by! { |p| p['start'] }
   end
 
+  # === Read per-clip track assignment ===
+  clip_track_str = (c['track'] || 'V1').to_s.upcase
+  clip_video_track = clip_track_str.sub(/^V/, '').to_i
+  clip_video_track = 1 if clip_video_track < 1
+  clip_timeline_offset = c['timeline_offset'] ? c['timeline_offset'].to_f : nil
+
   # === Build sub-clips (or single clip if no pauses to remove) ===
   if removable_pauses.any?
     # Split at pause boundaries — work in video time
@@ -452,7 +460,15 @@ config['clips'].each_with_index do |c, idx|
       buffered_start = 0.0 if buffered_start < 0
       dur = (sr[:end] - sr[:start]) + start_buf + end_buf
 
-      clips << { path: video_path, start_at: buffered_start, duration: dur }
+      clip_hash = { path: video_path, start_at: buffered_start, duration: dur }
+      if clip_video_track > 1
+        clip_hash[:video_track] = clip_video_track
+        clip_hash[:audio_track] = clip_video_track
+        # V2+ clips: use explicit timeline_offset or current V1 position
+        offset = clip_timeline_offset || v1_timeline_duration
+        clip_hash[:timeline_offset] = offset + (is_first ? 0.0 : (sr[:start] - start_time))
+      end
+      clips << clip_hash
 
       wav_range_start = has_sync ? sr[:start] + sync_offset : sr[:start]
       wav_range_end = has_sync ? sr[:end] + sync_offset : sr[:end]
@@ -479,7 +495,13 @@ config['clips'].each_with_index do |c, idx|
     buffered_start = 0.0 if buffered_start < 0
     duration = (end_time - start_time) + (buffer * 2)
 
-    clips << { path: video_path, start_at: buffered_start, duration: duration }
+    clip_hash = { path: video_path, start_at: buffered_start, duration: duration }
+    if clip_video_track > 1
+      clip_hash[:video_track] = clip_video_track
+      clip_hash[:audio_track] = clip_video_track
+      clip_hash[:timeline_offset] = clip_timeline_offset || v1_timeline_duration
+    end
+    clips << clip_hash
 
     wav_range_start = has_sync ? start_time + sync_offset : start_time
     wav_range_end = has_sync ? end_time + sync_offset : end_time
@@ -490,6 +512,12 @@ config['clips'].each_with_index do |c, idx|
       wav_start = 0.0 if wav_start < 0
       wav_clip_info << { wav_start: wav_start, wav_duration: duration }
     end
+  end
+
+  # Update V1 timeline duration (only V1 clips advance the timeline)
+  if clip_video_track == 1
+    v1_timeline_duration = clips.select { |cl| !cl.key?(:video_track) || cl[:video_track] == 1 }
+                                .sum { |cl| cl[:duration] }
   end
 end
 
@@ -589,11 +617,16 @@ markers = (config['markers'] || []).map do |m|
 end
 
 # === Compute timeline positions ===
+# V1 clips are sequential; V2+ clips use their explicit timeline_offset
 timeline_positions = []
 cumulative = 0.0
 clips.each do |c|
-  timeline_positions << cumulative
-  cumulative += c[:duration]
+  if c[:timeline_offset]
+    timeline_positions << c[:timeline_offset]
+  else
+    timeline_positions << cumulative
+    cumulative += c[:duration]
+  end
 end
 
 # === Add "Auto-removed" / "Auto-split" markers at split join points ===
@@ -1136,13 +1169,15 @@ output_path = File.join(output_dir, "#{safe_name}_#{timestamp}.xml")
 File.write(output_path, final_xml)
 
 # === Summary ===
-total_duration = clips.sum { |c| c[:duration] }
+v1_clips = clips.reject { |c| c.key?(:video_track) && c[:video_track] > 1 }
+v2_plus_clips = clips.select { |c| c.key?(:video_track) && c[:video_track] > 1 }
+total_duration = v1_clips.sum { |c| c[:duration] }
 mins = (total_duration / 60).floor
 secs = (total_duration % 60).round
 
 puts output_path
 $stderr.puts "Structure cut generated: #{output_path}"
-summary = "Duration: #{mins}:#{format('%02d', secs)} | Clips: #{clips.length} | Markers: #{markers.length}"
+summary = "Duration: #{mins}:#{format('%02d', secs)} | Clips: #{clips.length} (V1: #{v1_clips.size}#{v2_plus_clips.any? ? ", V2+: #{v2_plus_clips.size}" : ''}) | Markers: #{markers.length}"
 summary += " (T1:#{tier1_markers.size} T2:#{tier2_markers.size} T3:#{tier3_count})" if tier1_markers.any? || tier2_markers.any? || tier3_count > 0
 summary += " | Pauses removed: #{removed_pause_count} (#{(total_removed_ms / 1000.0).round(1)}s)" if removed_pause_count > 0
 $stderr.puts summary
