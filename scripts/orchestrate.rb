@@ -28,6 +28,7 @@ library_name = nil
 profile_name = nil
 branch_override = nil
 analyze_only = false
+llm_mode = nil
 
 args = ARGV.dup
 while args.any?
@@ -44,13 +45,18 @@ while args.any?
   when '--analyze-only'
     args.shift
     analyze_only = true
+  when '--llm-mode'
+    args.shift
+    llm_mode = args.shift
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--llm-mode api|claude_code]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--llm-mode api|claude_code]" unless library_name
+
+LLMClient.mode = llm_mode.to_sym if llm_mode
 
 branch_override = 'C' if analyze_only
 
@@ -75,6 +81,10 @@ def run_script(script, *args)
   $stderr.puts "  $ #{cmd.join(' ')}"
   stdout, stderr, status = Open3.capture3(*cmd)
   $stderr.puts stderr unless stderr.strip.empty?
+  if status.exitstatus == 2
+    $stderr.puts "PIPELINE PAUSED: #{script} awaiting LLM input"
+    exit 2
+  end
   unless status.success?
     abort "\nPIPELINE ABORT: #{script} failed (exit #{status.exitstatus})\n#{stderr}"
   end
@@ -485,7 +495,14 @@ if best_fit < 70 || !has_longform
 
   if detected['viability'].nil?
     # Run viability check
-    viability_response = LLMClient.call(detected['viability_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 200)
+    pending_dir = File.join(library_dir, 'pending_llm_calls')
+    begin
+      viability_response = LLMClient.call(detected['viability_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 200,
+                                          pending_dir: pending_dir, call_name: 'structure_viability')
+    rescue LLMClient::Pending => e
+      $stderr.puts e.message
+      exit 2
+    end
     viability_line = viability_response.strip.lines.first&.strip || ''
     detected['viability'] = viability_line.split(' — ').first&.strip
     detected['viability_reason'] = viability_response.strip.lines[1]&.strip
@@ -494,7 +511,14 @@ if best_fit < 70 || !has_longform
 
   if %w[YES PARTIAL].include?(detected['viability']) && detected['synthesized_template'].nil?
     # Run synthesis
-    synthesis_response = LLMClient.call(detected['synthesis_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 1000)
+    pending_dir = File.join(library_dir, 'pending_llm_calls')
+    begin
+      synthesis_response = LLMClient.call(detected['synthesis_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 1000,
+                                          pending_dir: pending_dir, call_name: 'structure_synthesis')
+    rescue LLMClient::Pending => e
+      $stderr.puts e.message
+      exit 2
+    end
     # Parse YAML from response
     yaml_match = synthesis_response.match(/```yaml\n(.*?)```/m)
     if yaml_match
@@ -762,7 +786,14 @@ BEGIN {
       ```
     PROMPT
 
-    response = LLMClient.call(prompt, call_type: 'classification', profile: profile)
+    pending_dir = File.join(File.dirname(output_path), 'pending_llm_calls')
+    begin
+      response = LLMClient.call(prompt, call_type: 'classification', profile: profile,
+                                pending_dir: pending_dir, call_name: 'classification')
+    rescue LLMClient::Pending => e
+      $stderr.puts e.message
+      exit 2
+    end
 
     # Extract YAML from response (may be wrapped in markdown code block)
     yaml_text = response.gsub(/\A```ya?ml\s*/, '').gsub(/```\s*\z/, '').strip
