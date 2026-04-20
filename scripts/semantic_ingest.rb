@@ -32,6 +32,7 @@ ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
 library_name = nil
 profile_name = nil
 skip_review = false
+llm_mode = nil
 
 args = ARGV.dup
 while args.any?
@@ -45,13 +46,18 @@ while args.any?
   when '--no-review'
     args.shift
     skip_review = true
+  when '--llm-mode'
+    args.shift
+    llm_mode = args.shift
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/semantic_ingest.rb --library <name> [--profile <name>] [--no-review]"
+          "Usage: ruby scripts/semantic_ingest.rb --library <name> [--profile <name>] [--no-review] [--llm-mode api|claude_code]"
   end
 end
 
 abort "Usage: ruby scripts/semantic_ingest.rb --library <name>" unless library_name
+
+LLMClient.mode = llm_mode.to_sym if llm_mode
 
 # --- Load library ---
 
@@ -355,7 +361,14 @@ $stderr.puts "\n  Prompt: #{prompt.length} chars (~#{(prompt.length / 4.0).ceil}
 # ============================================================
 
 $stderr.puts "\n  Calling LLM (semantic_ingest)..."
-response = LLMClient.call(prompt, call_type: 'semantic_ingest', profile: profile, max_tokens: 8192)
+pending_dir = File.join(library_dir, 'pending_llm_calls')
+begin
+  response = LLMClient.call(prompt, call_type: 'semantic_ingest', profile: profile, max_tokens: 8192,
+                            pending_dir: pending_dir, call_name: 'semantic_ingest')
+rescue LLMClient::Pending => e
+  $stderr.puts e.message
+  exit 2
+end
 
 # Parse YAML response — strip code fences if present
 yaml_text = response.gsub(/\A```ya?ml\s*/, '').gsub(/```\s*\z/, '').strip
