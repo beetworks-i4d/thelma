@@ -59,6 +59,8 @@ library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date]
 library_name = library['library_name'] || File.basename(library_dir)
 
 profile = profile_name ? load_profile_by_name(profile_name) : load_profile(library_name)
+tone_guide = load_tone_guide(profile)
+tone_context = build_tone_context(profile, tone_guide)
 
 # Check profile setting
 unless profile.fetch('generate_packaging_brief', true)
@@ -364,10 +366,12 @@ end
 
 # == LLM sections ==
 
-def build_thumbnail_prompt(hook, peaks, content_type, arranged)
+def build_thumbnail_prompt(hook, peaks, content_type, arranged, tone_context = '')
   distillations = arranged.first(5).map { |s| s['distillation'] }.compact.join('; ')
   hook_state = (hook['states'] || ['unknown']).first
   peak_states = peaks.map { |s, _| (s['states'] || ['unknown']).first }.uniq.join(', ')
+
+  tone_block = tone_context.empty? ? '' : "\n#{tone_context}\nEnsure thumbnail language matches the creator's voice.\n"
 
   <<~PROMPT
     You are a YouTube packaging specialist. Based on the following video analysis, suggest thumbnail direction.
@@ -376,7 +380,7 @@ def build_thumbnail_prompt(hook, peaks, content_type, arranged)
     Hook emotional state: #{hook_state}
     Peak moment states: #{peak_states}
     Key distillations: #{distillations}
-
+    #{tone_block}
     Respond with EXACTLY this format (no extra text):
     Primary emotion: [emotion to induce in viewer]
     Visual suggestion: [2-3 sentence visual/composition direction]
@@ -385,9 +389,11 @@ def build_thumbnail_prompt(hook, peaks, content_type, arranged)
   PROMPT
 end
 
-def build_title_prompt(hook, spine_state, content_type, template_name)
+def build_title_prompt(hook, spine_state, content_type, template_name, tone_context = '')
   hook_distillation = hook['distillation'] || 'unknown'
   hook_state = (hook['states'] || ['unknown']).first
+
+  tone_block = tone_context.empty? ? '' : "\n#{tone_context}\nEnsure titles match the creator's voice — direct, specific, no hustle-guru energy.\n"
 
   <<~PROMPT
     You are a YouTube packaging specialist. Based on the following video analysis, suggest 3 title angles.
@@ -397,7 +403,7 @@ def build_title_prompt(hook, spine_state, content_type, template_name)
     Hook state: #{hook_state}
     Primary spine state: #{spine_state}
     Template: #{template_name || 'none matched'}
-
+    #{tone_block}
     Respond with EXACTLY this format (no extra text):
     Promise type: [transformation/comparison/revelation/instruction/story]
     1. [Title option] — [5-word reasoning]
@@ -496,7 +502,7 @@ else
     .sort_by { |_, score| -score }
     .first(5)
   brief_pending_dir = File.join(library_dir, 'pending_llm_calls')
-  thumb_prompt = build_thumbnail_prompt(hook, scored_peaks_for_thumb, content_type, arranged)
+  thumb_prompt = build_thumbnail_prompt(hook, scored_peaks_for_thumb, content_type, arranged, tone_context)
   thumb_response = call_llm(thumb_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_thumbnail')
   sections << "## Thumbnail Direction"
   sections << "Based on hook state + peak moments + content type."
@@ -506,7 +512,7 @@ else
   # Title Direction (LLM)
   spine_state = build_spine(arranged).first&.sub('- Spine state: ', '') || 'unknown'
   template_name = storyline&.dig('template_match', 'template')
-  title_prompt = build_title_prompt(hook, spine_state, content_type, template_name)
+  title_prompt = build_title_prompt(hook, spine_state, content_type, template_name, tone_context)
   title_response = call_llm(title_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_title')
   sections << "## Title Direction"
   sections << "Based on hook promise + spine + content type."

@@ -76,6 +76,8 @@ abort "Library not found: #{library_dir}" unless File.exist?(library_yaml_path)
 
 library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
 profile = profile_name ? load_profile_by_name(profile_name) : load_profile(library_name)
+tone_guide = load_tone_guide(profile)
+tone_context = build_tone_context(profile, tone_guide)
 
 output_path = File.join(library_dir, 'arrangement.yaml')
 
@@ -253,6 +255,7 @@ prompt = <<~PROMPT
 
   #{script_block}
   #{asset_pool ? "## Asset Pool\n#{asset_pool.to_yaml}\n" : ''}
+  #{tone_context.empty? ? '' : "#{tone_context}\n"}
   ## Constraints
   target_format: #{target_format}
   target_duration_range: #{target_duration_range} seconds

@@ -71,6 +71,8 @@ abort "No videos in library.yaml" if videos.empty?
 
 transcripts_dir = File.join(library_dir, 'transcripts')
 profile = profile_name ? load_profile_by_name(profile_name) : load_profile(library_name)
+tone_guide = load_tone_guide(profile)
+tone_context = build_tone_context(profile, tone_guide)
 
 output_path = File.join(library_dir, 'semantic_ingest.yaml')
 
@@ -289,7 +291,7 @@ prompt = <<~PROMPT
   #{audio_summary.empty? ? '' : "## Audio Delivery Analysis\n#{audio_summary}\n"}
   #{visual_summary.empty? ? '' : "## Visual Analysis\n#{visual_summary}\n"}
   #{script_block.empty? ? '' : "## Script/Outline (provided by creator)\n#{script_block}\n"}
-
+  #{tone_context.empty? ? '' : "#{tone_context}\n"}
   ## Output Format
 
   Respond with ONLY valid YAML. Use the exact schema below. Do not wrap in markdown code fences.
