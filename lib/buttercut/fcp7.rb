@@ -28,11 +28,6 @@ class ButterCut
       'NOTE' => 'yellow'
     }.freeze
 
-    # Premiere Pro clip label colors (used in <labels><label2>)
-    # These are the exact color names Premiere Pro recognizes in xmeml.
-    LABEL_COLORS = %w[Violet Iris Caribbean Blue Cerulean Forest
-                      Mango Rose Lavender Lemon].freeze
-
     attr_reader :markers
 
     def initialize(clips, markers: [], name: nil)
@@ -263,8 +258,7 @@ class ButterCut
           audio_track: clip[:audio_track],
           source_video_stream: source_video_stream,
           source_audio_stream: source_audio_stream,
-          media_type: clip[:media_type],
-          label_color: clip_def&.fetch(:label_color, nil)
+          media_type: clip[:media_type]
         }
       end
     end
@@ -290,7 +284,6 @@ class ButterCut
         xml.end_ payload[:timeline_end]
         xml.in_ payload[:source_in]
         xml.out payload[:source_out]
-        build_label(xml, payload)
         build_file_ref(xml, payload, include_video: true)
         xml.sourcetrack do
           xml.mediatype 'video'
@@ -311,7 +304,6 @@ class ButterCut
         xml.end_ payload[:timeline_end]
         xml.in_ payload[:source_in]
         xml.out payload[:source_out]
-        build_label(xml, payload)
         build_file_ref(xml, payload, include_video: false)
         xml.sourcetrack do
           xml.mediatype 'audio'
@@ -319,17 +311,6 @@ class ButterCut
         end
         xml.channelcount 2
         build_link_entries(xml, payload)
-      end
-    end
-
-    def build_label(xml, payload)
-      return unless payload[:label_color]
-      color = payload[:label_color]
-      unless LABEL_COLORS.include?(color)
-        raise ArgumentError, "Invalid label_color '#{color}'. Must be one of: #{LABEL_COLORS.join(', ')}"
-      end
-      xml.labels do
-        xml.label2 color
       end
     end
 

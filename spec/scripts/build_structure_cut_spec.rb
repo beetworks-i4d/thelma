@@ -1393,8 +1393,8 @@ RSpec.describe 'build_structure_cut.rb' do
     end
   end
 
-  describe 'narrative_role clip coloring' do
-    it 'applies Premiere label colors based on narrative_role' do
+  describe 'Tier 0 narrative role markers' do
+    it 'generates colored point markers at clip starts for each narrative_role' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
         config['clips'] = [
@@ -1409,17 +1409,23 @@ RSpec.describe 'build_structure_cut.rb' do
         expect(status.exitstatus).to eq(0)
 
         doc = Nokogiri::XML(File.read(stdout.strip))
-        video_clips = doc.xpath('//sequence/media/video/track/clipitem')
-        labels = video_clips.map { |c| c.at_xpath('labels/label2')&.text }
+        markers = doc.xpath('//sequence/marker')
+        role_markers = markers.select { |m| %w[HOOK SETUP CONTINUATION PAYOFF].include?(m.at_xpath('name').text) }
 
-        expect(labels[0]).to eq('Forest')     # hook → Green
-        expect(labels[1]).to eq('Mango')      # setup → Orange
-        expect(labels[2]).to eq('Caribbean')  # continuation → Blue
-        expect(labels[3]).to eq('Lavender')   # payoff → Purple
+        expect(role_markers.size).to eq(4)
+        names = role_markers.map { |m| m.at_xpath('name').text }
+        expect(names).to eq(%w[HOOK SETUP CONTINUATION PAYOFF])
+
+        # Verify pproColor values
+        ppro_colors = role_markers.map { |m| m.at_xpath('pproColor')&.text }
+        expect(ppro_colors[0]).to eq('4279486782')  # green
+        expect(ppro_colors[1]).to eq('4280578025')  # orange
+        expect(ppro_colors[2]).to eq('4294153761')  # blue
+        expect(ppro_colors[3]).to eq('4289734556')  # purple
       end
     end
 
-    it 'omits label when narrative_role is transition or absent' do
+    it 'skips markers for transition role and absent role' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
         config['clips'] = [
@@ -1432,10 +1438,9 @@ RSpec.describe 'build_structure_cut.rb' do
         expect(status.exitstatus).to eq(0)
 
         doc = Nokogiri::XML(File.read(stdout.strip))
-        video_clips = doc.xpath('//sequence/media/video/track/clipitem')
-        video_clips.each do |clip|
-          expect(clip.at_xpath('labels')).to be_nil
-        end
+        markers = doc.xpath('//sequence/marker')
+        role_markers = markers.select { |m| %w[HOOK SETUP CONTINUATION PAYOFF TRANSITION].include?(m.at_xpath('name').text) }
+        expect(role_markers.size).to eq(0)
       end
     end
   end

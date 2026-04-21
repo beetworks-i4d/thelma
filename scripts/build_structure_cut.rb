@@ -175,12 +175,20 @@ $stderr.puts "Output: #{out_desc}"
 breathing_room_frames = config['breathing_room_frames'] || 3
 buffer = breathing_room_frames.to_f / fps
 
-# === Narrative role → Premiere clip label color ===
-ROLE_LABEL_COLORS = {
-  'hook'         => 'Forest',     # Green
-  'setup'        => 'Mango',      # Orange
-  'continuation' => 'Caribbean',  # Blue
-  'payoff'       => 'Lavender',   # Purple
+# === Tier 0: Narrative role indicator markers (point markers at clip starts) ===
+# Replaces clip label coloring (which Premiere ties to source media, not timeline instances).
+ROLE_MARKER_PPRO = {
+  'hook'         => 4279486782,   # Green
+  'setup'        => 4280578025,   # Orange
+  'continuation' => 4294153761,   # Blue
+  'payoff'       => 4289734556,   # Purple
+}.freeze
+
+ROLE_MARKER_FCP_COLOR = {
+  'hook'         => 'green',
+  'setup'        => 'orange',
+  'continuation' => 'blue',
+  'payoff'       => 'purple',
 }.freeze
 
 # === Build clips ===
@@ -515,6 +523,8 @@ removed_pause_count = 0
 total_removed_ms = 0
 # Track V1 timeline duration so V2+ clips can be positioned correctly
 v1_timeline_duration = 0.0
+# Tier 0: collect narrative role marker data during clip processing
+tier0_role_markers = []
 
 # === Per-clip time domain detection ===
 # Field names are self-describing:
@@ -636,8 +646,12 @@ config['clips'].each_with_index do |c, idx|
   clip_video_track = 1 if clip_video_track < 1
   clip_timeline_offset = c['timeline_offset'] ? c['timeline_offset'].to_f : nil
 
-  # === Narrative role → clip label color ===
-  clip_label_color = ROLE_LABEL_COLORS[c['narrative_role']]
+  # === Tier 0: Narrative role indicator marker at clip start ===
+  role = c['narrative_role']
+  if role && role != 'transition' && ROLE_MARKER_PPRO[role]
+    role_tl_pos = (clip_video_track > 1) ? (clip_timeline_offset || v1_timeline_duration) : v1_timeline_duration
+    tier0_role_markers << { role: role, time: role_tl_pos }
+  end
 
   # === Build sub-clips (or single clip if no pauses to remove) ===
   if removable_pauses.any?
@@ -725,7 +739,6 @@ config['clips'].each_with_index do |c, idx|
       dur = (sr[:end] - sr[:start]) + start_buf + end_buf
 
       clip_hash = { path: video_path, start_at: buffered_start, duration: dur }
-      clip_hash[:label_color] = clip_label_color if clip_label_color
       if clip_video_track > 1
         clip_hash[:video_track] = clip_video_track
         clip_hash[:audio_track] = clip_video_track
@@ -761,7 +774,6 @@ config['clips'].each_with_index do |c, idx|
     duration = (end_time - start_time) + (buffer * 2)
 
     clip_hash = { path: video_path, start_at: buffered_start, duration: duration }
-    clip_hash[:label_color] = clip_label_color if clip_label_color
     if clip_video_track > 1
       clip_hash[:video_track] = clip_video_track
       clip_hash[:audio_track] = clip_video_track
@@ -843,7 +855,6 @@ if max_segment_duration && long_pauses
       dur = (sub_end - sub_start) + start_buf + end_buf
 
       sub_clip = { path: video_path, start_at: buffered_start, duration: dur }
-      sub_clip[:label_color] = clip[:label_color] if clip[:label_color]
       new_clips << sub_clip
 
       wav_s = has_sync ? sub_start + sync_offset : sub_start
@@ -937,6 +948,24 @@ if long_pauses && speech_segments
     end
   end
 end
+
+# =============================================================================
+# TIER 0: NARRATIVE ROLE INDICATOR MARKERS
+# =============================================================================
+# Point markers at each clip's start position, colored by narrative_role.
+# Provides visual role identification in the timeline without relying on
+# Premiere's <labels> system (which ties to source media, not instances).
+# =============================================================================
+tier0_role_markers.each do |rm|
+  markers << {
+    name: rm[:role].upcase,
+    comment: "Role: #{rm[:role]}",
+    time: rm[:time],
+    color: ROLE_MARKER_FCP_COLOR[rm[:role]],
+    pproColor: ROLE_MARKER_PPRO[rm[:role]]
+  }
+end
+$stderr.puts "Tier 0 (role indicators): #{tier0_role_markers.size} markers" if tier0_role_markers.any?
 
 # =============================================================================
 # THREE-TIER MARKER SYSTEM

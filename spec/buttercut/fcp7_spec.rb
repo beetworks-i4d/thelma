@@ -100,33 +100,5 @@ RSpec.describe ButterCut::FCP7 do
       expect(xml).to include('<frame>90000</frame>')
     end
 
-    context 'with label_color' do
-      let(:generator) do
-        described_class.new([
-          { path: clip_a_path, label_color: 'Forest' },
-          { path: clip_b_path, start_at: 1.0, duration: 2.0 }
-        ])
-      end
-
-      it 'adds <labels><label2> to clipitem with label_color' do
-        xml = generator.to_xml
-        # First clip has Forest label
-        expect(xml).to match(/<clipitem id="clipitem-video-1">.*?<labels>.*?<label2>Forest<\/label2>.*?<\/labels>/m)
-        expect(xml).to match(/<clipitem id="clipitem-audio-1">.*?<labels>.*?<label2>Forest<\/label2>.*?<\/labels>/m)
-      end
-
-      it 'omits <labels> when clip has no label_color' do
-        xml = generator.to_xml
-        # Second clip has no label — should not have <labels> in its clipitem
-        video2_section = xml[xml.index('clipitem-video-2')..xml.index('</clipitem>', xml.index('clipitem-video-2'))]
-        expect(video2_section).not_to include('<labels>')
-      end
-
-      it 'rejects invalid label_color values' do
-        expect {
-          described_class.new([{ path: clip_a_path, label_color: 'InvalidColor' }]).to_xml
-        }.to raise_error(ArgumentError, /Invalid label_color/)
-      end
-    end
   end
 end
