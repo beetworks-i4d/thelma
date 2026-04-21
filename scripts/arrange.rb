@@ -26,21 +26,7 @@ require_relative 'llm_client'
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
 
-ROLE_COLORS = {
-  'hook'       => 4279486782,  # Green
-  'setup'      => 4280578025,  # Orange
-  'argument'   => 4294153761,  # Blue
-  'body'       => 4294153761,  # Blue
-  'evidence'   => 4294153761,  # Blue
-  'example'    => 4292131840,  # Cyan
-  'quote'      => 4292131840,  # Cyan
-  'anecdote'   => 4292131840,  # Cyan
-  'payoff'     => 4289734556,  # Purple
-  'resolution' => 4289734556,  # Purple
-  'conclusion' => 4289734556,  # Purple
-  'transition' => 4281719037,  # Yellow
-  'bridge'     => 4281719037,  # Yellow
-}.freeze
+VALID_NARRATIVE_ROLES = %w[hook setup continuation payoff transition].freeze
 
 # --- CLI parsing ---
 
@@ -287,7 +273,7 @@ prompt = <<~PROMPT
   9. **trim_in**: If a clip has `trim_in`, use that as the effective t_in instead of `t`. Pass `trim_in` through to the output clip.
   10. **mid_cuts**: If a clip has `mid_cuts`, pass them through to the output clip unchanged. They represent internal ranges to excise.
   11. **Duration**: Estimate total duration from sum of (t_out - t_in) for all V1 clips. Warn if outside target range.
-  12. **Narrative roles**: Assign a narrative_role to each clip from: hook, setup, argument, body, evidence, example, quote, anecdote, payoff, resolution, conclusion, transition, bridge.
+  12. **Narrative roles**: Assign a narrative_role to each clip from: hook, setup, continuation, payoff, transition. Use `continuation` for anything developing the thought (arguments, evidence, examples, anecdotes, body). Use `transition` for bridges between sections.
 
   ## Output Schema
 
@@ -310,13 +296,11 @@ prompt = <<~PROMPT
           source: "<filename>"
           track: V1
           narrative_role: hook
-          content_summary: "What happens in this clip"
         - t_in: <start_seconds>
           t_out: <end_seconds>
           source: "<filename>"
           track: V2
-          narrative_role: evidence
-          content_summary: "Alternate take or B-roll"
+          narrative_role: continuation
           trim_in: <seconds>
           mid_cuts:
             - [<cut_start>, <cut_end>]
@@ -403,6 +387,11 @@ all_clips.each do |clip|
   t_in = clip['t_in'].to_f
   t_out = clip['t_out'].to_f
   abort "ABORT: Clip t_out (#{t_out}) must be > t_in (#{t_in})" unless t_out > t_in
+
+  unless VALID_NARRATIVE_ROLES.include?(clip['narrative_role'])
+    $stderr.puts "  WARNING: Unknown narrative_role '#{clip['narrative_role']}' at t_in=#{t_in} — defaulting to 'continuation'"
+    clip['narrative_role'] = 'continuation'
+  end
 
   if unusable_t_values.include?(t_in)
     abort "ABORT: Clip at t_in=#{t_in} references an unusable clip"

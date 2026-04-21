@@ -25,7 +25,7 @@ VALID_STATES = %w[
 VALID_DURABILITY = %w[spike mood identity].freeze
 VALID_ROLES = %w[primary secondary tertiary].freeze
 VALID_CONFIDENCE = %w[high medium low].freeze
-VALID_NARRATIVE_ROLES = %w[claim evidence setup payoff definition aside transition].freeze
+VALID_NARRATIVE_ROLES = %w[hook setup continuation payoff transition claim evidence definition aside].freeze
 VALID_BEATS = %w[hook close talking_point_1 talking_point_2 talking_point_3
                  talking_point_4 talking_point_5 talking_point_6].freeze
 

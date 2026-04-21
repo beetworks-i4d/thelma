@@ -81,10 +81,10 @@ def build_arrange_test_library(dir, opts = {})
         { 't' => 5.36, 'e' => 17.79, 'narrative_role' => 'hook', 'dur' => '12.4s', 'confidence' => 92, 'audio_profile' => 'emphatic', 'states' => ['engaging'], 'distillation' => 'AI art cultural moment' },
         { 't' => 21.30, 'e' => 34.11, 'narrative_role' => 'hook', 'dur' => '12.8s', 'confidence' => 85, 'audio_profile' => 'casual', 'states' => ['retake'], 'distillation' => 'Second take opening' },
         { 't' => 40.99, 'e' => 50.92, 'narrative_role' => 'setup', 'dur' => '9.9s', 'confidence' => 88, 'audio_profile' => 'casual', 'states' => ['informing'], 'distillation' => 'OpenAI launch context' },
-        { 't' => 99.13, 'e' => 111.46, 'narrative_role' => 'evidence', 'dur' => '12.3s', 'confidence' => 90, 'audio_profile' => 'casual', 'states' => ['building'], 'distillation' => 'Historical parallel' },
-        { 't' => 114.92, 'e' => 116.99, 'narrative_role' => 'argument', 'dur' => '2.1s', 'confidence' => 95, 'audio_profile' => 'emphatic', 'states' => ['asserting'], 'distillation' => 'Contrarian thesis punch' },
-        { 't' => 200.00, 'e' => 220.00, 'narrative_role' => 'body', 'dur' => '20.0s', 'confidence' => 87, 'audio_profile' => 'casual', 'states' => ['explaining'], 'distillation' => 'Human judgment value' },
-        { 't' => 250.00, 'e' => 270.00, 'narrative_role' => 'conclusion', 'dur' => '20.0s', 'confidence' => 91, 'audio_profile' => 'urgent', 'states' => ['concluding'], 'distillation' => 'Magic of human creativity' }
+        { 't' => 99.13, 'e' => 111.46, 'narrative_role' => 'continuation', 'dur' => '12.3s', 'confidence' => 90, 'audio_profile' => 'casual', 'states' => ['building'], 'distillation' => 'Historical parallel' },
+        { 't' => 114.92, 'e' => 116.99, 'narrative_role' => 'continuation', 'dur' => '2.1s', 'confidence' => 95, 'audio_profile' => 'emphatic', 'states' => ['asserting'], 'distillation' => 'Contrarian thesis punch' },
+        { 't' => 200.00, 'e' => 220.00, 'narrative_role' => 'continuation', 'dur' => '20.0s', 'confidence' => 87, 'audio_profile' => 'casual', 'states' => ['explaining'], 'distillation' => 'Human judgment value' },
+        { 't' => 250.00, 'e' => 270.00, 'narrative_role' => 'payoff', 'dur' => '20.0s', 'confidence' => 91, 'audio_profile' => 'urgent', 'states' => ['concluding'], 'distillation' => 'Magic of human creativity' }
       ]
     }
     File.write(File.join(lib_dir, 'segments_classified.yaml'), classified.to_yaml)
@@ -143,16 +143,16 @@ def build_valid_arrangement(lib_dir, cache_hash: 'test_hash')
         'label' => 'Context — historical parallels',
         'clips' => [
           { 't_in' => 40.99, 't_out' => 50.92, 'source' => 'test_video.mp4', 'track' => 'V1', 'narrative_role' => 'setup', 'content_summary' => 'OpenAI launch' },
-          { 't_in' => 99.13, 't_out' => 111.46, 'source' => 'test_video.mp4', 'track' => 'V1', 'narrative_role' => 'evidence', 'content_summary' => 'Death of art' }
+          { 't_in' => 99.13, 't_out' => 111.46, 'source' => 'test_video.mp4', 'track' => 'V1', 'narrative_role' => 'continuation', 'content_summary' => 'Death of art' }
         ]
       },
       {
         'id' => 'ch_03',
         'label' => 'Thesis — human judgment',
         'clips' => [
-          { 't_in' => 114.92, 't_out' => 116.99, 'source' => 'test_video.mp4', 'track' => 'V1', 'narrative_role' => 'argument', 'content_summary' => "Don't buy it" },
-          { 't_in' => 200.00, 't_out' => 220.00, 'source' => 'test_video.mp4', 'track' => 'V1', 'narrative_role' => 'body', 'content_summary' => 'Human judgment' },
-          { 't_in' => 250.00, 't_out' => 270.00, 'source' => 'test_video.mp4', 'track' => 'V1', 'narrative_role' => 'conclusion', 'content_summary' => 'Magical power' }
+          { 't_in' => 114.92, 't_out' => 116.99, 'source' => 'test_video.mp4', 'track' => 'V1', 'narrative_role' => 'continuation', 'content_summary' => "Don't buy it" },
+          { 't_in' => 200.00, 't_out' => 220.00, 'source' => 'test_video.mp4', 'track' => 'V1', 'narrative_role' => 'continuation', 'content_summary' => 'Human judgment' },
+          { 't_in' => 250.00, 't_out' => 270.00, 'source' => 'test_video.mp4', 'track' => 'V1', 'narrative_role' => 'payoff', 'content_summary' => 'Magical power' }
         ]
       }
     ],
