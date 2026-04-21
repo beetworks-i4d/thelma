@@ -430,16 +430,33 @@ def trim_restart_inpoint(start_time, end_time, all_words, sync_offset, has_sync)
         end
         next unless match_at
 
-        # Compute tail content for restart vs rhetorical detection
-        first_tail = (i + plen...match_at).map { |j| norms[j] }
+        # Walk back from match_at to find second attempt start (nearest gap >= 300ms)
+        second_attempt_start = match_at
+        ([i + plen, match_at - 20].max...match_at).to_a.reverse_each do |g|
+          gap = clip_words[g]['start'].to_f - clip_words[g - 1]['end'].to_f
+          if gap >= RESTART_GAP_THRESHOLD
+            second_attempt_start = g
+            break
+          end
+        end
+
+        # Compute tails using second_attempt_start (not match_at) for first tail
+        # First tail: what speaker said after phrase before giving up (between phrase end and restart)
+        first_tail = (i + plen...second_attempt_start).map { |j| norms[j] }
                        .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
         second_tail_end = [match_at + plen + 25, norms.size].min
         second_tail = (match_at + plen...second_tail_end).map { |j| norms[j] }
                         .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
 
         # Don't trim if second occurrence doesn't continue further
-        # (restart = incomplete first, more complete second)
         next if second_tail.size <= first_tail.size
+
+        # Short parallel protection: "X of A, X of B" in continuous speech
+        # Only applies when no significant gap was found (second_attempt_start == match_at)
+        if second_attempt_start == match_at && first_tail.size >= 1 && first_tail.size <= 3
+          unique_first = first_tail - second_tail
+          next if unique_first.size >= 1 # First tail has unique content → deliberate parallel
+        end
 
         # Rhetorical protection: both tails substantial with different content → preserve
         if first_tail.size >= 2 && second_tail.size >= 2
@@ -447,14 +464,15 @@ def trim_restart_inpoint(start_time, end_time, all_words, sync_offset, has_sync)
           next if overlap < 0.5
         end
 
-        # Find the start of the second attempt by walking back from match_at
-        # to the nearest significant time gap (>300ms between consecutive words)
-        second_attempt_start = match_at
-        ([i + plen, match_at - 20].max...match_at).to_a.reverse_each do |g|
-          gap = clip_words[g]['start'].to_f - clip_words[g - 1]['end'].to_f
-          if gap >= RESTART_GAP_THRESHOLD
-            second_attempt_start = g
-            break
+        # Pre-phrase content check: if substantial unique content before the phrase,
+        # this isn't an in-point issue (legitimate content precedes the restart)
+        if i > 0
+          pre_content = (0...i).map { |j| norms[j] }
+                          .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
+          if pre_content.size > 2
+            second_attempt_words = norms[second_attempt_start, 30]&.to_set || Set.new
+            unique_pre = pre_content.reject { |w| second_attempt_words.include?(w) }
+            next if unique_pre.size > 2 # Substantial unique content before restart → skip
           end
         end
 
