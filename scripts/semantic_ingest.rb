@@ -312,12 +312,20 @@ prompt = <<~PROMPT
       clips:
         - t: <start_time_seconds>
           source: "<filename>"
-          take_variant: primary
+          usability: fine
           content_summary: "What the speaker says/does"
         - t: <start_time>
           source: "<filename>"
-          take_variant: alternate
+          usability: unusable
+          content_summary: "Abandoned take — trails off"
+        - t: <start_time>
+          source: "<filename>"
+          usability: fine
+          cluster: topic_name
           content_summary: "Near-duplicate retake of same content"
+          trim_in: <seconds>
+          mid_cuts:
+            - [<cut_start>, <cut_end>]
 
   open_loops:
     structural:
@@ -330,25 +338,15 @@ prompt = <<~PROMPT
         closes_at: <t_value>
         description: "Setup and payoff within one section"
 
-  best_take_hints:
-    - cluster_topic: "Topic of near-duplicate cluster"
-      clips: [t_value1, t_value2]
-      strongest_candidate: <t_value>
-      reasoning: "Why this take is strongest"
-
-  unusable_clips:
-    - t: <start_time>
-      source: "<filename>"
-      reason: "Why this clip is unusable"
-
   ## Rules
 
   - clip_groups: Group by SEMANTIC topic, not chronology. A group = one idea/argument/section.
   - Each transcript segment [start-end] becomes one clip. Use the start time as `t`.
-  - take_variant: Mark `alternate` when two clips cover the same content (retakes, false starts that restart). Mark `primary` for the best or only version.
-  - If you're unsure which take is better, pick the one with clearest delivery as primary and note uncertainty in best_take_hints reasoning.
+  - usability: `fine` = clean, usable as-is. `marginal` = serviceable but has minor issues (stumble, low energy, rough phrasing). `unusable` = abandoned take, unintelligible, pure filler.
+  - cluster: When two or more clips cover the same content (retakes), assign the SAME cluster name (short lowercase label like `opening_hook` or `ai_fear_thesis`). Leave null for unique clips.
+  - trim_in: If the speaker stumbles or false-starts at the beginning of a clip, set trim_in to the timestamp where clean speech begins. Only set when there's a clear restart within the first few seconds. Omit otherwise.
+  - mid_cuts: If the speaker abandons a phrase mid-clip then restarts, list the abandoned ranges as [[start, end], ...] to be cut out. Only for clear mid-clip false starts. Omit otherwise.
   - open_loops: Structural = big arcs across the video. Local = setup-payoff within one group.
-  - unusable_clips: Incomplete thoughts that trail off, unintelligible audio, pure filler with no content.
   - Use actual t-values from the transcript. Do not invent timestamps.
   - Every transcript segment must appear in exactly one clip_group (no orphans, no duplicates).
   - IDs are sequential: group_001, group_002, etc.
@@ -418,10 +416,16 @@ result['llm_model'] = profile.dig('llm_routing', 'semantic_ingest') || LLMClient
 result['open_loops'] ||= { 'structural' => [], 'local' => [] }
 result['open_loops']['structural'] ||= []
 result['open_loops']['local'] ||= []
-result['best_take_hints'] ||= []
-result['unusable_clips'] ||= []
 result['script_or_outline_present'] = script_present
 result['script_type'] ||= script_type_hint
+
+# Normalize per-clip usability fields
+(result['clip_groups'] || []).each do |g|
+  (g['clips'] || []).each do |c|
+    c['usability'] ||= 'fine'
+    # Ensure trim_in/mid_cuts/cluster are nil-safe (don't add if not present)
+  end
+end
 
 # ============================================================
 # WRITE OUTPUT
@@ -442,9 +446,14 @@ unless skip_review
   $stderr.puts result['core_understanding']
   $stderr.puts "\n## Central Tension\n\n"
   $stderr.puts result['central_tension']
+  all_clips = clip_groups.flat_map { |g| g['clips'] || [] }
+  fine_count = all_clips.count { |c| c['usability'] == 'fine' }
+  marginal_count = all_clips.count { |c| c['usability'] == 'marginal' }
+  unusable_count = all_clips.count { |c| c['usability'] == 'unusable' }
+  cluster_count = all_clips.map { |c| c['cluster'] }.compact.uniq.size
   $stderr.puts "\n#{clip_groups.size} clip groups | #{total_clips} clips | " \
-               "#{result['best_take_hints'].size} take hints | " \
-               "#{result['unusable_clips'].size} unusable"
+               "#{fine_count} fine, #{marginal_count} marginal, #{unusable_count} unusable | " \
+               "#{cluster_count} clusters"
   $stderr.puts "\n(y) Continue  (r) Show full output  (n) Abort"
   $stderr.print "> "
 
