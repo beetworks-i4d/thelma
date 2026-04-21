@@ -541,6 +541,15 @@ config['clips'].each_with_index do |c, idx|
 
   abort "Clip end (#{end_time}) must be after start (#{start_time})" if end_time <= start_time
 
+  # === Apply trim_in from ingest (LLM-designated in-point adjustment) ===
+  if c['trim_in']
+    trim_in_val = c['trim_in'].to_f
+    if trim_in_val > start_time && trim_in_val < end_time
+      $stderr.puts "Clip #{idx + 1}: trim_in #{'%.2f' % start_time}→#{'%.2f' % trim_in_val}s (ingest)"
+      start_time = trim_in_val
+    end
+  end
+
   # Snap-to-boundary if speech analysis is available
   if speech_segments
     if has_sync
@@ -571,6 +580,20 @@ config['clips'].each_with_index do |c, idx|
     end
   end
 
+  # === Apply mid_cuts from ingest (internal ranges to excise) ===
+  mid_cut_ranges = []
+  if c['mid_cuts'] && c['mid_cuts'].is_a?(Array)
+    c['mid_cuts'].each do |mc|
+      next unless mc.is_a?(Array) && mc.size == 2
+      mc_start = mc[0].to_f
+      mc_end = mc[1].to_f
+      if mc_start > start_time && mc_end < end_time && mc_end > mc_start
+        mid_cut_ranges << { 'start' => mc_start, 'end' => mc_end, 'duration' => mc_end - mc_start }
+        $stderr.puts "Clip #{idx + 1}: mid_cut #{'%.2f' % mc_start}→#{'%.2f' % mc_end}s (#{'%.1f' % (mc_end - mc_start)}s excised, ingest)"
+      end
+    end
+  end
+
   # === Find internal pauses to remove ===
   removable_pauses = []
   if pause_removal_threshold && long_pauses
@@ -581,6 +604,19 @@ config['clips'].each_with_index do |c, idx|
       if p['start'] > wav_check_start + 0.5 && p['end'] < wav_check_end - 0.5 &&
          p['duration'] >= pause_removal_threshold
         removable_pauses << p
+      end
+    end
+    removable_pauses.sort_by! { |p| p['start'] }
+  end
+
+  # Merge mid_cut_ranges into removable_pauses (mid_cuts are in video time)
+  if mid_cut_ranges.any?
+    mid_cut_ranges.each do |mc|
+      # Convert to WAV time if sync_audio is present (to match removable_pauses format)
+      if has_sync
+        removable_pauses << { 'start' => mc['start'] + sync_offset, 'end' => mc['end'] + sync_offset, 'duration' => mc['duration'] }
+      else
+        removable_pauses << mc
       end
     end
     removable_pauses.sort_by! { |p| p['start'] }
