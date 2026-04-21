@@ -73,6 +73,10 @@ arrangement['chapters'].each do |chapter|
       'track' => track
     }
 
+    # Pass through ingest trim fields
+    clip_entry['trim_in'] = clip['trim_in'].to_f if clip['trim_in']
+    clip_entry['mid_cuts'] = clip['mid_cuts'] if clip['mid_cuts']
+
     if track == 'V1'
       v1_clips << clip_entry
     else
