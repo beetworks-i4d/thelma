@@ -104,6 +104,17 @@ def run_brief(dir, xml_path, flags: {})
   { stdout: stdout.strip, stderr: stderr, exit_code: status.exitstatus, result: result, path: stdout.strip }
 end
 
+def run_brief_with_library(library_name, output_xml = nil, flags: {})
+  args = ['ruby', BRIEF_SCRIPT, '--library', library_name]
+  args += ['--output', output_xml] if output_xml
+  args += ['--profile', flags[:profile]] if flags[:profile]
+  args += ['--llm-mode', flags[:llm_mode]] if flags[:llm_mode]
+  args << '--no-review' if flags[:no_review]
+  env = { 'THELMA_LLM_STUB' => '1' }
+  stdout, stderr, status = Open3.capture3(env, *args)
+  { stdout: stdout.strip, stderr: stderr, exit_code: status.exitstatus }
+end
+
 RSpec.describe 'export_packaging_brief.rb' do
   describe 'CLI validation' do
     it 'exits 1 with usage when no arguments' do
@@ -125,6 +136,91 @@ RSpec.describe 'export_packaging_brief.rb' do
         r = run_brief(dir, '/tmp/test_20250419-120000.xml')
         expect(r[:exit_code]).to eq(1)
         expect(r[:stderr]).to include('segments_classified.yaml')
+      end
+    end
+
+    it 'accepts --library flag to resolve library directory' do
+      r = run_brief_with_library('nonexistent-test-lib-xyz')
+      expect(r[:exit_code]).to eq(1)
+      expect(r[:stderr]).to include('not found')
+    end
+
+    it 'emits deprecation warning for --library-dir' do
+      _, stderr, _ = Open3.capture3({ 'THELMA_LLM_STUB' => '1' },
+        'ruby', BRIEF_SCRIPT, '--library-dir', '/nonexistent', '--output', '/tmp/test.xml')
+      expect(stderr).to include('DEPRECATED')
+    end
+
+    it 'accepts --llm-mode flag without error' do
+      _, stderr, status = Open3.capture3({ 'THELMA_LLM_STUB' => '1' },
+        'ruby', BRIEF_SCRIPT, '--library', 'nonexistent-xyz', '--llm-mode', 'claude_code')
+      # Should fail on library not found, not on unknown argument
+      expect(stderr).to include('not found')
+      expect(stderr).not_to include('Unknown argument')
+    end
+
+    it 'accepts --no-review flag without error' do
+      _, stderr, status = Open3.capture3({ 'THELMA_LLM_STUB' => '1' },
+        'ruby', BRIEF_SCRIPT, '--library', 'nonexistent-xyz', '--no-review')
+      expect(stderr).to include('not found')
+      expect(stderr).not_to include('Unknown argument')
+    end
+  end
+
+  describe 'pending LLM flow' do
+    it 'exits 2 when LLM calls are pending in claude_code mode' do
+      Dir.mktmpdir do |dir|
+        Dir.mktmpdir do |out|
+          make_brief_library(dir)
+          make_brief_classified(dir)
+          make_brief_scored(dir)
+          xml_path = File.join(out, 'test-lib_longform_main_20250419-120000.xml')
+          FileUtils.touch(xml_path)
+
+          # Run WITHOUT THELMA_LLM_STUB and without API key — forces claude_code mode
+          env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
+          env.delete('THELMA_LLM_STUB')
+          _, stderr, status = Open3.capture3(env,
+            'ruby', BRIEF_SCRIPT, '--library-dir', dir, '--output', xml_path, '--llm-mode', 'claude_code')
+          expect(status.exitstatus).to eq(2)
+          expect(stderr).to include('pending')
+
+          # Verify both pending files were written
+          pending_dir = File.join(dir, 'pending_llm_calls')
+          expect(File.exist?(File.join(pending_dir, 'packaging_thumbnail.yaml'))).to be true
+          expect(File.exist?(File.join(pending_dir, 'packaging_title.yaml'))).to be true
+        end
+      end
+    end
+
+    it 'picks up responses on re-run after pending' do
+      Dir.mktmpdir do |dir|
+        Dir.mktmpdir do |out|
+          make_brief_library(dir)
+          make_brief_classified(dir)
+          make_brief_scored(dir)
+          xml_path = File.join(out, 'test-lib_longform_main_20250419-120000.xml')
+          FileUtils.touch(xml_path)
+
+          # First run — exits 2 with pending
+          env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
+          env.delete('THELMA_LLM_STUB')
+          Open3.capture3(env,
+            'ruby', BRIEF_SCRIPT, '--library-dir', dir, '--output', xml_path, '--llm-mode', 'claude_code')
+
+          # Write response files
+          pending_dir = File.join(dir, 'pending_llm_calls')
+          File.write(File.join(pending_dir, 'packaging_thumbnail_response.yaml'),
+            { 'response' => "Primary emotion: curiosity\nVisual suggestion: test\nText overlay: test\nAvoid: test" }.to_yaml)
+          File.write(File.join(pending_dir, 'packaging_title_response.yaml'),
+            { 'response' => "Promise type: revelation\n1. Test Title — test reasoning" }.to_yaml)
+
+          # Second run — should complete
+          stdout, stderr, status = Open3.capture3(env,
+            'ruby', BRIEF_SCRIPT, '--library-dir', dir, '--output', xml_path, '--llm-mode', 'claude_code')
+          expect(status.exitstatus).to eq(0)
+          expect(stdout.strip).to end_with('_packaging_brief.md')
+        end
       end
     end
   end

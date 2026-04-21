@@ -28,6 +28,7 @@ library_name = nil
 profile_name = nil
 branch_override = nil
 analyze_only = false
+no_review = false
 llm_mode = nil
 
 args = ARGV.dup
@@ -45,16 +46,19 @@ while args.any?
   when '--analyze-only'
     args.shift
     analyze_only = true
+  when '--no-review'
+    args.shift
+    no_review = true
   when '--llm-mode'
     args.shift
     llm_mode = args.shift
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--llm-mode api|claude_code]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--llm-mode api|claude_code]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code]" unless library_name
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
@@ -443,6 +447,82 @@ if branch == 'C'
   puts report_path
   exit 0
 end
+
+# ============================================================
+# PHASE 2: SEMANTIC INGEST
+# ============================================================
+
+phase '2 — Semantic Ingest'
+
+semantic_ingest_path = File.join(library_dir, 'semantic_ingest.yaml')
+if file_cached?(semantic_ingest_path)
+  skip 'semantic_ingest', 'semantic_ingest.yaml exists'
+else
+  step 'semantic_ingest'
+  flags = ['--library', library_name]
+  flags += ['--profile', profile_name] if profile_name
+  flags += ['--llm-mode', llm_mode] if llm_mode
+  flags << '--no-review' if no_review
+  run_script('semantic_ingest.rb', *flags)
+end
+
+# ============================================================
+# PHASE 3: ARRANGEMENT
+# ============================================================
+
+phase '3 — Arrangement'
+
+arrangement_path = File.join(library_dir, 'arrangement.yaml')
+if file_cached?(arrangement_path)
+  skip 'arrange', 'arrangement.yaml exists'
+else
+  step 'arrange'
+  flags = ['--library', library_name]
+  flags += ['--profile', profile_name] if profile_name
+  flags += ['--llm-mode', llm_mode] if llm_mode
+  flags << '--no-review' if no_review
+  run_script('arrange.rb', *flags)
+end
+
+# ============================================================
+# PHASE 4: EXPORT & BUILD
+# ============================================================
+
+phase '4 — Export & Build'
+
+step 'export_arrangement_xml'
+flags = ['--library', library_name]
+flags += ['--profile', profile_name] if profile_name
+xml_path = run_script('export_arrangement_xml.rb', *flags)
+
+# ============================================================
+# PHASE 5: PACKAGING BRIEF
+# ============================================================
+
+phase '5 — Packaging Brief'
+
+if profile.fetch('generate_packaging_brief', true)
+  step "export_packaging_brief"
+  flags = ['--library', library_name, '--output', xml_path]
+  flags += ['--profile', profile_name] if profile_name
+  flags += ['--llm-mode', llm_mode] if llm_mode
+  flags << '--no-review' if no_review
+  run_script('export_packaging_brief.rb', *flags)
+end
+
+$stderr.puts "\n#{'=' * 60}"
+$stderr.puts "PIPELINE COMPLETE"
+$stderr.puts "  XML: #{xml_path}"
+$stderr.puts '=' * 60
+
+puts xml_path
+exit 0
+
+# ============================================================
+# LEGACY PHASES (1.6-4): Storyline-based arrangement flow
+# Kept for reference. Unreachable in default pipeline.
+# Use --branch C for analyze-only, or invoke scripts directly.
+# ============================================================
 
 # ============================================================
 # PHASE 1.6: STORYLINE DISCOVERY

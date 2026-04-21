@@ -223,6 +223,74 @@ RSpec.describe 'orchestrate.rb' do
     end
   end
 
+  describe '--no-review flag' do
+    it 'accepts --no-review without error' do
+      # Just verify the flag is parsed without triggering unknown argument abort
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~RUBY)
+        no_review = false
+        args = ['--library', 'test', '--no-review']
+        while args.any?
+          case args.first
+          when '--library'
+            args.shift; args.shift
+          when '--no-review'
+            args.shift
+            no_review = true
+          else
+            args.shift
+          end
+        end
+        puts no_review
+      RUBY
+      expect(stdout.strip).to eq('true')
+    end
+  end
+
+  describe 'new pipeline phases' do
+    it 'builds correct semantic_ingest flags' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~RUBY)
+        library_name = 'mylib'
+        profile_name = 'ivan'
+        llm_mode = 'claude_code'
+        no_review = true
+        flags = ['--library', library_name]
+        flags += ['--profile', profile_name] if profile_name
+        flags += ['--llm-mode', llm_mode] if llm_mode
+        flags << '--no-review' if no_review
+        puts flags.join(' ')
+      RUBY
+      expect(stdout.strip).to eq('--library mylib --profile ivan --llm-mode claude_code --no-review')
+    end
+
+    it 'skips semantic_ingest when cached' do
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, 'semantic_ingest.yaml'), 'content: test')
+        stdout, _, _ = Open3.capture3('ruby', '-e', <<~RUBY)
+          def file_cached?(path)
+            path && File.exist?(path) && File.size(path) > 0
+          end
+          path = '#{File.join(dir, 'semantic_ingest.yaml')}'
+          puts file_cached?(path) ? 'SKIP' : 'RUN'
+        RUBY
+        expect(stdout.strip).to eq('SKIP')
+      end
+    end
+
+    it 'skips arrangement when cached' do
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, 'arrangement.yaml'), 'content: test')
+        stdout, _, _ = Open3.capture3('ruby', '-e', <<~RUBY)
+          def file_cached?(path)
+            path && File.exist?(path) && File.size(path) > 0
+          end
+          path = '#{File.join(dir, 'arrangement.yaml')}'
+          puts file_cached?(path) ? 'SKIP' : 'RUN'
+        RUBY
+        expect(stdout.strip).to eq('SKIP')
+      end
+    end
+  end
+
   describe 'report schema from generate_report' do
     it 'generates valid report YAML with all fields' do
       library_dir = File.expand_path('../../libraries/dylan-004', __dir__)

@@ -22,10 +22,14 @@ BUILD_SCRIPT = File.join(SCRIPT_DIR, 'build_structure_cut.rb')
 
 # === Parse CLI ===
 library_name = nil
+profile_name = nil
 if (idx = ARGV.index('--library'))
   library_name = ARGV[idx + 1]
 end
-abort "Usage: ruby scripts/export_arrangement_xml.rb --library <name>" unless library_name
+if (idx = ARGV.index('--profile'))
+  profile_name = ARGV[idx + 1]
+end
+abort "Usage: ruby scripts/export_arrangement_xml.rb --library <name> [--profile <name>]" unless library_name
 
 lib_dir = File.join(SCRIPT_DIR, '..', 'libraries', library_name)
 abort "Library not found: #{lib_dir}" unless File.directory?(lib_dir)
@@ -142,6 +146,7 @@ Dir.mktmpdir do |tmpdir|
   File.write(yaml_path, config.to_yaml)
 
   cmd = ['ruby', BUILD_SCRIPT, yaml_path]
+  cmd += ['--profile', profile_name] if profile_name
   $stderr.puts "Running: #{cmd.join(' ')}"
   $stderr.puts "Clips: #{v1_clips.size} V1, #{v2_clips.size} V2+"
 

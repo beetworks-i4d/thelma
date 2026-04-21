@@ -4,7 +4,8 @@
 # hook analysis, peak map, and structural notes.
 #
 # Usage:
-#   ruby scripts/export_packaging_brief.rb --library-dir <dir> --output <xml-path> [--profile <name>]
+#   ruby scripts/export_packaging_brief.rb --library <name> [--output <xml-path>] [--profile <name>] [--llm-mode api|claude_code] [--no-review]
+#   ruby scripts/export_packaging_brief.rb --library-dir <dir> --output <xml-path> [--profile <name>]  (deprecated)
 
 require 'yaml'
 require 'date'
@@ -13,32 +14,52 @@ require_relative 'load_profile'
 require_relative 'llm_client'
 
 SCRIPTS_DIR = File.dirname(__FILE__)
+ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
 
 # --- CLI parsing ---
 
 library_dir = nil
+library_name_arg = nil
 output_xml = nil
 profile_name = nil
+llm_mode = nil
 
 args = ARGV.dup
 while args.any?
   case args.first
+  when '--library'
+    args.shift
+    library_name_arg = args.shift
   when '--library-dir'
     args.shift
     library_dir = args.shift
+    $stderr.puts "  DEPRECATED: --library-dir flag. Use --library <name> instead."
   when '--output'
     args.shift
     output_xml = args.shift
   when '--profile'
     args.shift
     profile_name = args.shift
+  when '--llm-mode'
+    args.shift
+    llm_mode = args.shift
+  when '--no-review'
+    args.shift
+    # accepted for CLI consistency, no-op in this script
   else
     args.shift
   end
 end
 
-unless library_dir && output_xml
-  $stderr.puts "Usage: ruby scripts/export_packaging_brief.rb --library-dir <dir> --output <xml-path> [--profile <name>]"
+LLMClient.mode = llm_mode.to_sym if llm_mode
+
+# Resolve library_dir from --library if provided
+if library_name_arg && !library_dir
+  library_dir = File.join(ROOT_DIR, 'libraries', library_name_arg)
+end
+
+unless library_dir
+  $stderr.puts "Usage: ruby scripts/export_packaging_brief.rb --library <name> [--output <xml-path>] [--profile <name>] [--llm-mode api|claude_code]"
   exit 1
 end
 
@@ -57,6 +78,21 @@ end
 
 library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
 library_name = library['library_name'] || File.basename(library_dir)
+
+# Auto-detect output XML if --output not provided
+unless output_xml
+  video_entry = library['videos']&.first
+  if video_entry && video_entry['path']
+    out_dir = File.join(File.dirname(video_entry['path']), 'output')
+    latest_xml = Dir.glob(File.join(out_dir, '*_arrangement_*.xml')).max_by { |f| File.mtime(f) }
+    output_xml = latest_xml
+  end
+  unless output_xml
+    $stderr.puts "ERROR: No --output XML specified and no arrangement XML found in output directory"
+    exit 1
+  end
+  $stderr.puts "  Auto-detected XML: #{File.basename(output_xml)}"
+end
 
 profile = profile_name ? load_profile_by_name(profile_name) : load_profile(library_name)
 tone_guide = load_tone_guide(profile)
@@ -418,6 +454,8 @@ def call_llm(prompt, profile, pending_dir: nil, call_name: nil)
   end
   LLMClient.call(prompt, call_type: 'packaging', profile: profile, max_tokens: 500,
                  pending_dir: pending_dir, call_name: call_name)
+rescue LLMClient::Pending
+  raise  # propagate to caller for batch handling
 rescue => e
   $stderr.puts "  LLM call failed: #{e.message}"
   "[LLM unavailable — generate manually]"
@@ -425,7 +463,7 @@ end
 
 # == Short format: first-frame brief ==
 
-def build_short_brief(hook, content_type, profile)
+def build_short_brief(hook, content_type, profile, pending_dir:)
   lines = []
   lines << "# First-Frame Brief"
   lines << ""
@@ -449,8 +487,8 @@ def build_short_brief(hook, content_type, profile)
     Hook type: [curiosity/shock/promise/question]
   PROMPT
 
-  brief_pending_dir = File.join(library_dir, 'pending_llm_calls')
-  response = call_llm(prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_short_text')
+  response = call_llm(prompt, profile, pending_dir: pending_dir, call_name: 'packaging_short_text')
+  # LLMClient::Pending propagates up to caller
   lines << "## Text Direction"
   lines << ""
   response.strip.split("\n").each { |l| lines << "- #{l.strip}" unless l.strip.empty? }
@@ -470,8 +508,15 @@ storyline_desc = storyline ? (storyline['arc'] || storyline_id) : 'Full Video'
 sections << "# Packaging Brief: #{title_name} — #{storyline_desc}"
 sections << ""
 
+brief_pending_dir = File.join(library_dir, 'pending_llm_calls')
+pending_count = 0
+
 if brief_format == :short
-  sections += build_short_brief(hook, content_type, profile)
+  begin
+    sections += build_short_brief(hook, content_type, profile, pending_dir: brief_pending_dir)
+  rescue LLMClient::Pending
+    pending_count += 1
+  end
 else
   # Hook Cash
   sections << "## Hook Cash"
@@ -497,23 +542,40 @@ else
     sections << ""
   end
 
-  # Thumbnail Direction (LLM)
+  # Thumbnail Direction (LLM) — batch: catch Pending, continue to next call
   scored_peaks_for_thumb = arranged.map { |seg| [seg, segment_score(seg)] }
     .sort_by { |_, score| -score }
     .first(5)
-  brief_pending_dir = File.join(library_dir, 'pending_llm_calls')
   thumb_prompt = build_thumbnail_prompt(hook, scored_peaks_for_thumb, content_type, arranged, tone_context)
-  thumb_response = call_llm(thumb_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_thumbnail')
+  thumb_response = nil
+  begin
+    thumb_response = call_llm(thumb_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_thumbnail')
+  rescue LLMClient::Pending
+    pending_count += 1
+  end
+
+  # Title Direction (LLM) — batch: catch Pending, continue
+  spine_state = build_spine(arranged).first&.sub('- Spine state: ', '') || 'unknown'
+  template_name = storyline&.dig('template_match', 'template')
+  title_prompt = build_title_prompt(hook, spine_state, content_type, template_name, tone_context)
+  title_response = nil
+  begin
+    title_response = call_llm(title_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_title')
+  rescue LLMClient::Pending
+    pending_count += 1
+  end
+
+  # Exit 2 if any LLM calls are pending — all pending files have been written
+  if pending_count > 0
+    $stderr.puts "  #{pending_count} LLM call(s) pending — fill response files and re-run"
+    exit 2
+  end
+
   sections << "## Thumbnail Direction"
   sections << "Based on hook state + peak moments + content type."
   thumb_response.strip.split("\n").each { |l| sections << "- #{l.strip}" unless l.strip.empty? }
   sections << ""
 
-  # Title Direction (LLM)
-  spine_state = build_spine(arranged).first&.sub('- Spine state: ', '') || 'unknown'
-  template_name = storyline&.dig('template_match', 'template')
-  title_prompt = build_title_prompt(hook, spine_state, content_type, template_name, tone_context)
-  title_response = call_llm(title_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_title')
   sections << "## Title Direction"
   sections << "Based on hook promise + spine + content type."
   title_response.strip.split("\n").each { |l| sections << "- #{l.strip}" unless l.strip.empty? }
@@ -531,6 +593,12 @@ else
     sections += build_structural_notes(arranged, storyline, content_type, video_duration_display, library_name)
     sections << ""
   end
+end
+
+# Short format also exits 2 if pending
+if pending_count > 0
+  $stderr.puts "  #{pending_count} LLM call(s) pending — fill response files and re-run"
+  exit 2
 end
 
 # --- Write output ---
