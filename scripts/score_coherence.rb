@@ -241,7 +241,6 @@ storylines.each do |storyline|
     'duration_estimate' => storyline['duration_estimate'],
     'segment_count' => storyline['segment_count'],
     'arc' => storyline['arc'],
-    'pitch' => storyline['pitch'],
     'template_match' => storyline['template_match']
   }
   # Compact optional fields but preserve llm_coherence (intentionally nil until agent fills)

@@ -267,7 +267,7 @@ prompt = <<~PROMPT
   3. **Cluster take selection**: When clips share a `cluster` name, pick the best `fine` clip for V1. Put a second `fine` take on V2 only when it adds genuine value. Never use `marginal` if a `fine` exists in the same cluster.
   4. **V2 stacking**: Only use track V2 for: (a) alternate cluster takes worth preserving, (b) cutaway/reaction shots, (c) B-roll overlays. Never put primary narrative on V2.
   5. **Keep logic**: Every `fine` clip should appear unless explicitly dropped with reasoning in key_decisions.
-  6. **B-roll matching**: If asset_pool is available, match assets to clips by semantic relevance. If no pool, suggest B-roll in broll_suggestions.
+  6. **B-roll matching**: If asset_pool is available, match assets to clips by semantic relevance. If no pool, suggest B-roll in broll_suggestions with type (image|video|graphic|screen_recording) and a short concept tag.
   7. **Chapter assignment**: Every clip must belong to exactly one chapter.
   8. **t_in / t_out**: Use the `t` value as t_in (or `trim_in` if set — it overrides the in-point). Use the `e` value (if available) as t_out. If `e` is not available, estimate from content.
   9. **trim_in**: If a clip has `trim_in`, use that as the effective t_in instead of `t`. Pass `trim_in` through to the output clip.
@@ -309,7 +309,8 @@ prompt = <<~PROMPT
   broll_suggestions:
     - at_chapter: ch_01
       after_t: <seconds>
-      suggestion: "What B-roll would work here and why"
+      type: image
+      concept: "short_tag"
 
   key_decisions:
     - "Dropped group_003 (false start, content repeated better in group_005)"

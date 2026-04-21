@@ -125,18 +125,7 @@ def base_scored
 end
 
 RSpec.describe 'sanity_check.rb' do
-  describe 'logline generation schema' do
-    it 'includes logline_prompt and nil logline for each candidate' do
-      result = run_sanity(base_scored, base_segments)
-      expect(result[:exit_code]).to eq(0)
-
-      c = result[:result]['candidates'].first
-      expect(c).to have_key('logline_prompt')
-      expect(c['logline_prompt']).to include('logline')
-      expect(c['logline_prompt']).to include('Distilled segments')
-      expect(c['logline']).to be_nil
-    end
-
+  describe 'distilled segments' do
     it 'includes distilled_segments extracted from arc' do
       result = run_sanity(base_scored, base_segments)
       c = result[:result]['candidates'].first
@@ -332,7 +321,7 @@ RSpec.describe 'sanity_check.rb' do
       expect(c['id']).to eq('short_alternative_led')
       expect(c['shape']).to be_a(String)
       expect(c['cold_open']).to have_key('works')
-      expect(c['logline_prompt']).to include('Distilled segments')
+      expect(c['distilled_segments']).to be_a(Array)
     end
   end
 
@@ -486,7 +475,7 @@ RSpec.describe 'sanity_check.rb' do
     it 'includes all required per-candidate fields' do
       result = run_sanity(base_scored, base_segments)
       c = result[:result]['candidates'].first
-      %w[id profile duration_estimate combined_score shape cold_open close distilled_segments logline_prompt logline].each do |field|
+      %w[id profile duration_estimate combined_score shape cold_open close distilled_segments].each do |field|
         expect(c).to have_key(field), "missing candidate field: #{field}"
       end
     end
@@ -779,7 +768,7 @@ RSpec.describe 'sanity_check.rb' do
           c = result[:result]['candidates'].find { |r| r['id'] == id }
           expect(c['cold_open']).to have_key('works')
           expect(c['close']).to have_key('works')
-          expect(c['logline_prompt']).to be_a(String)
+          expect(c['distilled_segments']).to be_an(Array)
         end
       end
 
@@ -788,7 +777,6 @@ RSpec.describe 'sanity_check.rb' do
         result[:result]['candidates'].each do |c|
           expect(c['cold_open']).to have_key('works')
           expect(c['close']).to have_key('works')
-          expect(c['logline_prompt']).to be_a(String)
           expect(c['distilled_segments']).to be_an(Array)
         end
       end

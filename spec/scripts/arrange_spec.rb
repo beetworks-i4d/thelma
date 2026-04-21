@@ -158,7 +158,7 @@ def build_valid_arrangement(lib_dir, cache_hash: 'test_hash')
     ],
     'broll_placements' => [],
     'broll_suggestions' => [
-      { 'at_chapter' => 'ch_01', 'after_t' => 5.36, 'suggestion' => 'AI-generated art montage' }
+      { 'at_chapter' => 'ch_01', 'after_t' => 5.36, 'type' => 'image', 'concept' => 'ai_art_montage' }
     ],
     'key_decisions' => [
       'Used primary take at t=5.36 for clearer delivery over alternate at t=21.30'
