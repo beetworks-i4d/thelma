@@ -127,6 +127,12 @@ if transcript_path
   config['transcript'] = transcript_path
 end
 
+# Add classification for Tier 2/3 markers
+classification_path = File.join(lib_dir, 'segments_classified.yaml')
+if File.exist?(classification_path)
+  config['classification'] = classification_path
+end
+
 # No max_segment_duration — natural boundaries only
 # Pause removal uses profile default (800ms)
 
