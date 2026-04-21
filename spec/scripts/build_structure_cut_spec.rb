@@ -1392,4 +1392,89 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
   end
+
+  describe 'narrative_role clip coloring' do
+    it 'applies Premiere label colors based on narrative_role' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 3.0, 'narrative_role' => 'hook' },
+          { 'video_start' => 5.0, 'video_end' => 8.0, 'narrative_role' => 'setup' },
+          { 'video_start' => 10.0, 'video_end' => 15.0, 'narrative_role' => 'continuation' },
+          { 'video_start' => 20.0, 'video_end' => 25.0, 'narrative_role' => 'payoff' }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        video_clips = doc.xpath('//sequence/media/video/track/clipitem')
+        labels = video_clips.map { |c| c.at_xpath('labels/label2')&.text }
+
+        expect(labels[0]).to eq('Forest')     # hook → Green
+        expect(labels[1]).to eq('Mango')      # setup → Orange
+        expect(labels[2]).to eq('Caribbean')  # continuation → Blue
+        expect(labels[3]).to eq('Lavender')   # payoff → Purple
+      end
+    end
+
+    it 'omits label when narrative_role is transition or absent' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 3.0, 'narrative_role' => 'transition' },
+          { 'video_start' => 5.0, 'video_end' => 8.0 }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        video_clips = doc.xpath('//sequence/media/video/track/clipitem')
+        video_clips.each do |clip|
+          expect(clip.at_xpath('labels')).to be_nil
+        end
+      end
+    end
+  end
+
+  describe 'chapter SECTION markers' do
+    it 'generates SECTION markers from chapter metadata' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 5.0, 'track' => 'V1' },
+          { 'video_start' => 10.0, 'video_end' => 15.0, 'track' => 'V1' },
+          { 'video_start' => 20.0, 'video_end' => 28.0, 'track' => 'V1' }
+        ]
+        config['chapters'] = [
+          { 'id' => 'ch_01', 'label' => 'Hook — opening moment', 'v1_clip_start' => 0, 'v1_clip_end' => 0 },
+          { 'id' => 'ch_02', 'label' => 'Historical parallel', 'v1_clip_start' => 1, 'v1_clip_end' => 2 }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('Chapter SECTION markers')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        markers = doc.xpath('//sequence/marker')
+        section_markers = markers.select { |m| m.at_xpath('name').text.start_with?('SECTION:') }
+        expect(section_markers.size).to eq(2)
+
+        names = section_markers.map { |m| m.at_xpath('name').text }
+        expect(names[0]).to eq('SECTION: Hook — opening moment')
+        expect(names[1]).to eq('SECTION: Historical parallel')
+
+        # Verify they are range markers (out > in)
+        section_markers.each do |m|
+          in_frame = m.at_xpath('in').text.to_i
+          out_frame = m.at_xpath('out').text.to_i
+          expect(out_frame).to be > in_frame
+        end
+      end
+    end
+  end
 end
