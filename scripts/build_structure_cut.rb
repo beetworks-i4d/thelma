@@ -999,7 +999,40 @@ tier1_markers = []
 tier2_markers = []
 tier3_markers = []
 
-# === TIER 1: Structure Markers ===
+# === TIER 1: Chapter-driven SECTION markers (from arrangement) ===
+chapters_used = false
+if config['chapters'] && config['chapters'].is_a?(Array) && config['chapters'].any?
+  # Compute chapter timeline ranges from V1 input clip durations
+  # V1 clips are sequential in the input array; each has video_start/video_end
+  v1_input_clips = config['clips'].select { |c| (c['track'] || 'V1').upcase == 'V1' }
+  v1_durations = v1_input_clips.map { |c| c['video_end'].to_f - c['video_start'].to_f }
+
+  chapters_used = true
+  config['chapters'].each do |ch|
+    label = ch['label'] || ch['id'] || 'untitled'
+    v1_start_idx = ch['v1_clip_start'].to_i
+    v1_end_idx = ch['v1_clip_end'].to_i
+    next if v1_start_idx > v1_end_idx || v1_end_idx >= v1_durations.size
+
+    # Chapter timeline start = sum of V1 durations before this chapter
+    tl_start = v1_durations[0...v1_start_idx].sum
+    # Chapter timeline end = sum of V1 durations through last clip of this chapter
+    tl_end = v1_durations[0..v1_end_idx].sum
+    next if tl_end <= tl_start
+
+    tier1_markers << {
+      name: "SECTION: #{label}",
+      comment: "Chapter #{ch['id']} | V1 clips #{v1_start_idx + 1}–#{v1_end_idx + 1}",
+      time: tl_start,
+      out_time: tl_end,
+      color: 'orange',
+      pproColor: PPRO_SECTION
+    }
+  end
+  $stderr.puts "Chapter SECTION markers: #{tier1_markers.size}" if tier1_markers.any?
+end
+
+# === TIER 1: Structure Markers (from classification) ===
 # Only generated when classification segments are available (arranged segments)
 
 if classification_segments && !classification_segments.empty?
@@ -1038,8 +1071,10 @@ if classification_segments && !classification_segments.empty?
       }
     end
 
-    # SECTIONS from template beats (if available)
-    if template_match_data && template_match_data['matched_beats']
+    # SECTIONS from template beats (if available) — skip if chapter-driven sections already exist
+    if chapters_used
+      # Chapter labels already provide SECTION markers; skip classification-based sections
+    elsif template_match_data && template_match_data['matched_beats']
       matched_beats = template_match_data['matched_beats']
       template_name = template_match_data['template'] || 'unknown'
 

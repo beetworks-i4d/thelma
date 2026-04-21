@@ -60,10 +60,12 @@ end
 # V1 timeline position at the start of their parent chapter.
 v1_clips = []
 v2_clips = []
+chapter_meta = []
 
 arrangement['chapters'].each do |chapter|
   # Record V1 timeline position at chapter start
   chapter_v1_start = v1_clips.sum { |c| c['video_end'] - c['video_start'] }
+  v1_clip_start_idx = v1_clips.size
 
   chapter['clips'].each do |clip|
     track = (clip['track'] || 'V1').upcase
@@ -88,6 +90,14 @@ arrangement['chapters'].each do |chapter|
       v2_clips << clip_entry
     end
   end
+
+  # Track V1 clip index range for this chapter (for SECTION markers)
+  chapter_meta << {
+    'id' => chapter['id'],
+    'label' => chapter['label'],
+    'v1_clip_start' => v1_clip_start_idx,
+    'v1_clip_end' => v1_clips.size - 1
+  }
 end
 
 # Interleave: V1 clips first (sequential), then V2 clips (each with explicit offset)
@@ -104,7 +114,7 @@ config = {
   'editor' => 'fcp7',
   'name' => "#{library_name}_arrangement",
   'clips' => all_clips,
-  'chapters' => arrangement['chapters']&.map { |ch| { 'id' => ch['id'], 'label' => ch['label'] } }
+  'chapters' => chapter_meta
 }
 
 # Add speech analysis for natural boundary pause removal
