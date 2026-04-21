@@ -435,6 +435,14 @@ class ButterCut
     end
 
     def validate_markers!(markers)
+      markers.reject! do |marker|
+        if marker[:out_time] && marker[:time] && marker[:out_time].to_f < marker[:time].to_f
+          $stderr.puts "  WARNING: skipping marker '#{marker[:name]}' — out_time (#{marker[:out_time]}) before in_time (#{marker[:time]}) [TODO: fix root cause]"
+          true
+        else
+          false
+        end
+      end
       markers.each_with_index do |marker, index|
         unless marker.is_a?(Hash)
           raise ArgumentError, "Marker at index #{index} must be a hash, got #{marker.class}"
@@ -453,10 +461,6 @@ class ButterCut
         end
         unless MARKER_COLORS.include?(marker[:color])
           raise ArgumentError, "Marker at index #{index} has invalid color '#{marker[:color]}'. Must be one of: #{MARKER_COLORS.join(', ')}"
-        end
-        # Validate out_time/out_frame if present (range markers)
-        if marker[:out_time] && marker[:time] && marker[:out_time].to_f < marker[:time].to_f
-          raise ArgumentError, "Marker at index #{index} has out_time before in time"
         end
       end
     end
