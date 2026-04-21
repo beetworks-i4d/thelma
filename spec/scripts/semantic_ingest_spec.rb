@@ -96,8 +96,8 @@ def build_valid_output(lib_dir, cache_hash: 'test_hash')
         'label' => 'hook — AI art cultural moment',
         'description' => 'Opens with viral Ghibli meme phenomenon',
         'clips' => [
-          { 't' => 5.36, 'source' => 'test_video.mp4', 'take_variant' => 'primary', 'content_summary' => 'AI images flooding social media' },
-          { 't' => 21.30, 'source' => 'test_video.mp4', 'take_variant' => 'alternate', 'content_summary' => 'Second take of opening' }
+          { 't' => 5.36, 'source' => 'test_video.mp4', 'usability' => 'fine', 'cluster' => 'opening_hook', 'content_summary' => 'AI images flooding social media' },
+          { 't' => 21.30, 'source' => 'test_video.mp4', 'usability' => 'fine', 'cluster' => 'opening_hook', 'content_summary' => 'Second take of opening' }
         ]
       },
       {
@@ -105,7 +105,7 @@ def build_valid_output(lib_dir, cache_hash: 'test_hash')
         'label' => 'contrarian thesis',
         'description' => 'Introduces counter-argument to AI panic',
         'clips' => [
-          { 't' => 114.92, 'source' => 'test_video.mp4', 'take_variant' => 'primary', 'content_summary' => "I don't buy it" }
+          { 't' => 114.92, 'source' => 'test_video.mp4', 'usability' => 'fine', 'content_summary' => "I don't buy it" }
         ]
       }
     ],
@@ -114,11 +114,7 @@ def build_valid_output(lib_dir, cache_hash: 'test_hash')
         { 'opened_at' => 'group_001', 'description' => 'Will AI kill art?', 'closes_at' => 'group_002' }
       ],
       'local' => []
-    },
-    'best_take_hints' => [
-      { 'cluster_topic' => 'Opening hook', 'clips' => [5.36, 21.30], 'strongest_candidate' => 5.36, 'reasoning' => 'Clearer delivery' }
-    ],
-    'unusable_clips' => []
+    }
   }
   path = File.join(lib_dir, 'semantic_ingest.yaml')
   File.write(path, output.to_yaml)
@@ -264,7 +260,7 @@ RSpec.describe 'semantic_ingest.rb' do
 
         %w[generated_at source cache_hash video_count transcript_segments llm_model
            core_understanding central_tension script_or_outline_present script_type
-           clip_groups open_loops best_take_hints unusable_clips].each do |field|
+           clip_groups open_loops].each do |field|
           expect(output).to have_key(field), "Missing field: #{field}"
         end
       end
@@ -284,8 +280,8 @@ RSpec.describe 'semantic_ingest.rb' do
           g['clips'].each do |c|
             expect(c).to have_key('t')
             expect(c).to have_key('source')
-            expect(c).to have_key('take_variant')
-            expect(c['take_variant']).to satisfy { |v| %w[primary alternate].include?(v) }
+            expect(c).to have_key('usability')
+            expect(c['usability']).to satisfy { |v| %w[fine marginal unusable].include?(v) }
           end
         end
       end
@@ -319,33 +315,31 @@ RSpec.describe 'semantic_ingest.rb' do
       end
     end
 
-    it 'best_take_hints have required fields' do
+    it 'clips with cluster share the same cluster name' do
       Dir.mktmpdir do |dir|
         lib_dir = build_test_library(dir)
         _, output = build_valid_output(lib_dir)
 
-        output['best_take_hints'].each do |hint|
-          expect(hint).to have_key('cluster_topic')
-          expect(hint).to have_key('clips')
-          expect(hint['clips']).to be_a(Array)
-          expect(hint).to have_key('strongest_candidate')
-          expect(hint).to have_key('reasoning')
+        clustered = output['clip_groups'].flat_map { |g| g['clips'] }.select { |c| c['cluster'] }
+        by_cluster = clustered.group_by { |c| c['cluster'] }
+        by_cluster.each do |name, clips|
+          expect(clips.size).to be >= 2, "Cluster '#{name}' should have 2+ clips"
+          expect(clips.all? { |c| %w[fine marginal].include?(c['usability']) }).to be true
         end
       end
     end
 
-    it 'unusable_clips have t, source, and reason' do
+    it 'trim_in and mid_cuts are optional per clip' do
       Dir.mktmpdir do |dir|
         lib_dir = build_test_library(dir)
         _, output = build_valid_output(lib_dir)
 
-        # Add an unusable clip to test
-        output['unusable_clips'] << { 't' => 104.0, 'source' => 'test_video.mp4', 'reason' => 'Incomplete thought' }
-        output['unusable_clips'].each do |clip|
-          expect(clip).to have_key('t')
-          expect(clip).to have_key('source')
-          expect(clip).to have_key('reason')
-        end
+        all_clips = output['clip_groups'].flat_map { |g| g['clips'] }
+        # Most clips should NOT have trim_in/mid_cuts
+        clips_with_trim = all_clips.select { |c| c['trim_in'] }
+        clips_with_cuts = all_clips.select { |c| c['mid_cuts'] }
+        expect(clips_with_trim.size).to be <= all_clips.size
+        expect(clips_with_cuts.size).to be <= all_clips.size
       end
     end
 

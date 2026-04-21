@@ -41,8 +41,8 @@ def build_arrange_test_library(dir, opts = {})
         'label' => 'hook — AI art moment',
         'description' => 'Opens with viral AI art phenomenon',
         'clips' => [
-          { 't' => 5.36, 'source' => 'test_video.mp4', 'take_variant' => 'primary', 'content_summary' => 'AI images flooding feeds' },
-          { 't' => 21.30, 'source' => 'test_video.mp4', 'take_variant' => 'alternate', 'content_summary' => 'Second take of opening' }
+          { 't' => 5.36, 'source' => 'test_video.mp4', 'usability' => 'fine', 'cluster' => 'opening_hook', 'content_summary' => 'AI images flooding feeds' },
+          { 't' => 21.30, 'source' => 'test_video.mp4', 'usability' => 'fine', 'cluster' => 'opening_hook', 'content_summary' => 'Second take of opening' }
         ]
       },
       {
@@ -50,8 +50,8 @@ def build_arrange_test_library(dir, opts = {})
         'label' => 'context — history of art panic',
         'description' => 'Historical parallels of technology threatening art',
         'clips' => [
-          { 't' => 40.99, 'source' => 'test_video.mp4', 'take_variant' => 'primary', 'content_summary' => 'OpenAI image gen launch' },
-          { 't' => 99.13, 'source' => 'test_video.mp4', 'take_variant' => 'primary', 'content_summary' => 'Death of art not new' }
+          { 't' => 40.99, 'source' => 'test_video.mp4', 'usability' => 'fine', 'content_summary' => 'OpenAI image gen launch' },
+          { 't' => 99.13, 'source' => 'test_video.mp4', 'usability' => 'fine', 'content_summary' => 'Death of art not new' }
         ]
       },
       {
@@ -59,9 +59,9 @@ def build_arrange_test_library(dir, opts = {})
         'label' => 'thesis — human judgment',
         'description' => 'Core argument that human judgment is irreplaceable',
         'clips' => [
-          { 't' => 114.92, 'source' => 'test_video.mp4', 'take_variant' => 'primary', 'content_summary' => "I don't buy it" },
-          { 't' => 200.00, 'source' => 'test_video.mp4', 'take_variant' => 'primary', 'content_summary' => 'Human judgment value' },
-          { 't' => 250.00, 'source' => 'test_video.mp4', 'take_variant' => 'primary', 'content_summary' => 'Immense magical power' }
+          { 't' => 114.92, 'source' => 'test_video.mp4', 'usability' => 'fine', 'content_summary' => "I don't buy it" },
+          { 't' => 200.00, 'source' => 'test_video.mp4', 'usability' => 'fine', 'content_summary' => 'Human judgment value' },
+          { 't' => 250.00, 'source' => 'test_video.mp4', 'usability' => 'fine', 'content_summary' => 'Immense magical power' }
         ]
       }
     ],
@@ -70,11 +70,7 @@ def build_arrange_test_library(dir, opts = {})
         { 'opened_at' => 'group_001', 'description' => 'Will AI kill art?', 'closes_at' => 'group_003' }
       ],
       'local' => []
-    },
-    'best_take_hints' => [
-      { 'cluster_topic' => 'Opening hook', 'clips' => [5.36, 21.30], 'strongest_candidate' => 5.36, 'reasoning' => 'Clearer delivery' }
-    ],
-    'unusable_clips' => opts.fetch(:unusable_clips, [])
+    }
   }
   File.write(File.join(lib_dir, 'semantic_ingest.yaml'), ingest.to_yaml)
 
@@ -446,12 +442,19 @@ RSpec.describe 'arrange.rb' do
 
     it 'no clip references an unusable t value' do
       Dir.mktmpdir do |dir|
-        unusable = [{ 't' => 999.0, 'source' => 'test_video.mp4', 'reason' => 'Gibberish' }]
-        lib_dir = build_arrange_test_library(dir, unusable_clips: unusable)
+        lib_dir = build_arrange_test_library(dir)
+
+        # Add an unusable clip to the ingest
+        ingest_path = File.join(lib_dir, 'semantic_ingest.yaml')
+        ingest = YAML.safe_load(File.read(ingest_path), permitted_classes: [Date])
+        ingest['clip_groups'][0]['clips'] << { 't' => 999.0, 'source' => 'test_video.mp4', 'usability' => 'unusable', 'content_summary' => 'Gibberish' }
+        File.write(ingest_path, ingest.to_yaml)
+
         _, arrangement = build_valid_arrangement(lib_dir)
 
-        ingest = YAML.safe_load(File.read(File.join(lib_dir, 'semantic_ingest.yaml')), permitted_classes: [Date])
-        unusable_t_values = (ingest['unusable_clips'] || []).map { |u| u['t'].to_f }
+        unusable_t_values = ingest['clip_groups'].flat_map { |g| g['clips'] }
+          .select { |c| c['usability'] == 'unusable' }
+          .map { |c| c['t'].to_f }
 
         arrangement['chapters'].flat_map { |ch| ch['clips'] }.each do |clip|
           expect(unusable_t_values).not_to include(clip['t_in'].to_f),

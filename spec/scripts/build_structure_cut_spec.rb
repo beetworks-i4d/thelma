@@ -1319,4 +1319,77 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
   end
+
+  describe 'ingest trim_in support' do
+    it 'applies trim_in to adjust clip in-point' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        # Clip from 10.0-20.0 with trim_in at 12.5
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 20.0, 'trim_in' => 12.5 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('trim_in')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clips = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clips.size).to eq(1)
+        # In-point should reflect ~12.5s, not 10.0s
+        in_frame = clips.first.at_xpath('in').text.to_i
+        # At ~25fps, 12.5s ≈ 312 frames minus breathing room buffer (~3 frames)
+        expect(in_frame).to be > 290
+      end
+    end
+
+    it 'ignores trim_in outside clip bounds' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        # trim_in before clip start — should be ignored
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 20.0, 'trim_in' => 5.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('trim_in')
+      end
+    end
+  end
+
+  describe 'ingest mid_cuts support' do
+    it 'creates sub-clips when mid_cuts are present' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        # Clip from 10.0-30.0 with a mid_cut excising 15.0-18.0
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 30.0, 'mid_cuts' => [[15.0, 18.0]] }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('mid_cut')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clips = doc.xpath('//sequence/media/video/track/clipitem')
+        # Should split into 2 sub-clips: 10-15 and 18-30
+        expect(clips.size).to eq(2)
+      end
+    end
+
+    it 'ignores mid_cuts outside clip bounds' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        # mid_cut entirely outside clip — should be ignored
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 20.0, 'mid_cuts' => [[25.0, 28.0]] }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('mid_cut')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clips = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clips.size).to eq(1)
+      end
+    end
+  end
 end
