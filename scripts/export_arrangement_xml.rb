@@ -48,6 +48,13 @@ if video_entry['speech_analysis']
   speech_analysis_path = nil unless File.exist?(speech_analysis_path)
 end
 
+# === Resolve transcript for restart trimming ===
+transcript_path = nil
+if video_entry['transcript']
+  transcript_path = File.join(lib_dir, 'transcripts', video_entry['transcript'])
+  transcript_path = nil unless File.exist?(transcript_path)
+end
+
 # === Build clips from arrangement chapters ===
 # V1 clips are sequential. V2+ clips get timeline_offset set to the
 # V1 timeline position at the start of their parent chapter.
@@ -95,6 +102,11 @@ config = {
 # Add speech analysis for natural boundary pause removal
 if speech_analysis_path
   config['speech_analysis'] = speech_analysis_path
+end
+
+# Add transcript for in-point restart trimming
+if transcript_path
+  config['transcript'] = transcript_path
 end
 
 # No max_segment_duration — natural boundaries only

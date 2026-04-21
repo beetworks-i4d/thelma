@@ -196,6 +196,19 @@ if config['speech_analysis']
   $stderr.puts "Loaded speech analysis: #{speech_segments.size} segments, #{long_pauses.size} long pauses"
 end
 
+# === Load transcript for in-point restart trimming ===
+transcript_words = nil
+if config['transcript']
+  tr_path = config['transcript']
+  if File.exist?(tr_path)
+    tr_data = JSON.parse(File.read(tr_path))
+    transcript_words = tr_data['segments'].flat_map { |s| s['words'] || [] }
+    $stderr.puts "Loaded transcript: #{transcript_words.size} words for restart trimming"
+  else
+    $stderr.puts "WARNING: Transcript not found: #{tr_path} — skipping restart trimming"
+  end
+end
+
 # === Load classification for tiered markers ===
 classification_segments = nil
 classification_branch_a = false
@@ -367,6 +380,105 @@ def snap_to_boundary(time, segments, boundary_type, tolerance = SNAP_TOLERANCE)
   end
 end
 
+# Trim in-point restart false-starts using transcript word timing.
+# Detects pattern: speaker starts a phrase, abandons it, restarts with same
+# opening more completely. Moves clip in-point to the successful restart.
+# Returns [new_start_time, trimmed_text] or [start_time, nil] if no trim.
+RESTART_FILLER = %w[so and but um uh like well okay right yeah i mean the a].to_set.freeze
+RESTART_GAP_THRESHOLD = 0.300 # 300ms gap indicates restart boundary
+
+def trim_restart_inpoint(start_time, end_time, all_words, sync_offset, has_sync)
+  return [start_time, nil] unless all_words&.any?
+
+  # Work in transcript time domain
+  t_start = has_sync ? start_time + sync_offset : start_time
+  t_end = has_sync ? end_time + sync_offset : end_time
+
+  clip_words = all_words.select { |w|
+    w['start'].to_f >= t_start - 0.15 && w['end'].to_f <= t_end + 0.15
+  }
+  return [start_time, nil] if clip_words.size < 6
+
+  norms = clip_words.map { |w| w['word'].to_s.downcase.gsub(/[^a-z0-9']/, '') }
+  all_trimmed = []
+
+  3.times do # max iterations for chained restarts
+    break if clip_words.size < 6
+
+    found = false
+    min_plen = 3
+    max_plen = [norms.size / 3, 8].min
+
+    max_plen.downto(min_plen) do |plen|
+      # Only search for phrases starting in the first 40% of the clip
+      max_start_idx = [clip_words.size * 2 / 5, clip_words.size - plen * 2].min
+      next if max_start_idx < 0
+
+      (0..max_start_idx).each do |i|
+        phrase = norms[i, plen]
+        next if phrase.all? { |w| RESTART_FILLER.include?(w) || w.empty? }
+
+        # Find same phrase later in clip
+        search_from = i + plen
+        match_at = nil
+        max_search = [search_from + 25 + plen, norms.size - plen].min
+        (search_from..max_search).each do |j|
+          if norms[j, plen] == phrase
+            match_at = j
+            break
+          end
+        end
+        next unless match_at
+
+        # Compute tail content for restart vs rhetorical detection
+        first_tail = (i + plen...match_at).map { |j| norms[j] }
+                       .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
+        second_tail_end = [match_at + plen + 25, norms.size].min
+        second_tail = (match_at + plen...second_tail_end).map { |j| norms[j] }
+                        .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
+
+        # Don't trim if second occurrence doesn't continue further
+        # (restart = incomplete first, more complete second)
+        next if second_tail.size <= first_tail.size
+
+        # Rhetorical protection: both tails substantial with different content → preserve
+        if first_tail.size >= 2 && second_tail.size >= 2
+          overlap = (first_tail & second_tail).size.to_f / [first_tail.size, second_tail.size].min
+          next if overlap < 0.5
+        end
+
+        # Find the start of the second attempt by walking back from match_at
+        # to the nearest significant time gap (>300ms between consecutive words)
+        second_attempt_start = match_at
+        ([i + plen, match_at - 20].max...match_at).to_a.reverse_each do |g|
+          gap = clip_words[g]['start'].to_f - clip_words[g - 1]['end'].to_f
+          if gap >= RESTART_GAP_THRESHOLD
+            second_attempt_start = g
+            break
+          end
+        end
+
+        trimmed_text = clip_words[0...second_attempt_start].map { |w| w['word'] }.join(' ')
+        all_trimmed << trimmed_text
+
+        clip_words = clip_words[second_attempt_start..]
+        norms = norms[second_attempt_start..]
+        found = true
+        break # restart search with shorter clip
+      end
+      break if found
+    end
+    break unless found
+  end
+
+  return [start_time, nil] if all_trimmed.empty?
+
+  # New start time from first remaining word
+  new_t_start = clip_words.first['start'].to_f
+  new_start = has_sync ? new_t_start - sync_offset : new_t_start
+  [new_start, all_trimmed.join(' | ')]
+end
+
 clips = []
 wav_clip_info = []
 # Track source WAV-time ranges for each output clip (for below-threshold pause markers)
@@ -429,6 +541,15 @@ config['clips'].each_with_index do |c, idx|
 
     if adj_s != 0.0 || adj_e != 0.0
       $stderr.puts "Clip #{idx + 1}: snapped start #{'%+.3f' % adj_s}s, end #{'%+.3f' % adj_e}s"
+    end
+  end
+
+  # === Trim in-point restart false-starts ===
+  if transcript_words
+    new_start, trimmed = trim_restart_inpoint(start_time, end_time, transcript_words, sync_offset, has_sync)
+    if trimmed
+      $stderr.puts "Clip #{idx + 1}: trimmed restart #{'%.2f' % start_time}→#{'%.2f' % new_start}s (#{'%.1f' % (new_start - start_time)}s removed: '#{trimmed}')"
+      start_time = new_start
     end
   end
 

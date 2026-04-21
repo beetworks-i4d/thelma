@@ -1199,4 +1199,124 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
   end
+
+  describe 'in-point restart trimming' do
+    # Build a transcript with a restart pattern:
+    # "I think it's very telling that the flood of images we see [gap] I think it's very telling that at the present moment the flood continues"
+    def restart_transcript_words
+      # First attempt: "I think it's very telling that the flood of images we see"
+      first = [
+        { 'word' => 'I', 'start' => 10.0, 'end' => 10.1 },
+        { 'word' => 'think', 'start' => 10.1, 'end' => 10.3 },
+        { 'word' => "it's", 'start' => 10.3, 'end' => 10.5 },
+        { 'word' => 'very', 'start' => 10.5, 'end' => 10.7 },
+        { 'word' => 'telling', 'start' => 10.7, 'end' => 11.0 },
+        { 'word' => 'that', 'start' => 11.0, 'end' => 11.2 },
+        { 'word' => 'the', 'start' => 11.2, 'end' => 11.3 },
+        { 'word' => 'flood', 'start' => 11.3, 'end' => 11.5 },
+        { 'word' => 'of', 'start' => 11.5, 'end' => 11.6 },
+        { 'word' => 'images', 'start' => 11.6, 'end' => 11.9 },
+        { 'word' => 'we', 'start' => 11.9, 'end' => 12.0 },
+        { 'word' => 'see,', 'start' => 12.0, 'end' => 12.3 }
+      ]
+      # Second attempt (after 1s gap): same opening, continues further
+      second = [
+        { 'word' => 'I', 'start' => 13.3, 'end' => 13.4 },
+        { 'word' => 'think', 'start' => 13.4, 'end' => 13.6 },
+        { 'word' => "it's", 'start' => 13.6, 'end' => 13.8 },
+        { 'word' => 'very', 'start' => 13.8, 'end' => 14.0 },
+        { 'word' => 'telling', 'start' => 14.0, 'end' => 14.3 },
+        { 'word' => 'that', 'start' => 14.3, 'end' => 14.5 },
+        { 'word' => 'at', 'start' => 14.5, 'end' => 14.6 },
+        { 'word' => 'the', 'start' => 14.6, 'end' => 14.7 },
+        { 'word' => 'present', 'start' => 14.7, 'end' => 15.0 },
+        { 'word' => 'moment', 'start' => 15.0, 'end' => 15.3 },
+        { 'word' => 'the', 'start' => 15.3, 'end' => 15.4 },
+        { 'word' => 'flood', 'start' => 15.4, 'end' => 15.6 },
+        { 'word' => 'of', 'start' => 15.6, 'end' => 15.7 },
+        { 'word' => 'images', 'start' => 15.7, 'end' => 16.0 },
+        { 'word' => 'continues', 'start' => 16.0, 'end' => 16.4 },
+        { 'word' => 'growing.', 'start' => 16.4, 'end' => 16.8 }
+      ]
+      { 'segments' => [{ 'words' => first + second }] }
+    end
+
+    def rhetorical_transcript_words
+      # "lots and lots of artists gave lots and lots of labels"
+      # — both tails have unique content, it's rhetorical
+      words = [
+        { 'word' => 'lots', 'start' => 10.0, 'end' => 10.2 },
+        { 'word' => 'and', 'start' => 10.2, 'end' => 10.3 },
+        { 'word' => 'lots', 'start' => 10.3, 'end' => 10.5 },
+        { 'word' => 'of', 'start' => 10.5, 'end' => 10.6 },
+        { 'word' => 'artists', 'start' => 10.6, 'end' => 10.9 },
+        { 'word' => 'gave', 'start' => 10.9, 'end' => 11.1 },
+        { 'word' => 'lots', 'start' => 11.1, 'end' => 11.3 },
+        { 'word' => 'and', 'start' => 11.3, 'end' => 11.4 },
+        { 'word' => 'lots', 'start' => 11.4, 'end' => 11.6 },
+        { 'word' => 'of', 'start' => 11.6, 'end' => 11.7 },
+        { 'word' => 'labels', 'start' => 11.7, 'end' => 12.0 }
+      ]
+      { 'segments' => [{ 'words' => words }] }
+    end
+
+    it 'trims in-point past false-start restart' do
+      Dir.mktmpdir do |dir|
+        tr_path = File.join(dir, 'transcript.json')
+        File.write(tr_path, restart_transcript_words.to_json)
+
+        config = base_config(dir)
+        config['transcript'] = tr_path
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 16.8 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('trimmed restart')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clips = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clips.size).to eq(1)
+        # In-point should have moved from 10.0 to ~13.3 (start of second attempt)
+        in_frame = clips.first.at_xpath('in').text.to_i
+        # At ~25fps, 3.3s offset ≈ 82-83 frames (minus breathing room buffer)
+        expect(in_frame).to be > 60
+      end
+    end
+
+    it 'preserves rhetorical repetition (both tails have unique content)' do
+      Dir.mktmpdir do |dir|
+        tr_path = File.join(dir, 'transcript.json')
+        File.write(tr_path, rhetorical_transcript_words.to_json)
+
+        config = base_config(dir)
+        config['transcript'] = tr_path
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 12.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        # Should NOT trim — rhetorical repetition preserved
+        expect(stderr).not_to include('trimmed restart')
+      end
+    end
+
+    it 'does not add clips when restart trimming is applied' do
+      Dir.mktmpdir do |dir|
+        tr_path = File.join(dir, 'transcript.json')
+        File.write(tr_path, restart_transcript_words.to_json)
+
+        config = base_config(dir)
+        config['transcript'] = tr_path
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 16.8 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        # Clip count stays the same — only in-point adjusted, no splits
+        expect(doc.xpath('//sequence/media/video/track/clipitem').size).to eq(1)
+      end
+    end
+  end
 end
