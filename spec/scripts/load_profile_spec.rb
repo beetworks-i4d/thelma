@@ -11,7 +11,8 @@ RSpec.describe 'load_profile' do
     it 'returns default hash when name is _default' do
       profile = load_profile_by_name('_default')
       expect(profile['name']).to eq('_default')
-      expect(profile['max_segment_duration']).to eq(12)
+      expect(profile['auto_remove_pauses_above']).to eq(800)
+      expect(profile['min_segment_duration']).to eq(2)
       expect(profile['snap_end_tolerance_ms']).to eq(100)
       expect(profile['content_type']).to eq('auto')
     end
@@ -26,7 +27,8 @@ RSpec.describe 'load_profile' do
 
     it 'preserves default values not overridden by dylan' do
       profile = load_profile_by_name('dylan')
-      expect(profile['max_segment_duration']).to eq(12)
+      expect(profile['auto_remove_pauses_above']).to eq(800)
+      expect(profile['min_segment_duration']).to eq(2)
       expect(profile['snap_end_tolerance_ms']).to eq(100)
       expect(profile['closing_durability_preference']).to eq('identity')
       expect(profile['include_ctas']).to be true

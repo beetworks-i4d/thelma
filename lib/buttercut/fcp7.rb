@@ -230,6 +230,12 @@ class ButterCut
         asset_duration_frames = frames_for_fraction(asset[:asset_duration], asset[:frame_duration])
         asset_timecode_start = frames_for_fraction(asset[:timecode], asset[:frame_duration])
 
+        # Timeline track: which track in the sequence (V1=1, V2=2)
+        # Source stream index: which stream within the source file (default 1)
+        clip_def = clip[:clip_definition]
+        source_video_stream = clip_def&.fetch(:source_stream_index, 1) || 1
+        source_audio_stream = clip_def&.fetch(:source_audio_stream_index, nil) || source_video_stream
+
         {
           index: index + 1,
           clip: clip,
@@ -250,6 +256,8 @@ class ButterCut
           asset_timecode_start: asset_timecode_start,
           video_track: clip[:video_track],
           audio_track: clip[:audio_track],
+          source_video_stream: source_video_stream,
+          source_audio_stream: source_audio_stream,
           media_type: clip[:media_type]
         }
       end
@@ -279,7 +287,7 @@ class ButterCut
         build_file_ref(xml, payload, include_video: true)
         xml.sourcetrack do
           xml.mediatype 'video'
-          xml.trackindex payload[:video_track]
+          xml.trackindex payload[:source_video_stream]
         end
         build_link_entries(xml, payload)
       end
@@ -299,7 +307,7 @@ class ButterCut
         build_file_ref(xml, payload, include_video: false)
         xml.sourcetrack do
           xml.mediatype 'audio'
-          xml.trackindex payload[:audio_track]
+          xml.trackindex payload[:source_audio_stream]
         end
         xml.channelcount 2
         build_link_entries(xml, payload)

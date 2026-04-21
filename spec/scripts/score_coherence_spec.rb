@@ -131,7 +131,7 @@ RSpec.describe 'score_coherence.rb' do
     it 'preserves editorial fields for Phase 2' do
       result = run_scorer(base_matched, base_classified)
       s = result[:scored]['storylines'].first
-      %w[primary_state hook_segment close_segment arc pitch template_match].each do |field|
+      %w[primary_state hook_segment close_segment arc template_match].each do |field|
         expect(s).to have_key(field), "missing editorial field: #{field}"
       end
     end

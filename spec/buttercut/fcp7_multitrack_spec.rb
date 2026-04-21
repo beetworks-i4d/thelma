@@ -100,14 +100,14 @@ RSpec.describe ButterCut::FCP7, 'multi-track' do
       expect(track2_clips.first.at_xpath('start').text.to_i).to eq(75)
     end
 
-    it 'sets correct sourcetrack trackindex for video clips' do
+    it 'sets sourcetrack trackindex to 1 (source stream) regardless of timeline track' do
       track_indices = doc.xpath('//media/video/track/clipitem/sourcetrack/trackindex').map { |e| e.text.to_i }
-      expect(track_indices).to eq([1, 2])
+      expect(track_indices).to eq([1, 1])
     end
 
-    it 'sets correct sourcetrack trackindex for audio clips' do
+    it 'sets audio sourcetrack trackindex to 1 (source stream) regardless of timeline track' do
       track_indices = doc.xpath('//media/audio/track/clipitem/sourcetrack/trackindex').map { |e| e.text.to_i }
-      expect(track_indices).to eq([1, 2])
+      expect(track_indices).to eq([1, 1])
     end
 
     it 'sets correct link trackindex values' do
@@ -124,6 +124,23 @@ RSpec.describe ButterCut::FCP7, 'multi-track' do
       audio_link_idx2 = clip2_links[1].at_xpath('trackindex').text.to_i
       expect(video_link_idx2).to eq(2)
       expect(audio_link_idx2).to eq(2)
+    end
+  end
+
+  describe 'explicit source_stream_index' do
+    let(:generator) do
+      described_class.new([
+        { path: clip_a_path, duration: 10.0, video_track: 1, audio_track: 1 },
+        { path: clip_b_path, duration: 5.0, video_track: 2, audio_track: 2,
+          timeline_offset: 3.0, source_stream_index: 2 }
+      ])
+    end
+
+    let(:doc) { Nokogiri::XML(generator.to_xml) }
+
+    it 'uses explicit source_stream_index for sourcetrack when set' do
+      track_indices = doc.xpath('//media/video/track/clipitem/sourcetrack/trackindex').map { |e| e.text.to_i }
+      expect(track_indices).to eq([1, 2])
     end
   end
 

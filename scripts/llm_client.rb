@@ -11,18 +11,87 @@
 require 'net/http'
 require 'json'
 require 'uri'
+require 'yaml'
+require 'fileutils'
 
 module LLMClient
   DEFAULT_MODEL = 'claude-sonnet-4-20250514'
   DEFAULT_MAX_TOKENS = 8192
 
+  # --- Claude Code mode support ---
+
+  class Pending < StandardError
+    attr_reader :pending_path, :response_path
+
+    def initialize(msg, pending_path:, response_path:)
+      @pending_path = pending_path
+      @response_path = response_path
+      super(msg)
+    end
+  end
+
+  @mode = nil
+
+  def self.mode
+    return @mode if @mode
+    ENV['ANTHROPIC_API_KEY'] ? :api : :claude_code
+  end
+
+  def self.mode=(override)
+    @mode = override&.to_sym
+  end
+
   # --- Main entry point ---
 
-  def self.call(prompt, call_type: nil, profile: nil, model: nil, max_tokens: nil)
+  def self.call(prompt, call_type: nil, profile: nil, model: nil, max_tokens: nil,
+                pending_dir: nil, call_name: nil)
     model ||= profile&.dig('llm_routing', call_type) if call_type
     model ||= DEFAULT_MODEL
     max_tokens ||= DEFAULT_MAX_TOKENS
 
+    # Step 1: Check for response file (re-entrant path)
+    if pending_dir && call_name
+      response_path = File.join(pending_dir, "#{call_name}_response.yaml")
+      if File.exist?(response_path)
+        response_data = YAML.safe_load(File.read(response_path))
+        response_text = response_data['response']
+        if response_text && !response_text.strip.empty?
+          # Clean up pending file if it exists
+          pending_path = File.join(pending_dir, "#{call_name}.yaml")
+          File.delete(pending_path) if File.exist?(pending_path)
+          $stderr.puts "  LLM: loaded response from #{File.basename(response_path)}"
+          return response_text
+        end
+      end
+    end
+
+    # Step 2: Claude Code mode — write pending file, raise Pending
+    if mode == :claude_code && pending_dir && call_name
+      FileUtils.mkdir_p(pending_dir)
+      pending_path = File.join(pending_dir, "#{call_name}.yaml")
+      response_path = File.join(pending_dir, "#{call_name}_response.yaml")
+
+      pending_data = {
+        'call_name' => call_name,
+        'call_type' => call_type,
+        'model' => model,
+        'max_tokens' => max_tokens,
+        'response_path' => response_path,
+        'created_at' => Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z'),
+        'prompt' => prompt
+      }
+      File.write(pending_path, pending_data.to_yaml)
+
+      raise Pending.new(
+        "PENDING LLM CALL: #{call_name}\n" \
+        "  Prompt written to: #{pending_path}\n" \
+        "  Write response to: #{response_path}",
+        pending_path: pending_path,
+        response_path: response_path
+      )
+    end
+
+    # Step 3: API mode — make the call
     adapter = resolve_adapter(model)
     adapter.call(prompt, model: model, max_tokens: max_tokens)
   end

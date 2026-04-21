@@ -49,6 +49,8 @@ profile = if profile_name
            end
 template_affinities = profile['template_affinities'] || []
 closing_durability_pref = profile['closing_durability_preference']
+tone_guide = load_tone_guide(profile)
+tone_context = build_tone_context(profile, tone_guide)
 
 # Segment lookup by t-value
 seg_by_t = {}
@@ -161,11 +163,12 @@ def score_coherence_algorithmic(arc)
   { score: [score, 0].max, issues: issues }
 end
 
-def build_llm_prompt(distillations, template_name)
+def build_llm_prompt(distillations, template_name, tone_context = '')
   clip_lines = distillations.each_with_index.map { |d, i| "#{i + 1}. #{d}" }.join("\n")
+  tone_block = tone_context.empty? ? '' : "\n#{tone_context}\nIMPORTANT: The creator's signature voice moves (listed under \"preserve strongly\") should NOT be penalized as incoherence. Only flag genuine structural breaks.\n"
   <<~PROMPT.strip
     Read this proposed video cut as distilled clip order. Judge whether it makes sense as a complete piece of communication from a cold viewer's perspective.
-
+    #{tone_block}
     Score 0-100:
     - 90-100: holds together completely, viewer can follow start to finish
     - 70-89: mostly coherent, minor jumps or unclear transitions
@@ -241,7 +244,6 @@ storylines.each do |storyline|
     'duration_estimate' => storyline['duration_estimate'],
     'segment_count' => storyline['segment_count'],
     'arc' => storyline['arc'],
-    'pitch' => storyline['pitch'],
     'template_match' => storyline['template_match']
   }
   # Compact optional fields but preserve llm_coherence (intentionally nil until agent fills)
@@ -252,7 +254,7 @@ storylines.each do |storyline|
     all_segs = [arc[:hook], *arc[:body], arc[:close]].compact
     distillations = all_segs.map { |s| s['distillation'] }.compact
     template_name = storyline.dig('template_match', 'template') || 'none'
-    entry['llm_eval_prompt'] = build_llm_prompt(distillations, template_name)
+    entry['llm_eval_prompt'] = build_llm_prompt(distillations, template_name, tone_context)
     llm_eligible_count += 1
   end
 

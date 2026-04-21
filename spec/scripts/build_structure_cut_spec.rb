@@ -1032,4 +1032,454 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
   end
+
+  describe 'multi-track support' do
+    it 'places V2 clips on a separate video track' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 3.0, 'track' => 'V1' },
+          { 'video_start' => 5.0, 'video_end' => 8.0, 'track' => 'V1' },
+          { 'video_start' => 2.0, 'video_end' => 4.0, 'track' => 'V2', 'timeline_offset' => 0.0 }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        video_tracks = doc.xpath('//sequence/media/video/track')
+        expect(video_tracks.size).to eq(2)
+
+        # V1 track has 2 clips, V2 track has 1 clip
+        expect(video_tracks[0].xpath('clipitem').size).to eq(2)
+        expect(video_tracks[1].xpath('clipitem').size).to eq(1)
+      end
+    end
+
+    it 'defaults to V1 when track field is absent' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 3.0 },
+          { 'video_start' => 5.0, 'video_end' => 8.0 }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        video_tracks = doc.xpath('//sequence/media/video/track')
+        expect(video_tracks.size).to eq(1)
+        expect(video_tracks[0].xpath('clipitem').size).to eq(2)
+      end
+    end
+  end
+
+  describe 'natural segmentation' do
+    it 'does not auto-split long clips when max_segment_duration is not set' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 0.5, 'end' => 20.0 }
+          ],
+          'long_pauses' => [
+            { 'start' => 8.0, 'end' => 8.5, 'duration' => 0.5 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['auto_remove_pauses_above'] = false
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 20.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('auto-split')
+        expect(stderr).not_to include('Auto-split')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clipitems.size).to eq(1)
+      end
+    end
+
+    it 'merges segments shorter than min_segment_duration with neighbors' do
+      Dir.mktmpdir do |dir|
+        # Create speech data with two pauses that would create a 1-second middle segment
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.0, 'end' => 10.0 }
+          ],
+          'long_pauses' => [
+            { 'start' => 4.0, 'end' => 4.9, 'duration' => 0.9 },
+            { 'start' => 5.5, 'end' => 6.4, 'duration' => 0.9 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['auto_remove_pauses_above'] = 900
+        config['min_segment_duration'] = 2
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 10.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        # Middle segment (4.9-5.5 = 0.6s) should be merged, resulting in 2 clips not 3
+        expect(clipitems.size).to eq(2)
+      end
+    end
+
+    it 'disables pause removal by default (no --remove-pauses flag)' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.0, 'end' => 8.0 }
+          ],
+          'long_pauses' => [
+            { 'start' => 4.0, 'end' => 5.0, 'duration' => 1.0 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        # No auto_remove_pauses_above, no --remove-pauses flag
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 8.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('Pause removal: disabled')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        # 1000ms pause should NOT be removed — pause removal is off
+        expect(clipitems.size).to eq(1)
+      end
+    end
+
+    it 'enables pause removal with --remove-pauses flag' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.0, 'end' => 8.0 }
+          ],
+          'long_pauses' => [
+            { 'start' => 4.0, 'end' => 5.0, 'duration' => 1.0 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 8.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, '--remove-pauses', yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('Pause removal: enabled')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        # 1000ms pause SHOULD be removed — flag is set, above 800ms threshold
+        expect(clipitems.size).to eq(2)
+      end
+    end
+  end
+
+  describe 'in-point restart trimming' do
+    # Build a transcript with a restart pattern:
+    # "I think it's very telling that the flood of images we see [gap] I think it's very telling that at the present moment the flood continues"
+    def restart_transcript_words
+      # First attempt: "I think it's very telling that the flood of images we see"
+      first = [
+        { 'word' => 'I', 'start' => 10.0, 'end' => 10.1 },
+        { 'word' => 'think', 'start' => 10.1, 'end' => 10.3 },
+        { 'word' => "it's", 'start' => 10.3, 'end' => 10.5 },
+        { 'word' => 'very', 'start' => 10.5, 'end' => 10.7 },
+        { 'word' => 'telling', 'start' => 10.7, 'end' => 11.0 },
+        { 'word' => 'that', 'start' => 11.0, 'end' => 11.2 },
+        { 'word' => 'the', 'start' => 11.2, 'end' => 11.3 },
+        { 'word' => 'flood', 'start' => 11.3, 'end' => 11.5 },
+        { 'word' => 'of', 'start' => 11.5, 'end' => 11.6 },
+        { 'word' => 'images', 'start' => 11.6, 'end' => 11.9 },
+        { 'word' => 'we', 'start' => 11.9, 'end' => 12.0 },
+        { 'word' => 'see,', 'start' => 12.0, 'end' => 12.3 }
+      ]
+      # Second attempt (after 1s gap): same opening, continues further
+      second = [
+        { 'word' => 'I', 'start' => 13.3, 'end' => 13.4 },
+        { 'word' => 'think', 'start' => 13.4, 'end' => 13.6 },
+        { 'word' => "it's", 'start' => 13.6, 'end' => 13.8 },
+        { 'word' => 'very', 'start' => 13.8, 'end' => 14.0 },
+        { 'word' => 'telling', 'start' => 14.0, 'end' => 14.3 },
+        { 'word' => 'that', 'start' => 14.3, 'end' => 14.5 },
+        { 'word' => 'at', 'start' => 14.5, 'end' => 14.6 },
+        { 'word' => 'the', 'start' => 14.6, 'end' => 14.7 },
+        { 'word' => 'present', 'start' => 14.7, 'end' => 15.0 },
+        { 'word' => 'moment', 'start' => 15.0, 'end' => 15.3 },
+        { 'word' => 'the', 'start' => 15.3, 'end' => 15.4 },
+        { 'word' => 'flood', 'start' => 15.4, 'end' => 15.6 },
+        { 'word' => 'of', 'start' => 15.6, 'end' => 15.7 },
+        { 'word' => 'images', 'start' => 15.7, 'end' => 16.0 },
+        { 'word' => 'continues', 'start' => 16.0, 'end' => 16.4 },
+        { 'word' => 'growing.', 'start' => 16.4, 'end' => 16.8 }
+      ]
+      { 'segments' => [{ 'words' => first + second }] }
+    end
+
+    def rhetorical_transcript_words
+      # "lots and lots of artists gave lots and lots of labels"
+      # — both tails have unique content, it's rhetorical
+      words = [
+        { 'word' => 'lots', 'start' => 10.0, 'end' => 10.2 },
+        { 'word' => 'and', 'start' => 10.2, 'end' => 10.3 },
+        { 'word' => 'lots', 'start' => 10.3, 'end' => 10.5 },
+        { 'word' => 'of', 'start' => 10.5, 'end' => 10.6 },
+        { 'word' => 'artists', 'start' => 10.6, 'end' => 10.9 },
+        { 'word' => 'gave', 'start' => 10.9, 'end' => 11.1 },
+        { 'word' => 'lots', 'start' => 11.1, 'end' => 11.3 },
+        { 'word' => 'and', 'start' => 11.3, 'end' => 11.4 },
+        { 'word' => 'lots', 'start' => 11.4, 'end' => 11.6 },
+        { 'word' => 'of', 'start' => 11.6, 'end' => 11.7 },
+        { 'word' => 'labels', 'start' => 11.7, 'end' => 12.0 }
+      ]
+      { 'segments' => [{ 'words' => words }] }
+    end
+
+    it 'trims in-point past false-start restart' do
+      Dir.mktmpdir do |dir|
+        tr_path = File.join(dir, 'transcript.json')
+        File.write(tr_path, restart_transcript_words.to_json)
+
+        config = base_config(dir)
+        config['transcript'] = tr_path
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 16.8 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('trimmed restart')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clips = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clips.size).to eq(1)
+        # In-point should have moved from 10.0 to ~13.3 (start of second attempt)
+        in_frame = clips.first.at_xpath('in').text.to_i
+        # At ~25fps, 3.3s offset ≈ 82-83 frames (minus breathing room buffer)
+        expect(in_frame).to be > 60
+      end
+    end
+
+    it 'preserves rhetorical repetition (both tails have unique content)' do
+      Dir.mktmpdir do |dir|
+        tr_path = File.join(dir, 'transcript.json')
+        File.write(tr_path, rhetorical_transcript_words.to_json)
+
+        config = base_config(dir)
+        config['transcript'] = tr_path
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 12.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        # Should NOT trim — rhetorical repetition preserved
+        expect(stderr).not_to include('trimmed restart')
+      end
+    end
+
+    it 'does not add clips when restart trimming is applied' do
+      Dir.mktmpdir do |dir|
+        tr_path = File.join(dir, 'transcript.json')
+        File.write(tr_path, restart_transcript_words.to_json)
+
+        config = base_config(dir)
+        config['transcript'] = tr_path
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 16.8 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        # Clip count stays the same — only in-point adjusted, no splits
+        expect(doc.xpath('//sequence/media/video/track/clipitem').size).to eq(1)
+      end
+    end
+  end
+
+  describe 'ingest trim_in support' do
+    it 'applies trim_in to adjust clip in-point' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        # Clip from 10.0-20.0 with trim_in at 12.5
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 20.0, 'trim_in' => 12.5 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('trim_in')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clips = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clips.size).to eq(1)
+        # In-point should reflect ~12.5s, not 10.0s
+        in_frame = clips.first.at_xpath('in').text.to_i
+        # At ~25fps, 12.5s ≈ 312 frames minus breathing room buffer (~3 frames)
+        expect(in_frame).to be > 290
+      end
+    end
+
+    it 'ignores trim_in outside clip bounds' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        # trim_in before clip start — should be ignored
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 20.0, 'trim_in' => 5.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('trim_in')
+      end
+    end
+  end
+
+  describe 'ingest mid_cuts support' do
+    it 'creates sub-clips when mid_cuts are present' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        # Clip from 10.0-30.0 with a mid_cut excising 15.0-18.0
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 30.0, 'mid_cuts' => [[15.0, 18.0]] }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('mid_cut')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clips = doc.xpath('//sequence/media/video/track/clipitem')
+        # Should split into 2 sub-clips: 10-15 and 18-30
+        expect(clips.size).to eq(2)
+      end
+    end
+
+    it 'ignores mid_cuts outside clip bounds' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        # mid_cut entirely outside clip — should be ignored
+        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 20.0, 'mid_cuts' => [[25.0, 28.0]] }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).not_to include('mid_cut')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clips = doc.xpath('//sequence/media/video/track/clipitem')
+        expect(clips.size).to eq(1)
+      end
+    end
+  end
+
+  describe 'Tier 0 narrative role markers' do
+    it 'generates colored point markers at clip starts for each narrative_role' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 3.0, 'narrative_role' => 'hook' },
+          { 'video_start' => 5.0, 'video_end' => 8.0, 'narrative_role' => 'setup' },
+          { 'video_start' => 10.0, 'video_end' => 15.0, 'narrative_role' => 'continuation' },
+          { 'video_start' => 20.0, 'video_end' => 25.0, 'narrative_role' => 'payoff' }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        markers = doc.xpath('//sequence/marker')
+        role_markers = markers.select { |m| %w[HOOK SETUP CONTINUATION PAYOFF].include?(m.at_xpath('name').text) }
+
+        expect(role_markers.size).to eq(4)
+        names = role_markers.map { |m| m.at_xpath('name').text }
+        expect(names).to eq(%w[HOOK SETUP CONTINUATION PAYOFF])
+
+        # Verify pproColor values
+        ppro_colors = role_markers.map { |m| m.at_xpath('pproColor')&.text }
+        expect(ppro_colors[0]).to eq('4279486782')  # green
+        expect(ppro_colors[1]).to eq('4280578025')  # orange
+        expect(ppro_colors[2]).to eq('4294153761')  # blue
+        expect(ppro_colors[3]).to eq('4289734556')  # purple
+      end
+    end
+
+    it 'skips markers for transition role and absent role' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 3.0, 'narrative_role' => 'transition' },
+          { 'video_start' => 5.0, 'video_end' => 8.0 }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        markers = doc.xpath('//sequence/marker')
+        role_markers = markers.select { |m| %w[HOOK SETUP CONTINUATION PAYOFF TRANSITION].include?(m.at_xpath('name').text) }
+        expect(role_markers.size).to eq(0)
+      end
+    end
+  end
+
+  describe 'chapter SECTION markers' do
+    it 'generates SECTION markers from chapter metadata' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)
+        config['clips'] = [
+          { 'video_start' => 1.0, 'video_end' => 5.0, 'track' => 'V1' },
+          { 'video_start' => 10.0, 'video_end' => 15.0, 'track' => 'V1' },
+          { 'video_start' => 20.0, 'video_end' => 28.0, 'track' => 'V1' }
+        ]
+        config['chapters'] = [
+          { 'id' => 'ch_01', 'label' => 'Hook — opening moment', 'v1_clip_start' => 0, 'v1_clip_end' => 0 },
+          { 'id' => 'ch_02', 'label' => 'Historical parallel', 'v1_clip_start' => 1, 'v1_clip_end' => 2 }
+        ]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('Chapter SECTION markers')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        markers = doc.xpath('//sequence/marker')
+        section_markers = markers.select { |m| m.at_xpath('name').text.start_with?('SECTION:') }
+        expect(section_markers.size).to eq(2)
+
+        names = section_markers.map { |m| m.at_xpath('name').text }
+        expect(names[0]).to eq('SECTION: Hook — opening moment')
+        expect(names[1]).to eq('SECTION: Historical parallel')
+
+        # Verify they are range markers (out > in)
+        section_markers.each do |m|
+          in_frame = m.at_xpath('in').text.to_i
+          out_frame = m.at_xpath('out').text.to_i
+          expect(out_frame).to be > in_frame
+        end
+      end
+    end
+  end
 end

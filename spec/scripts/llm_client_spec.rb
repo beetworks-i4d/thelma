@@ -1,5 +1,8 @@
 require 'open3'
 require 'json'
+require 'yaml'
+require 'tmpdir'
+require 'fileutils'
 
 LLM_CLIENT_PATH = File.expand_path('../../scripts/llm_client.rb', __dir__)
 
@@ -87,6 +90,141 @@ RSpec.describe 'LLMClient' do
       RUBY
       expect(status.exitstatus).to eq(0)
       expect(stdout.strip).to eq('claude-sonnet-4-20250514')
+    end
+  end
+
+  describe '.mode detection' do
+    it 'returns :api when ANTHROPIC_API_KEY is set' do
+      env = ENV.to_h.merge('ANTHROPIC_API_KEY' => 'sk-ant-test')
+      stdout, _, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
+        require '#{LLM_CLIENT_PATH}'
+        puts LLMClient.mode
+      RUBY
+      expect(status.exitstatus).to eq(0)
+      expect(stdout.strip).to eq('api')
+    end
+
+    it 'returns :claude_code when ANTHROPIC_API_KEY is not set' do
+      env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
+      stdout, _, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
+        require '#{LLM_CLIENT_PATH}'
+        puts LLMClient.mode
+      RUBY
+      expect(status.exitstatus).to eq(0)
+      expect(stdout.strip).to eq('claude_code')
+    end
+
+    it 'respects mode= override' do
+      env = ENV.to_h.merge('ANTHROPIC_API_KEY' => 'sk-ant-test')
+      stdout, _, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
+        require '#{LLM_CLIENT_PATH}'
+        LLMClient.mode = :claude_code
+        puts LLMClient.mode
+      RUBY
+      expect(status.exitstatus).to eq(0)
+      expect(stdout.strip).to eq('claude_code')
+    end
+  end
+
+  describe 'pending file write (Claude Code mode)' do
+    it 'raises Pending and writes pending YAML when in claude_code mode' do
+      Dir.mktmpdir do |dir|
+        pending_dir = File.join(dir, 'pending_llm_calls')
+        env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
+        stdout, stderr, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
+          require '#{LLM_CLIENT_PATH}'
+          begin
+            LLMClient.call("Test prompt here",
+              call_type: 'test_call', call_name: 'my_test',
+              pending_dir: '#{pending_dir}')
+          rescue LLMClient::Pending => e
+            puts "PENDING"
+            puts e.pending_path
+            puts e.response_path
+          end
+        RUBY
+        expect(status.exitstatus).to eq(0)
+        lines = stdout.strip.split("\n")
+        expect(lines[0]).to eq('PENDING')
+
+        pending_path = File.join(pending_dir, 'my_test.yaml')
+        expect(File.exist?(pending_path)).to be true
+
+        data = YAML.safe_load(File.read(pending_path))
+        expect(data['call_name']).to eq('my_test')
+        expect(data['call_type']).to eq('test_call')
+        expect(data['prompt']).to include('Test prompt here')
+        expect(data['response_path']).to include('my_test_response.yaml')
+        expect(data['model']).to eq('claude-sonnet-4-20250514')
+      end
+    end
+
+    it 'does not raise Pending when pending_dir/call_name are nil' do
+      env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
+      _, stderr, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
+        require '#{LLM_CLIENT_PATH}'
+        LLMClient.call("Test prompt")
+      RUBY
+      # Without pending_dir/call_name, falls through to API mode which aborts on missing key
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to include('ANTHROPIC_API_KEY')
+    end
+  end
+
+  describe 'response file read (re-entrant path)' do
+    it 'returns response from file and cleans up pending file' do
+      Dir.mktmpdir do |dir|
+        pending_dir = File.join(dir, 'pending_llm_calls')
+        FileUtils.mkdir_p(pending_dir)
+
+        # Write a pending file
+        File.write(File.join(pending_dir, 'my_test.yaml'), { 'call_name' => 'my_test' }.to_yaml)
+
+        # Write a response file
+        File.write(File.join(pending_dir, 'my_test_response.yaml'),
+          { 'response' => "The LLM says hello" }.to_yaml)
+
+        env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
+        stdout, _, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
+          require '#{LLM_CLIENT_PATH}'
+          result = LLMClient.call("ignored prompt",
+            call_type: 'test', call_name: 'my_test',
+            pending_dir: '#{pending_dir}')
+          puts result
+        RUBY
+        expect(status.exitstatus).to eq(0)
+        expect(stdout.strip).to eq('The LLM says hello')
+
+        # Pending file should be cleaned up
+        expect(File.exist?(File.join(pending_dir, 'my_test.yaml'))).to be false
+        # Response file should still exist
+        expect(File.exist?(File.join(pending_dir, 'my_test_response.yaml'))).to be true
+      end
+    end
+
+    it 'ignores empty response file and writes pending instead' do
+      Dir.mktmpdir do |dir|
+        pending_dir = File.join(dir, 'pending_llm_calls')
+        FileUtils.mkdir_p(pending_dir)
+
+        # Write an empty response file
+        File.write(File.join(pending_dir, 'my_test_response.yaml'),
+          { 'response' => '' }.to_yaml)
+
+        env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
+        stdout, _, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
+          require '#{LLM_CLIENT_PATH}'
+          begin
+            LLMClient.call("Test prompt",
+              call_type: 'test', call_name: 'my_test',
+              pending_dir: '#{pending_dir}')
+          rescue LLMClient::Pending
+            puts "PENDING"
+          end
+        RUBY
+        expect(status.exitstatus).to eq(0)
+        expect(stdout.strip).to eq('PENDING')
+      end
     end
   end
 end

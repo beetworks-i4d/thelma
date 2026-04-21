@@ -203,6 +203,85 @@ def destutter_segment(seg, speech_segs = nil)
     end
   end
 
+  # --- Pass C: Phrase restarts (same opening, different continuation) ---
+  # Pattern: "I think it's very telling that the flood... so I think it's very telling that at the present..."
+  # The speaker starts a thought, abandons it, restarts with the same opening but continues differently.
+  # Distinct from rhetorical repetition where both instances have parallel complete content.
+  min_restart_phrase = 3
+  max_restart_phrase = [norms.size / 3, 8].min
+  max_restart_phrase.downto(min_restart_phrase) do |plen|
+    i = 0
+    while i <= norms.size - plen
+      unless keep[i]
+        i += 1
+        next
+      end
+
+      phrase = norms[i, plen]
+      next (i += 1) if phrase.all? { |w| FILLER_CONNECTORS.include?(w) || w.empty? }
+
+      # Search for same phrase opening later in the segment
+      search_from = i + plen
+      match_at = nil
+      # Allow up to 15 words between first and second occurrence (the abandoned continuation)
+      max_search = [search_from + 15 + plen, norms.size - plen].min
+      (search_from..max_search).each do |j|
+        next unless keep[j]
+        if norms[j, plen] == phrase
+          match_at = j
+          break
+        end
+      end
+
+      unless match_at
+        i += 1
+        next
+      end
+
+      # Pause-aware protection
+      phrase1_last_kept = (i...match_at).select { |j| keep[j] }.last || i
+      pause = silence_between(words[phrase1_last_kept]['end'].to_f, words[match_at]['start'].to_f, speech_segs)
+      if pause > PAUSE_THRESHOLD
+        i += 1
+        next
+      end
+
+      # Determine if this is a restart vs rhetorical parallel:
+      # - Restart: first instance has short/incomplete tail after the phrase (< phrase length words)
+      # - Rhetorical: both instances have substantial unique content after the phrase
+      first_tail_end = match_at
+      first_tail_words = (i + plen...first_tail_end).count { |j| keep[j] }
+      second_tail_end = [match_at + plen + 20, norms.size].min
+      second_tail_words = (match_at + plen...second_tail_end).count { |j| keep[j] }
+
+      # Check for parallel structure: if first tail has real content words (not just filler)
+      # AND second tail has similar amount, it's likely rhetorical
+      first_tail_content = (i + plen...first_tail_end).select { |j| keep[j] }
+                            .map { |j| norms[j] }
+                            .reject { |w| FILLER_CONNECTORS.include?(w) || w.empty? }
+      second_tail_content = (match_at + plen...[match_at + plen + first_tail_words + 5, norms.size].min).select { |j| keep[j] }
+                             .map { |j| norms[j] }
+                             .reject { |w| FILLER_CONNECTORS.include?(w) || w.empty? }
+
+      # Rhetorical if: both tails have 2+ content words AND low overlap (different content)
+      if first_tail_content.size >= 2 && second_tail_content.size >= 2
+        tail_overlap = (first_tail_content & second_tail_content).size.to_f /
+                       [first_tail_content.size, second_tail_content.size].min
+        if tail_overlap < 0.5
+          $stderr.puts "kept #{time_range(seg)} — rhetorical parallel: '#{words[i, plen].map { |w| w['word'] }.join(' ')}' (tails differ)"
+          i += 1
+          next
+        end
+      end
+
+      # It's a restart — remove everything from the first occurrence up to the second
+      removed_text = (i...match_at).select { |j| keep[j] }.map { |j| words[j]['word'] }.join(' ')
+      reasons << "removed '#{removed_text}' (phrase restart)"
+      (i...match_at).each { |j| keep[j] = false }
+      i = match_at + plen
+    end
+  end
+
   return nil if reasons.empty?
 
   # Rebuild segment from kept words

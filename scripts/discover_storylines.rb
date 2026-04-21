@@ -127,36 +127,30 @@ def expand_tight(hook, secondaries, tertiaries)
   [body, best_close]
 end
 
-# Wide: expand through ALL compatible secondaries maintaining spine, then pick close.
-# Good for longform — exhausts available material before closing.
-# Prioritizes spine-carrying segments but includes compatible non-spine segments
-# to fill the arc when spine material alone isn't enough.
+# Wide: find close FIRST, then fill body between hook and close.
+# Good for longform — a human editor picks the ending first, then fills in the body.
+# Prioritizes high-durability tertiaries positioned late in the recording.
 def expand_wide(hook, secondaries, tertiaries)
   hook_t = hook['t']
-  primary_state = hook['states'].first
 
-  candidates = secondaries.select { |s|
-    s['t'] != hook_t && s['t'] > hook_t
-  }.sort_by { |s| s['t'] }
-
-  # Include all candidates — spine-carrying ones are rewarded in scoring, not filtered here.
-  # But reject segments that are incompatible with BOTH their neighbors to avoid
-  # breaking the flow.
-  filtered_body = candidates.dup
-
-  # After exhausting body, pick best tertiary close AFTER all body content
-  last_body_t = filtered_body.last ? filtered_body.last['t'] : hook_t
-  close_candidates = tertiaries.select { |s| s['t'] != hook_t && s['t'] > last_body_t }
+  # 1. Find best close FIRST — all tertiaries after hook, prefer high durability + late position
+  close_candidates = tertiaries.select { |s| s['t'] != hook_t && s['t'] > hook_t }
   best_close = close_candidates.sort_by { |s|
-    [-(DUR_RANK[s['dur']] || 0), -(CONF_RANK[s['confidence']] || 0)]
+    [-(DUR_RANK[s['dur']] || 0), -s['t'].to_f]
   }.first
 
-  # If close is also in body (dual-role segment), remove from body
+  # 2. Body = secondaries between hook and close
+  body_end = best_close ? best_close['t'] : Float::INFINITY
+  candidates = secondaries.select { |s|
+    s['t'] != hook_t && s['t'] > hook_t && s['t'] < body_end
+  }.sort_by { |s| s['t'] }
+
+  # Remove close from body if dual-role
   if best_close
-    filtered_body.reject! { |s| s['t'] == best_close['t'] }
+    candidates.reject! { |s| s['t'] == best_close['t'] }
   end
 
-  [filtered_body, best_close]
+  [candidates, best_close]
 end
 
 # Balanced: accumulate secondaries chronologically, spine-carriers first, until
@@ -210,9 +204,23 @@ def score_arc(hook, close, body, all_t_values)
   primary_state = hook['states'].first
 
   # 1. Spine continuity (20 pts)
-  carrying = body.count { |s| (s['states'] || []).include?(primary_state) }
+  # Use whichever is better: hook-state continuity OR body-dominant-state coherence.
+  # Shorts need hook-state continuity. Longform essays naturally evolve —
+  # the spine is the body's throughline (e.g. competence), not the hook's entry state.
   total_body = body.size
-  scores['spine'] = total_body > 0 ? ((carrying.to_f / total_body) * 20).round : 0
+  carrying = body.count { |s| (s['states'] || []).include?(primary_state) }
+  spine_via_hook = total_body > 0 ? carrying.to_f / total_body : 0
+
+  body_tally = body.flat_map { |s| s['states'] || [] }.tally
+  body_dominant = body_tally.max_by { |_, c| c }&.first
+  body_dominant_ratio = if body_dominant && total_body > 0
+    body.count { |s| (s['states'] || []).include?(body_dominant) }.to_f / total_body
+  else
+    0
+  end
+
+  best_ratio = [spine_via_hook, body_dominant_ratio].max
+  scores['spine'] = (best_ratio * 20).round
 
   # 2. Arc completeness (20 pts)
   completeness = 0
@@ -367,9 +375,14 @@ PROFILES.each do |profile_name, profile|
     $stderr.puts "  #{storyline['id']}: #{storyline['score']}pts, #{fmt(dur)}"
   end
 
-  # Rank, filter >= 70, cap at 3
+  # Rank, filter by profile-specific floor, cap at 3
+  floor = case profile[:expansion]
+          when :wide then 55      # longform: diverse arcs are natural
+          when :balanced then 65  # medium: some flexibility
+          else 70                 # short: tight quality bar
+          end
   qualified = candidates.sort_by { |s| -s['score'] }
-                        .select { |s| s['score'] >= 70 }
+                        .select { |s| s['score'] >= floor }
                         .first(3)
 
   $stderr.puts "  #{candidates.size} scored, #{qualified.size} above threshold"

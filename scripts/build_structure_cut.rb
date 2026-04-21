@@ -30,15 +30,19 @@
 #     - video_start: 48.35            # video time — no conversion
 #       video_end: 58.73
 #
-#   auto_remove_pauses_above: 500    # optional, milliseconds (default 500)
+#   auto_remove_pauses_above: 800    # optional, milliseconds (disabled by default)
 #                                    # Silero long pauses above this threshold inside a clip
 #                                    # are removed by splitting the clip into sub-clips.
-#                                    # Set to 0 or false to disable.
+#                                    # Enable via --remove-pauses CLI flag or this YAML field.
+#                                    # Set to 0 or false to explicitly disable.
 #
-#   max_segment_duration: 12         # optional, seconds (default 12)
-#                                    # After pause removal, any sub-clip exceeding this
-#                                    # duration is split at the longest internal sentence
-#                                    # boundary (pause >300ms). Set to 0 or false to disable.
+#   min_segment_duration: 2          # optional, seconds (default 2 from profile)
+#                                    # After pause removal, segments shorter than this
+#                                    # are merged with adjacent segments.
+#
+#   max_segment_duration: 0          # optional, disabled by default (no auto-split)
+#                                    # Legacy: if set, splits clips exceeding this duration
+#                                    # at sentence boundaries. Set to 0 or false to disable.
 #
 #   markers:
 #     - name: TITLE
@@ -81,6 +85,7 @@ end
 
 no_emotion_markers = !!ARGV.delete('--no-emotion-markers')
 markers_only_structure = !!ARGV.delete('--markers-only-structure')
+cli_remove_pauses = !!ARGV.delete('--remove-pauses')
 profile_name = nil
 if (idx = ARGV.index('--profile'))
   profile_name = ARGV.delete_at(idx + 1)
@@ -170,6 +175,22 @@ $stderr.puts "Output: #{out_desc}"
 breathing_room_frames = config['breathing_room_frames'] || 3
 buffer = breathing_room_frames.to_f / fps
 
+# === Tier 0: Narrative role indicator markers (point markers at clip starts) ===
+# Replaces clip label coloring (which Premiere ties to source media, not timeline instances).
+ROLE_MARKER_PPRO = {
+  'hook'         => 4279486782,   # Green
+  'setup'        => 4280578025,   # Orange
+  'continuation' => 4294153761,   # Blue
+  'payoff'       => 4289734556,   # Purple
+}.freeze
+
+ROLE_MARKER_FCP_COLOR = {
+  'hook'         => 'green',
+  'setup'        => 'orange',
+  'continuation' => 'blue',
+  'payoff'       => 'purple',
+}.freeze
+
 # === Build clips ===
 has_sync = config['sync_audio'] && config['sync_audio']['path']
 sync_offset = has_sync ? config['sync_audio']['offset'].to_f : 0.0
@@ -189,6 +210,19 @@ if config['speech_analysis']
   speech_segments = sa_data['speech_segments']
   long_pauses = sa_data['long_pauses']
   $stderr.puts "Loaded speech analysis: #{speech_segments.size} segments, #{long_pauses.size} long pauses"
+end
+
+# === Load transcript for in-point restart trimming ===
+transcript_words = nil
+if config['transcript']
+  tr_path = config['transcript']
+  if File.exist?(tr_path)
+    tr_data = JSON.parse(File.read(tr_path))
+    transcript_words = tr_data['segments'].flat_map { |s| s['words'] || [] }
+    $stderr.puts "Loaded transcript: #{transcript_words.size} words for restart trimming"
+  else
+    $stderr.puts "WARNING: Transcript not found: #{tr_path} — skipping restart trimming"
+  end
 end
 
 # === Load classification for tiered markers ===
@@ -256,38 +290,53 @@ elsif config['classification']
 end
 
 # === Parse auto_remove_pauses_above ===
+# Pause removal is OFF by default. Enable via --remove-pauses flag or
+# explicit auto_remove_pauses_above in YAML config.
 pause_removal_threshold = nil
 if config.key?('auto_remove_pauses_above')
   val = config['auto_remove_pauses_above']
   if val && val != false && val.to_i > 0
     pause_removal_threshold = val.to_i / 1000.0
   end
-else
-  pause_removal_threshold = 0.5  # default 500ms
+elsif cli_remove_pauses
+  # --remove-pauses flag: use profile threshold
+  profile_pause_ms = profile['auto_remove_pauses_above'] || 800
+  pause_removal_threshold = profile_pause_ms.to_i / 1000.0
 end
 
 if pause_removal_threshold && long_pauses
   $stderr.puts "Pause removal: enabled (threshold #{(pause_removal_threshold * 1000).round}ms)"
+else
+  $stderr.puts "Pause removal: disabled (use --remove-pauses to enable)"
 end
 
-# === Parse max_segment_duration ===
+# === Parse min_segment_duration (floor after splits) ===
+min_segment_duration = nil
+if config.key?('min_segment_duration')
+  val = config['min_segment_duration']
+  if val && val != false && val.to_f > 0
+    min_segment_duration = val.to_f
+  end
+else
+  min_segment_duration = (profile['min_segment_duration'] || 2).to_f
+end
+
+# === Parse max_segment_duration (legacy support — disabled by default) ===
 max_segment_duration = nil
 if config.key?('max_segment_duration')
   val = config['max_segment_duration']
   if val && val != false && val.to_i > 0
     max_segment_duration = val.to_i
   end
-else
-  max_segment_duration = profile['max_segment_duration'] || 12
 end
+# NOTE: max_segment_duration no longer has a default. Natural boundaries only.
 
 if max_segment_duration && long_pauses
-  $stderr.puts "Max segment duration: #{max_segment_duration}s (auto-split at sentence boundaries)"
+  $stderr.puts "Max segment duration: #{max_segment_duration}s (legacy auto-split enabled)"
 end
 
-# Find split points for an oversized clip using internal pauses.
-# Recursively finds the longest pause, splits there, and checks sub-segments.
-# Returns array of video-time split points sorted chronologically.
+# Find split points for an oversized clip using internal pauses (legacy).
+# Only used when max_segment_duration is explicitly set in YAML config.
 SENTENCE_BOUNDARY_THRESHOLD = 0.300  # 300ms minimum pause for sentence boundary
 
 def find_split_points(video_start, video_end, pauses, max_dur, sync_offset, has_sync)
@@ -347,6 +396,123 @@ def snap_to_boundary(time, segments, boundary_type, tolerance = SNAP_TOLERANCE)
   end
 end
 
+# Trim in-point restart false-starts using transcript word timing.
+# Detects pattern: speaker starts a phrase, abandons it, restarts with same
+# opening more completely. Moves clip in-point to the successful restart.
+# Returns [new_start_time, trimmed_text] or [start_time, nil] if no trim.
+RESTART_FILLER = %w[so and but um uh like well okay right yeah i mean the a].to_set.freeze
+RESTART_GAP_THRESHOLD = 0.300 # 300ms gap indicates restart boundary
+
+def trim_restart_inpoint(start_time, end_time, all_words, sync_offset, has_sync)
+  return [start_time, nil] unless all_words&.any?
+
+  # Work in transcript time domain
+  t_start = has_sync ? start_time + sync_offset : start_time
+  t_end = has_sync ? end_time + sync_offset : end_time
+
+  clip_words = all_words.select { |w|
+    w['start'].to_f >= t_start - 0.15 && w['end'].to_f <= t_end + 0.15
+  }
+  return [start_time, nil] if clip_words.size < 6
+
+  norms = clip_words.map { |w| w['word'].to_s.downcase.gsub(/[^a-z0-9']/, '') }
+  all_trimmed = []
+
+  3.times do # max iterations for chained restarts
+    break if clip_words.size < 6
+
+    found = false
+    min_plen = 3
+    max_plen = [norms.size / 3, 8].min
+
+    max_plen.downto(min_plen) do |plen|
+      # Only search for phrases starting in the first 40% of the clip
+      max_start_idx = [clip_words.size * 2 / 5, clip_words.size - plen * 2].min
+      next if max_start_idx < 0
+
+      (0..max_start_idx).each do |i|
+        phrase = norms[i, plen]
+        next if phrase.all? { |w| RESTART_FILLER.include?(w) || w.empty? }
+
+        # Find same phrase later in clip
+        search_from = i + plen
+        match_at = nil
+        max_search = [search_from + 25 + plen, norms.size - plen].min
+        (search_from..max_search).each do |j|
+          if norms[j, plen] == phrase
+            match_at = j
+            break
+          end
+        end
+        next unless match_at
+
+        # Walk back from match_at to find second attempt start (nearest gap >= 300ms)
+        second_attempt_start = match_at
+        ([i + plen, match_at - 20].max...match_at).to_a.reverse_each do |g|
+          gap = clip_words[g]['start'].to_f - clip_words[g - 1]['end'].to_f
+          if gap >= RESTART_GAP_THRESHOLD
+            second_attempt_start = g
+            break
+          end
+        end
+
+        # Compute tails using second_attempt_start (not match_at) for first tail
+        # First tail: what speaker said after phrase before giving up (between phrase end and restart)
+        first_tail = (i + plen...second_attempt_start).map { |j| norms[j] }
+                       .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
+        second_tail_end = [match_at + plen + 25, norms.size].min
+        second_tail = (match_at + plen...second_tail_end).map { |j| norms[j] }
+                        .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
+
+        # Don't trim if second occurrence doesn't continue further
+        next if second_tail.size <= first_tail.size
+
+        # Short parallel protection: "X of A, X of B" in continuous speech
+        # Only applies when no significant gap was found (second_attempt_start == match_at)
+        if second_attempt_start == match_at && first_tail.size >= 1 && first_tail.size <= 3
+          unique_first = first_tail - second_tail
+          next if unique_first.size >= 1 # First tail has unique content → deliberate parallel
+        end
+
+        # Rhetorical protection: both tails substantial with different content → preserve
+        if first_tail.size >= 2 && second_tail.size >= 2
+          overlap = (first_tail & second_tail).size.to_f / [first_tail.size, second_tail.size].min
+          next if overlap < 0.5
+        end
+
+        # Pre-phrase content check: if substantial unique content before the phrase,
+        # this isn't an in-point issue (legitimate content precedes the restart)
+        if i > 0
+          pre_content = (0...i).map { |j| norms[j] }
+                          .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
+          if pre_content.size > 2
+            second_attempt_words = norms[second_attempt_start, 30]&.to_set || Set.new
+            unique_pre = pre_content.reject { |w| second_attempt_words.include?(w) }
+            next if unique_pre.size > 2 # Substantial unique content before restart → skip
+          end
+        end
+
+        trimmed_text = clip_words[0...second_attempt_start].map { |w| w['word'] }.join(' ')
+        all_trimmed << trimmed_text
+
+        clip_words = clip_words[second_attempt_start..]
+        norms = norms[second_attempt_start..]
+        found = true
+        break # restart search with shorter clip
+      end
+      break if found
+    end
+    break unless found
+  end
+
+  return [start_time, nil] if all_trimmed.empty?
+
+  # New start time from first remaining word
+  new_t_start = clip_words.first['start'].to_f
+  new_start = has_sync ? new_t_start - sync_offset : new_t_start
+  [new_start, all_trimmed.join(' | ')]
+end
+
 clips = []
 wav_clip_info = []
 # Track source WAV-time ranges for each output clip (for below-threshold pause markers)
@@ -355,6 +521,10 @@ clip_source_ranges = []
 pause_removal_markers = []
 removed_pause_count = 0
 total_removed_ms = 0
+# Track V1 timeline duration so V2+ clips can be positioned correctly
+v1_timeline_duration = 0.0
+# Tier 0: collect narrative role marker data during clip processing
+tier0_role_markers = []
 
 # === Per-clip time domain detection ===
 # Field names are self-describing:
@@ -389,6 +559,15 @@ config['clips'].each_with_index do |c, idx|
 
   abort "Clip end (#{end_time}) must be after start (#{start_time})" if end_time <= start_time
 
+  # === Apply trim_in from ingest (LLM-designated in-point adjustment) ===
+  if c['trim_in']
+    trim_in_val = c['trim_in'].to_f
+    if trim_in_val > start_time && trim_in_val < end_time
+      $stderr.puts "Clip #{idx + 1}: trim_in #{'%.2f' % start_time}→#{'%.2f' % trim_in_val}s (ingest)"
+      start_time = trim_in_val
+    end
+  end
+
   # Snap-to-boundary if speech analysis is available
   if speech_segments
     if has_sync
@@ -410,6 +589,29 @@ config['clips'].each_with_index do |c, idx|
     end
   end
 
+  # === Trim in-point restart false-starts ===
+  if transcript_words
+    new_start, trimmed = trim_restart_inpoint(start_time, end_time, transcript_words, sync_offset, has_sync)
+    if trimmed
+      $stderr.puts "Clip #{idx + 1}: trimmed restart #{'%.2f' % start_time}→#{'%.2f' % new_start}s (#{'%.1f' % (new_start - start_time)}s removed: '#{trimmed}')"
+      start_time = new_start
+    end
+  end
+
+  # === Apply mid_cuts from ingest (internal ranges to excise) ===
+  mid_cut_ranges = []
+  if c['mid_cuts'] && c['mid_cuts'].is_a?(Array)
+    c['mid_cuts'].each do |mc|
+      next unless mc.is_a?(Array) && mc.size == 2
+      mc_start = mc[0].to_f
+      mc_end = mc[1].to_f
+      if mc_start > start_time && mc_end < end_time && mc_end > mc_start
+        mid_cut_ranges << { 'start' => mc_start, 'end' => mc_end, 'duration' => mc_end - mc_start }
+        $stderr.puts "Clip #{idx + 1}: mid_cut #{'%.2f' % mc_start}→#{'%.2f' % mc_end}s (#{'%.1f' % (mc_end - mc_start)}s excised, ingest)"
+      end
+    end
+  end
+
   # === Find internal pauses to remove ===
   removable_pauses = []
   if pause_removal_threshold && long_pauses
@@ -425,18 +627,102 @@ config['clips'].each_with_index do |c, idx|
     removable_pauses.sort_by! { |p| p['start'] }
   end
 
+  # Merge mid_cut_ranges into removable_pauses (mid_cuts are in video time)
+  if mid_cut_ranges.any?
+    mid_cut_ranges.each do |mc|
+      # Convert to WAV time if sync_audio is present (to match removable_pauses format)
+      if has_sync
+        removable_pauses << { 'start' => mc['start'] + sync_offset, 'end' => mc['end'] + sync_offset, 'duration' => mc['duration'] }
+      else
+        removable_pauses << mc
+      end
+    end
+    removable_pauses.sort_by! { |p| p['start'] }
+  end
+
+  # === Read per-clip track assignment ===
+  clip_track_str = (c['track'] || 'V1').to_s.upcase
+  clip_video_track = clip_track_str.sub(/^V/, '').to_i
+  clip_video_track = 1 if clip_video_track < 1
+  clip_timeline_offset = c['timeline_offset'] ? c['timeline_offset'].to_f : nil
+
+  # === Tier 0: Narrative role indicator marker at clip start ===
+  role = c['narrative_role']
+  if role && role != 'transition' && ROLE_MARKER_PPRO[role]
+    role_tl_pos = (clip_video_track > 1) ? (clip_timeline_offset || v1_timeline_duration) : v1_timeline_duration
+    tier0_role_markers << { role: role, time: role_tl_pos }
+  end
+
   # === Build sub-clips (or single clip if no pauses to remove) ===
   if removable_pauses.any?
     # Split at pause boundaries — work in video time
+    # Prefer sentence boundaries within 1s of pause when speech_segments available
     sub_ranges = []
     current_v = start_time
     removable_pauses.each do |p|
       p_start_v = has_sync ? p['start'] - sync_offset : p['start']
       p_end_v = has_sync ? p['end'] - sync_offset : p['end']
+
+      # Refine split to sentence boundary if available within 1s
+      if speech_segments
+        seg_end_target = has_sync ? p['start'] : p_start_v
+        best_boundary = nil
+        best_dist = 1.0  # max 1 second tolerance
+        speech_segments.each do |seg|
+          dist = (seg['end'] - seg_end_target).abs
+          if dist < best_dist
+            best_boundary = seg['end']
+            best_dist = dist
+          end
+        end
+        if best_boundary
+          refined_v = has_sync ? best_boundary - sync_offset : best_boundary
+          # Only use if it's within the clip and doesn't create a too-short segment
+          if refined_v > current_v + 0.5 && refined_v < end_time - 0.5
+            p_start_v = refined_v
+          end
+        end
+      end
+
       sub_ranges << { start: current_v, end: p_start_v }
       current_v = p_end_v
     end
     sub_ranges << { start: current_v, end: end_time }
+
+    # === Minimum segment duration floor: merge short segments with neighbors ===
+    if min_segment_duration && sub_ranges.size > 1
+      merged = true
+      while merged
+        merged = false
+        sub_ranges.each_with_index do |sr, si|
+          seg_dur = sr[:end] - sr[:start]
+          next if seg_dur >= min_segment_duration
+          # Merge with adjacent (prefer longer neighbor)
+          if si == 0
+            # Merge with next — extend next's start backwards (skip the pause)
+            sub_ranges[si + 1][:start] = sr[:start]
+            sub_ranges.delete_at(si)
+          elsif si == sub_ranges.size - 1
+            # Merge with previous — extend previous's end forward (skip the pause)
+            sub_ranges[si - 1][:end] = sr[:end]
+            sub_ranges.delete_at(si)
+          else
+            # Merge with the longer neighbor
+            prev_dur = sub_ranges[si - 1][:end] - sub_ranges[si - 1][:start]
+            next_dur = sub_ranges[si + 1][:end] - sub_ranges[si + 1][:start]
+            if prev_dur >= next_dur
+              sub_ranges[si - 1][:end] = sr[:end]
+            else
+              sub_ranges[si + 1][:start] = sr[:start]
+            end
+            sub_ranges.delete_at(si)
+          end
+          # Recount pauses that actually remain removed
+          merged = true
+          break
+        end
+      end
+    end
 
     removed_ms = removable_pauses.sum { |p| (p['duration'] * 1000).round }
     $stderr.puts "  Clip #{idx + 1}: removing #{removable_pauses.size} pauses (#{removed_ms}ms) → #{sub_ranges.size} sub-clips"
@@ -452,7 +738,15 @@ config['clips'].each_with_index do |c, idx|
       buffered_start = 0.0 if buffered_start < 0
       dur = (sr[:end] - sr[:start]) + start_buf + end_buf
 
-      clips << { path: video_path, start_at: buffered_start, duration: dur }
+      clip_hash = { path: video_path, start_at: buffered_start, duration: dur }
+      if clip_video_track > 1
+        clip_hash[:video_track] = clip_video_track
+        clip_hash[:audio_track] = clip_video_track
+        # V2+ clips: use explicit timeline_offset or current V1 position
+        offset = clip_timeline_offset || v1_timeline_duration
+        clip_hash[:timeline_offset] = offset + (is_first ? 0.0 : (sr[:start] - start_time))
+      end
+      clips << clip_hash
 
       wav_range_start = has_sync ? sr[:start] + sync_offset : sr[:start]
       wav_range_end = has_sync ? sr[:end] + sync_offset : sr[:end]
@@ -479,7 +773,13 @@ config['clips'].each_with_index do |c, idx|
     buffered_start = 0.0 if buffered_start < 0
     duration = (end_time - start_time) + (buffer * 2)
 
-    clips << { path: video_path, start_at: buffered_start, duration: duration }
+    clip_hash = { path: video_path, start_at: buffered_start, duration: duration }
+    if clip_video_track > 1
+      clip_hash[:video_track] = clip_video_track
+      clip_hash[:audio_track] = clip_video_track
+      clip_hash[:timeline_offset] = clip_timeline_offset || v1_timeline_duration
+    end
+    clips << clip_hash
 
     wav_range_start = has_sync ? start_time + sync_offset : start_time
     wav_range_end = has_sync ? end_time + sync_offset : end_time
@@ -490,6 +790,12 @@ config['clips'].each_with_index do |c, idx|
       wav_start = 0.0 if wav_start < 0
       wav_clip_info << { wav_start: wav_start, wav_duration: duration }
     end
+  end
+
+  # Update V1 timeline duration (only V1 clips advance the timeline)
+  if clip_video_track == 1
+    v1_timeline_duration = clips.select { |cl| !cl.key?(:video_track) || cl[:video_track] == 1 }
+                                .sum { |cl| cl[:duration] }
   end
 end
 
@@ -548,7 +854,8 @@ if max_segment_duration && long_pauses
       buffered_start = 0.0 if buffered_start < 0
       dur = (sub_end - sub_start) + start_buf + end_buf
 
-      new_clips << { path: video_path, start_at: buffered_start, duration: dur }
+      sub_clip = { path: video_path, start_at: buffered_start, duration: dur }
+      new_clips << sub_clip
 
       wav_s = has_sync ? sub_start + sync_offset : sub_start
       wav_e = has_sync ? sub_end + sync_offset : sub_end
@@ -589,11 +896,16 @@ markers = (config['markers'] || []).map do |m|
 end
 
 # === Compute timeline positions ===
+# V1 clips are sequential; V2+ clips use their explicit timeline_offset
 timeline_positions = []
 cumulative = 0.0
 clips.each do |c|
-  timeline_positions << cumulative
-  cumulative += c[:duration]
+  if c[:timeline_offset]
+    timeline_positions << c[:timeline_offset]
+  else
+    timeline_positions << cumulative
+    cumulative += c[:duration]
+  end
 end
 
 # === Add "Auto-removed" / "Auto-split" markers at split join points ===
@@ -636,6 +948,24 @@ if long_pauses && speech_segments
     end
   end
 end
+
+# =============================================================================
+# TIER 0: NARRATIVE ROLE INDICATOR MARKERS
+# =============================================================================
+# Point markers at each clip's start position, colored by narrative_role.
+# Provides visual role identification in the timeline without relying on
+# Premiere's <labels> system (which ties to source media, not instances).
+# =============================================================================
+tier0_role_markers.each do |rm|
+  markers << {
+    name: rm[:role].upcase,
+    comment: "Role: #{rm[:role]}",
+    time: rm[:time],
+    color: ROLE_MARKER_FCP_COLOR[rm[:role]],
+    pproColor: ROLE_MARKER_PPRO[rm[:role]]
+  }
+end
+$stderr.puts "Tier 0 (role indicators): #{tier0_role_markers.size} markers" if tier0_role_markers.any?
 
 # =============================================================================
 # THREE-TIER MARKER SYSTEM
@@ -698,7 +1028,40 @@ tier1_markers = []
 tier2_markers = []
 tier3_markers = []
 
-# === TIER 1: Structure Markers ===
+# === TIER 1: Chapter-driven SECTION markers (from arrangement) ===
+chapters_used = false
+if config['chapters'] && config['chapters'].is_a?(Array) && config['chapters'].any?
+  # Compute chapter timeline ranges from V1 input clip durations
+  # V1 clips are sequential in the input array; each has video_start/video_end
+  v1_input_clips = config['clips'].select { |c| (c['track'] || 'V1').upcase == 'V1' }
+  v1_durations = v1_input_clips.map { |c| c['video_end'].to_f - c['video_start'].to_f }
+
+  chapters_used = true
+  config['chapters'].each do |ch|
+    label = ch['label'] || ch['id'] || 'untitled'
+    v1_start_idx = ch['v1_clip_start'].to_i
+    v1_end_idx = ch['v1_clip_end'].to_i
+    next if v1_start_idx > v1_end_idx || v1_end_idx >= v1_durations.size
+
+    # Chapter timeline start = sum of V1 durations before this chapter
+    tl_start = v1_durations[0...v1_start_idx].sum
+    # Chapter timeline end = sum of V1 durations through last clip of this chapter
+    tl_end = v1_durations[0..v1_end_idx].sum
+    next if tl_end <= tl_start
+
+    tier1_markers << {
+      name: "SECTION: #{label}",
+      comment: "Chapter #{ch['id']} | V1 clips #{v1_start_idx + 1}–#{v1_end_idx + 1}",
+      time: tl_start,
+      out_time: tl_end,
+      color: 'orange',
+      pproColor: PPRO_SECTION
+    }
+  end
+  $stderr.puts "Chapter SECTION markers: #{tier1_markers.size}" if tier1_markers.any?
+end
+
+# === TIER 1: Structure Markers (from classification) ===
 # Only generated when classification segments are available (arranged segments)
 
 if classification_segments && !classification_segments.empty?
@@ -737,8 +1100,10 @@ if classification_segments && !classification_segments.empty?
       }
     end
 
-    # SECTIONS from template beats (if available)
-    if template_match_data && template_match_data['matched_beats']
+    # SECTIONS from template beats (if available) — skip if chapter-driven sections already exist
+    if chapters_used
+      # Chapter labels already provide SECTION markers; skip classification-based sections
+    elsif template_match_data && template_match_data['matched_beats']
       matched_beats = template_match_data['matched_beats']
       template_name = template_match_data['template'] || 'unknown'
 
@@ -882,18 +1247,19 @@ unless markers_only_structure
       end
     end
 
-    # Long segments > max_segment_duration
-    max_dur_check = max_segment_duration || 12
-    arranged.each do |seg|
-      seg_duration = seg['e'].to_f - seg['t'].to_f
-      if seg_duration > max_dur_check
-        tier2_markers << {
-          name: "SPLIT: #{seg_duration.round(1)}s segment",
-          comment: "Long segment: #{seg_duration.round(1)}s exceeds #{max_dur_check}s | consider splitting | \"#{seg['distillation']}\"",
-          time: seg['tl_start'],
-          color: 'yellow',
-          pproColor: PPRO_ACTION
-        }
+    # Long segments — only flag if max_segment_duration is explicitly set
+    if max_segment_duration
+      arranged.each do |seg|
+        seg_duration = seg['e'].to_f - seg['t'].to_f
+        if seg_duration > max_segment_duration
+          tier2_markers << {
+            name: "SPLIT: #{seg_duration.round(1)}s segment",
+            comment: "Long segment: #{seg_duration.round(1)}s exceeds #{max_segment_duration}s | consider splitting | \"#{seg['distillation']}\"",
+            time: seg['tl_start'],
+            color: 'yellow',
+            pproColor: PPRO_ACTION
+          }
+        end
       end
     end
 
@@ -1136,13 +1502,15 @@ output_path = File.join(output_dir, "#{safe_name}_#{timestamp}.xml")
 File.write(output_path, final_xml)
 
 # === Summary ===
-total_duration = clips.sum { |c| c[:duration] }
+v1_clips = clips.reject { |c| c.key?(:video_track) && c[:video_track] > 1 }
+v2_plus_clips = clips.select { |c| c.key?(:video_track) && c[:video_track] > 1 }
+total_duration = v1_clips.sum { |c| c[:duration] }
 mins = (total_duration / 60).floor
 secs = (total_duration % 60).round
 
 puts output_path
 $stderr.puts "Structure cut generated: #{output_path}"
-summary = "Duration: #{mins}:#{format('%02d', secs)} | Clips: #{clips.length} | Markers: #{markers.length}"
+summary = "Duration: #{mins}:#{format('%02d', secs)} | Clips: #{clips.length} (V1: #{v1_clips.size}#{v2_plus_clips.any? ? ", V2+: #{v2_plus_clips.size}" : ''}) | Markers: #{markers.length}"
 summary += " (T1:#{tier1_markers.size} T2:#{tier2_markers.size} T3:#{tier3_count})" if tier1_markers.any? || tier2_markers.any? || tier3_count > 0
 summary += " | Pauses removed: #{removed_pause_count} (#{(total_removed_ms / 1000.0).round(1)}s)" if removed_pause_count > 0
 $stderr.puts summary

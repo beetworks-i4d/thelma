@@ -99,5 +99,6 @@ RSpec.describe ButterCut::FCP7 do
       # 01:00:00:00 @ 25fps => 90000 frames
       expect(xml).to include('<frame>90000</frame>')
     end
+
   end
 end

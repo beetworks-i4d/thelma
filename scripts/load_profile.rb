@@ -14,6 +14,7 @@ require 'yaml'
 require 'date'
 
 PROFILES_DIR = File.expand_path('../../profiles', __FILE__)
+CREATORS_DIR = File.join(PROFILES_DIR, 'creators')
 
 def deep_merge(base, override)
   result = base.dup
@@ -32,11 +33,18 @@ def find_profile_match(library_name)
 
   normalized = library_name.to_s.downcase.gsub(/[^a-z0-9]/, ' ')
 
-  Dir.glob(File.join(PROFILES_DIR, '*.yaml')).each do |path|
-    name = File.basename(path, '.yaml')
-    next if name == '_default'
-    if normalized.include?(name.downcase)
-      return name
+  # Search creators/ subdirectory first, then profiles/ root
+  search_dirs = []
+  search_dirs << File.join(CREATORS_DIR, '*.yaml') if Dir.exist?(CREATORS_DIR)
+  search_dirs << File.join(PROFILES_DIR, '*.yaml')
+
+  search_dirs.each do |pattern|
+    Dir.glob(pattern).each do |path|
+      name = File.basename(path, '.yaml')
+      next if name == '_default'
+      if normalized.include?(name.downcase)
+        return name
+      end
     end
   end
   nil
@@ -57,13 +65,21 @@ def load_profile_by_name(name)
   base = YAML.safe_load(File.read(default_path), permitted_classes: [Date]) || {}
 
   if name && name != '_default'
-    client_path = File.join(PROFILES_DIR, "#{name}.yaml")
-    if File.exist?(client_path)
+    # Check creators/ subdirectory first, then profiles/ root
+    creators_path = File.join(CREATORS_DIR, "#{name}.yaml")
+    root_path = File.join(PROFILES_DIR, "#{name}.yaml")
+    client_path = if File.exist?(creators_path)
+                    creators_path
+                  elsif File.exist?(root_path)
+                    root_path
+                  end
+
+    if client_path
       client = YAML.safe_load(File.read(client_path), permitted_classes: [Date]) || {}
       base = deep_merge(base, client)
       $stderr.puts "Profile: #{name} (merged with defaults)"
     else
-      $stderr.puts "WARNING: profile not found: #{client_path}, using defaults"
+      $stderr.puts "WARNING: profile not found: #{name}.yaml, using defaults"
     end
   else
     $stderr.puts "Profile: _default"
@@ -118,6 +134,55 @@ def template_categories_for(profile, library = nil)
 
   ct = effective_content_type(profile, library)
   CONTENT_TYPE_TEMPLATE_MAP[ct] || []
+end
+
+# Loads the tone guide markdown for a profile, if tone_profile.guide_doc is set.
+# Returns the markdown string, or nil if not configured or file not found.
+def load_tone_guide(profile)
+  guide_path = profile.dig('tone_profile', 'guide_doc')
+  return nil unless guide_path
+
+  root = File.expand_path('../..', __FILE__)
+  full_path = File.join(root, guide_path)
+  return nil unless File.exist?(full_path)
+
+  content = File.read(full_path)
+  $stderr.puts "  Tone guide: #{guide_path} (#{content.length} chars)"
+  content
+end
+
+# Builds a compact tone context block for LLM prompts from profile tone_profile fields.
+# Returns a string suitable for embedding in a prompt, or empty string if no tone_profile.
+def build_tone_context(profile, tone_guide = nil)
+  tp = profile['tone_profile']
+  return '' unless tp
+
+  parts = []
+  parts << "## Creator Tone Profile\n"
+
+  if tone_guide
+    parts << "### Voice Guide\n"
+    parts << tone_guide
+    parts << "\n"
+  end
+
+  parts << "### Structured Tone Parameters\n"
+  parts << "- Humor register: #{Array(tp['humor_register']).join(', ')}\n" if tp['humor_register']
+  parts << "- Profanity limit: #{tp['profanity_limit']}\n" if tp['profanity_limit']
+  parts << "- Tangent tolerance: #{tp['tangent_tolerance']}\n" if tp['tangent_tolerance']
+  parts << "- Formality: #{tp['formality']}\n" if tp['formality']
+
+  if tp['preserve_strongly']
+    parts << "\n**Preserve strongly** (these are signature voice features — do NOT mark as issues):\n"
+    tp['preserve_strongly'].each { |tag| parts << "- #{tag.tr('_', ' ')}\n" }
+  end
+
+  if tp['cut_preferentially']
+    parts << "\n**Cut preferentially** (these are known failure modes — flag or trim):\n"
+    tp['cut_preferentially'].each { |tag| parts << "- #{tag.tr('_', ' ')}\n" }
+  end
+
+  parts.join
 end
 
 # CLI mode: ruby scripts/load_profile.rb <library_name_or_folder>

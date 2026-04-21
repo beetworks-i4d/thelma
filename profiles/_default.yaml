@@ -13,16 +13,18 @@ format_defaults:
 analysis_depth_default: deep
 branch_preference: auto
 include_ctas: true
-max_segment_duration: 12
+auto_remove_pauses_above: 800
+min_segment_duration: 2
 snap_end_tolerance_ms: 100
 template_categories: []
 strong_threshold: 80
 acceptable_threshold: 65
 generate_packaging_brief: true
 llm_routing:
+  semantic_ingest: claude-opus-4-6
   classification: claude-sonnet-4-20250514
   coherence: claude-opus-4-6
-  arrangement: claude-sonnet-4-20250514
+  arrangement: claude-opus-4-6
   loglines: claude-sonnet-4-20250514
   structure_detection: claude-opus-4-6
   packaging: claude-sonnet-4-20250514

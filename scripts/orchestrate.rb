@@ -15,6 +15,7 @@ require 'json'
 require 'open3'
 require 'digest'
 require 'fileutils'
+require 'shellwords'
 require_relative 'load_profile'
 require_relative 'llm_client'
 
@@ -27,6 +28,8 @@ library_name = nil
 profile_name = nil
 branch_override = nil
 analyze_only = false
+no_review = false
+llm_mode = nil
 
 args = ARGV.dup
 while args.any?
@@ -43,13 +46,21 @@ while args.any?
   when '--analyze-only'
     args.shift
     analyze_only = true
+  when '--no-review'
+    args.shift
+    no_review = true
+  when '--llm-mode'
+    args.shift
+    llm_mode = args.shift
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code]" unless library_name
+
+LLMClient.mode = llm_mode.to_sym if llm_mode
 
 branch_override = 'C' if analyze_only
 
@@ -74,6 +85,10 @@ def run_script(script, *args)
   $stderr.puts "  $ #{cmd.join(' ')}"
   stdout, stderr, status = Open3.capture3(*cmd)
   $stderr.puts stderr unless stderr.strip.empty?
+  if status.exitstatus == 2
+    $stderr.puts "PIPELINE PAUSED: #{script} awaiting LLM input"
+    exit 2
+  end
   unless status.success?
     abort "\nPIPELINE ABORT: #{script} failed (exit #{status.exitstatus})\n#{stderr}"
   end
@@ -176,8 +191,8 @@ else
   lang_code = library['language'] == 'english' ? 'en' : (library['language'] || 'en')
   whisper_model = 'turbo'
 
-  run_command("#{whisperx_bin} #{treated_wav} --model #{whisper_model} --language #{lang_code} " \
-              "--output_format json --output_dir #{transcripts_dir} --compute_type int8")
+  run_command("#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} --model #{whisper_model} --language #{lang_code} " \
+              "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} --compute_type int8")
 
   # Find the generated transcript
   expected = File.join(transcripts_dir, "#{treated_basename}_treated.json")
@@ -396,6 +411,24 @@ if branch == 'C'
   profile_flag = profile_name ? ['--profile', profile_name] : []
   run_script('match_templates.rb', storylines_file, classified_path, *profile_flag)
 
+  phase '1.7.5 — Adaptive Structure Detection'
+  matched_data_c = YAML.safe_load(File.read(File.join(library_dir, 'storylines_matched.yaml')), permitted_classes: [Date])
+  matched_storylines_c = matched_data_c['storylines'] || []
+  best_fit_c = matched_storylines_c.map { |s| s.dig('template_match', 'fit_score').to_i }.max || 0
+  has_longform_c = matched_storylines_c.any? { |s| s['profile'] == 'best_single_longform' }
+
+  if best_fit_c < 70 || !has_longform_c
+    step 'detect_structure (prompts only — Branch C)'
+    $stderr.puts "  Trigger: best_fit=#{best_fit_c}% (threshold: 70%), longform=#{has_longform_c}"
+    structure_path_c = File.join(library_dir, 'structure_detected.yaml')
+    unless file_cached?(structure_path_c)
+      run_script('detect_structure.rb', segments_path, '--best-fit-score', best_fit_c.to_s)
+    end
+    $stderr.puts "  Prompts generated. LLM synthesis deferred (Branch C is analyze-only)."
+  else
+    skip 'detect_structure', "best_fit=#{best_fit_c}% >= 70% and longform exists"
+  end
+
   phase '1.8 — Coherence Scoring'
   matched_file = File.join(library_dir, 'storylines_matched.yaml')
   step 'score_coherence (algorithmic only)'
@@ -414,6 +447,82 @@ if branch == 'C'
   puts report_path
   exit 0
 end
+
+# ============================================================
+# PHASE 2: SEMANTIC INGEST
+# ============================================================
+
+phase '2 — Semantic Ingest'
+
+semantic_ingest_path = File.join(library_dir, 'semantic_ingest.yaml')
+if file_cached?(semantic_ingest_path)
+  skip 'semantic_ingest', 'semantic_ingest.yaml exists'
+else
+  step 'semantic_ingest'
+  flags = ['--library', library_name]
+  flags += ['--profile', profile_name] if profile_name
+  flags += ['--llm-mode', llm_mode] if llm_mode
+  flags << '--no-review' if no_review
+  run_script('semantic_ingest.rb', *flags)
+end
+
+# ============================================================
+# PHASE 3: ARRANGEMENT
+# ============================================================
+
+phase '3 — Arrangement'
+
+arrangement_path = File.join(library_dir, 'arrangement.yaml')
+if file_cached?(arrangement_path)
+  skip 'arrange', 'arrangement.yaml exists'
+else
+  step 'arrange'
+  flags = ['--library', library_name]
+  flags += ['--profile', profile_name] if profile_name
+  flags += ['--llm-mode', llm_mode] if llm_mode
+  flags << '--no-review' if no_review
+  run_script('arrange.rb', *flags)
+end
+
+# ============================================================
+# PHASE 4: EXPORT & BUILD
+# ============================================================
+
+phase '4 — Export & Build'
+
+step 'export_arrangement_xml'
+flags = ['--library', library_name]
+flags += ['--profile', profile_name] if profile_name
+xml_path = run_script('export_arrangement_xml.rb', *flags)
+
+# ============================================================
+# PHASE 5: PACKAGING BRIEF
+# ============================================================
+
+phase '5 — Packaging Brief'
+
+if profile.fetch('generate_packaging_brief', true)
+  step "export_packaging_brief"
+  flags = ['--library', library_name, '--output', xml_path]
+  flags += ['--profile', profile_name] if profile_name
+  flags += ['--llm-mode', llm_mode] if llm_mode
+  flags << '--no-review' if no_review
+  run_script('export_packaging_brief.rb', *flags)
+end
+
+$stderr.puts "\n#{'=' * 60}"
+$stderr.puts "PIPELINE COMPLETE"
+$stderr.puts "  XML: #{xml_path}"
+$stderr.puts '=' * 60
+
+puts xml_path
+exit 0
+
+# ============================================================
+# LEGACY PHASES (1.6-4): Storyline-based arrangement flow
+# Kept for reference. Unreachable in default pipeline.
+# Use --branch C for analyze-only, or invoke scripts directly.
+# ============================================================
 
 # ============================================================
 # PHASE 1.6: STORYLINE DISCOVERY
@@ -439,6 +548,72 @@ phase '1.7 — Template Matching'
 step 'match_templates'
 profile_flag = profile_name ? ['--profile', profile_name] : []
 run_script('match_templates.rb', storylines_path, classified_path, *profile_flag)
+
+# ============================================================
+# PHASE 1.7.5: ADAPTIVE STRUCTURE DETECTION (conditional)
+# ============================================================
+
+phase '1.7.5 — Adaptive Structure Detection'
+
+matched_data = YAML.safe_load(File.read(File.join(library_dir, 'storylines_matched.yaml')), permitted_classes: [Date])
+matched_storylines = matched_data['storylines'] || []
+
+best_fit = matched_storylines.map { |s| s.dig('template_match', 'fit_score').to_i }.max || 0
+has_longform = matched_storylines.any? { |s| s['profile'] == 'best_single_longform' }
+
+if best_fit < 70 || !has_longform
+  step 'detect_structure'
+  $stderr.puts "  Trigger: best_fit=#{best_fit}% (threshold: 70%), longform=#{has_longform}"
+
+  structure_path = File.join(library_dir, 'structure_detected.yaml')
+  unless file_cached?(structure_path)
+    run_script('detect_structure.rb', segments_path, '--best-fit-score', best_fit.to_s)
+  end
+
+  # Agent fills viability + synthesis via LLM, then saves template
+  detected = YAML.safe_load(File.read(structure_path), permitted_classes: [Date])
+
+  if detected['viability'].nil?
+    # Run viability check
+    pending_dir = File.join(library_dir, 'pending_llm_calls')
+    begin
+      viability_response = LLMClient.call(detected['viability_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 200,
+                                          pending_dir: pending_dir, call_name: 'structure_viability')
+    rescue LLMClient::Pending => e
+      $stderr.puts e.message
+      exit 2
+    end
+    viability_line = viability_response.strip.lines.first&.strip || ''
+    detected['viability'] = viability_line.split(' — ').first&.strip
+    detected['viability_reason'] = viability_response.strip.lines[1]&.strip
+    File.write(structure_path, detected.to_yaml)
+  end
+
+  if %w[YES PARTIAL].include?(detected['viability']) && detected['synthesized_template'].nil?
+    # Run synthesis
+    pending_dir = File.join(library_dir, 'pending_llm_calls')
+    begin
+      synthesis_response = LLMClient.call(detected['synthesis_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 1000,
+                                          pending_dir: pending_dir, call_name: 'structure_synthesis')
+    rescue LLMClient::Pending => e
+      $stderr.puts e.message
+      exit 2
+    end
+    # Parse YAML from response
+    yaml_match = synthesis_response.match(/```yaml\n(.*?)```/m)
+    if yaml_match
+      detected['synthesized_template'] = YAML.safe_load(yaml_match[1])
+      File.write(structure_path, detected.to_yaml)
+
+      # Save template and re-match
+      run_script('detect_structure.rb', segments_path, '--save-template', structure_path)
+      step 're-match templates with synthesized template'
+      run_script('match_templates.rb', storylines_path, classified_path, *profile_flag)
+    end
+  end
+else
+  skip 'detect_structure', "best_fit=#{best_fit}% >= 70% and longform exists"
+end
 
 # ============================================================
 # PHASE 1.8: COHERENCE SCORING
@@ -691,7 +866,14 @@ BEGIN {
       ```
     PROMPT
 
-    response = LLMClient.call(prompt, call_type: 'classification', profile: profile)
+    pending_dir = File.join(File.dirname(output_path), 'pending_llm_calls')
+    begin
+      response = LLMClient.call(prompt, call_type: 'classification', profile: profile,
+                                pending_dir: pending_dir, call_name: 'classification')
+    rescue LLMClient::Pending => e
+      $stderr.puts e.message
+      exit 2
+    end
 
     # Extract YAML from response (may be wrapped in markdown code block)
     yaml_text = response.gsub(/\A```ya?ml\s*/, '').gsub(/```\s*\z/, '').strip

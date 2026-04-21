@@ -2,7 +2,7 @@
 # Phase 2.5 — Pre-Build Sanity Check
 # Runs after Phase 1.8 coherence scoring, before Phase 3 XML generation.
 # For each selected candidate, generates review data: shape descriptor,
-# cold-open/close assessment, distilled segments for logline generation.
+# cold-open/close assessment, distilled segments.
 # At project level, calculates unused high-signal segments.
 #
 # Usage:
@@ -16,13 +16,12 @@
 #                all passing candidates (rank != nil). Use --all to review everything.
 #
 # --batch: Batch triage mode. Classifies candidates into tiers by combined_score:
-#          Strong (80+): trusted, no logline review needed
+#          Strong (80+): trusted, no extra review needed
 #          Acceptable (65-79): brief summary only
 #          Borderline (60-64): full sanity check
 #          Failed (<60): already filtered by quality floor
 #
 # Output: sanity_check.yaml in same directory as storylines_scored.yaml. Path to stdout.
-# The logline field is nil — agent fills it after reading distilled_segments + logline_prompt.
 
 require 'yaml'
 require 'date'
@@ -254,20 +253,6 @@ def close_assessment(storyline, arc)
   { 'works' => works, 'reason' => reasons.join('; ') }
 end
 
-def build_logline_prompt(distillations)
-  clip_lines = distillations.each_with_index.map { |d, i| "#{i + 1}. #{d}" }.join("\n")
-  <<~PROMPT.strip
-    Read this distilled segment list in arrangement order. Write a 1-2 sentence logline describing what this candidate is ABOUT as content — not its structural shape or template fit.
-
-    Focus on: the specific claim or story, names/numbers/details, the transformation or contrast.
-    Do NOT describe: pacing, states, template structure, or editorial mechanics.
-
-    Example: "Dylan's first campaign — 1500 leads from a Hotmail account producing three $850 sales in the first month, contrasted with two months of preparation that produced nothing."
-
-    Distilled segments:
-    #{clip_lines}
-  PROMPT
-end
 
 # --- Unused high-signal calculation ---
 
@@ -385,10 +370,6 @@ selected.each do |storyline|
     'close' => close_assessment(storyline, arc),
     'distilled_segments' => distillations,
 
-    # LLM fills these
-    'logline_prompt' => build_logline_prompt(distillations),
-    'logline' => nil,
-
     # Swap target
     'next_candidate_id' => next_candidate&.fetch('id', nil),
     'next_candidate_score' => next_candidate&.fetch('combined_score', nil)
@@ -459,7 +440,7 @@ if batch_mode
       cold = r['cold_open']['works'] ? nil : "Cold open: no (#{r['cold_open']['reason'].split(';').first.strip})"
       close = r['close']['works'] ? nil : "Close: no (#{r['close']['reason'].split(';').first.strip})"
       flags = [cold, close].compact.join(' | ')
-      $stderr.puts "  #{r['id']} — Score #{r['combined_score']} | about: [logline pending] | #{flags}"
+      $stderr.puts "  #{r['id']} — Score #{r['combined_score']} | #{flags}"
     end
   end
 
@@ -500,7 +481,6 @@ else
     $stderr.puts "Coherence: #{coh} | Issues: #{issues && !issues.empty? ? issues.join(', ') : 'none'}"
 
     $stderr.puts ""
-    $stderr.puts "About: [logline pending — agent fills]"
     $stderr.puts "Shape: #{r['shape']}"
     $stderr.puts ""
     $stderr.puts "Cold open: #{r['cold_open']['works'] ? 'yes' : 'no'} — #{r['cold_open']['reason']}"
