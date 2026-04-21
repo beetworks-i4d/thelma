@@ -30,10 +30,11 @@
 #     - video_start: 48.35            # video time — no conversion
 #       video_end: 58.73
 #
-#   auto_remove_pauses_above: 800    # optional, milliseconds (default 800 from profile)
+#   auto_remove_pauses_above: 800    # optional, milliseconds (disabled by default)
 #                                    # Silero long pauses above this threshold inside a clip
 #                                    # are removed by splitting the clip into sub-clips.
-#                                    # Set to 0 or false to disable.
+#                                    # Enable via --remove-pauses CLI flag or this YAML field.
+#                                    # Set to 0 or false to explicitly disable.
 #
 #   min_segment_duration: 2          # optional, seconds (default 2 from profile)
 #                                    # After pause removal, segments shorter than this
@@ -84,6 +85,7 @@ end
 
 no_emotion_markers = !!ARGV.delete('--no-emotion-markers')
 markers_only_structure = !!ARGV.delete('--markers-only-structure')
+cli_remove_pauses = !!ARGV.delete('--remove-pauses')
 profile_name = nil
 if (idx = ARGV.index('--profile'))
   profile_name = ARGV.delete_at(idx + 1)
@@ -259,20 +261,24 @@ elsif config['classification']
 end
 
 # === Parse auto_remove_pauses_above ===
+# Pause removal is OFF by default. Enable via --remove-pauses flag or
+# explicit auto_remove_pauses_above in YAML config.
 pause_removal_threshold = nil
 if config.key?('auto_remove_pauses_above')
   val = config['auto_remove_pauses_above']
   if val && val != false && val.to_i > 0
     pause_removal_threshold = val.to_i / 1000.0
   end
-else
-  # Profile-driven default (800ms in _default.yaml), fallback to 800ms
+elsif cli_remove_pauses
+  # --remove-pauses flag: use profile threshold
   profile_pause_ms = profile['auto_remove_pauses_above'] || 800
   pause_removal_threshold = profile_pause_ms.to_i / 1000.0
 end
 
 if pause_removal_threshold && long_pauses
   $stderr.puts "Pause removal: enabled (threshold #{(pause_removal_threshold * 1000).round}ms)"
+else
+  $stderr.puts "Pause removal: disabled (use --remove-pauses to enable)"
 end
 
 # === Parse min_segment_duration (floor after splits) ===

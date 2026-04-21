@@ -1140,14 +1140,14 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
 
-    it 'uses 800ms pause threshold by default from profile' do
+    it 'disables pause removal by default (no --remove-pauses flag)' do
       Dir.mktmpdir do |dir|
         speech_data = {
           'speech_segments' => [
             { 'start' => 1.0, 'end' => 8.0 }
           ],
           'long_pauses' => [
-            { 'start' => 4.0, 'end' => 4.6, 'duration' => 0.6 }
+            { 'start' => 4.0, 'end' => 5.0, 'duration' => 1.0 }
           ]
         }
         sa_path = File.join(dir, 'speech_analysis.json')
@@ -1155,17 +1155,47 @@ RSpec.describe 'build_structure_cut.rb' do
 
         config = base_config(dir)
         config['speech_analysis'] = sa_path
-        # Don't set auto_remove_pauses_above — let profile default (800ms)
+        # No auto_remove_pauses_above, no --remove-pauses flag
         config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 8.0 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
         expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('Pause removal: disabled')
 
         doc = Nokogiri::XML(File.read(stdout.strip))
         clipitems = doc.xpath('//sequence/media/video/track/clipitem')
-        # 600ms pause should NOT be removed (below 800ms threshold)
+        # 1000ms pause should NOT be removed — pause removal is off
         expect(clipitems.size).to eq(1)
+      end
+    end
+
+    it 'enables pause removal with --remove-pauses flag' do
+      Dir.mktmpdir do |dir|
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.0, 'end' => 8.0 }
+          ],
+          'long_pauses' => [
+            { 'start' => 4.0, 'end' => 5.0, 'duration' => 1.0 }
+          ]
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 8.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, '--remove-pauses', yaml_path)
+        expect(status.exitstatus).to eq(0)
+        expect(stderr).to include('Pause removal: enabled')
+
+        doc = Nokogiri::XML(File.read(stdout.strip))
+        clipitems = doc.xpath('//sequence/media/video/track/clipitem')
+        # 1000ms pause SHOULD be removed — flag is set, above 800ms threshold
+        expect(clipitems.size).to eq(2)
       end
     end
   end
