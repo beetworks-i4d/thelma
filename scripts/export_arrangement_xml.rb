@@ -77,6 +77,9 @@ arrangement['chapters'].each do |chapter|
     clip_entry['trim_in'] = clip['trim_in'].to_f if clip['trim_in']
     clip_entry['mid_cuts'] = clip['mid_cuts'] if clip['mid_cuts']
 
+    # Pass through narrative role for clip color coding
+    clip_entry['narrative_role'] = clip['narrative_role'] if clip['narrative_role']
+
     if track == 'V1'
       v1_clips << clip_entry
     else
@@ -100,7 +103,8 @@ config = {
   'output_dir' => output_dir,
   'editor' => 'fcp7',
   'name' => "#{library_name}_arrangement",
-  'clips' => all_clips
+  'clips' => all_clips,
+  'chapters' => arrangement['chapters']&.map { |ch| { 'id' => ch['id'], 'label' => ch['label'] } }
 }
 
 # Add speech analysis for natural boundary pause removal

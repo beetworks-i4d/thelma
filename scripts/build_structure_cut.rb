@@ -175,6 +175,14 @@ $stderr.puts "Output: #{out_desc}"
 breathing_room_frames = config['breathing_room_frames'] || 3
 buffer = breathing_room_frames.to_f / fps
 
+# === Narrative role → Premiere clip label color ===
+ROLE_LABEL_COLORS = {
+  'hook'         => 'Forest',     # Green
+  'setup'        => 'Mango',      # Orange
+  'continuation' => 'Caribbean',  # Blue
+  'payoff'       => 'Lavender',   # Purple
+}.freeze
+
 # === Build clips ===
 has_sync = config['sync_audio'] && config['sync_audio']['path']
 sync_offset = has_sync ? config['sync_audio']['offset'].to_f : 0.0
@@ -628,6 +636,9 @@ config['clips'].each_with_index do |c, idx|
   clip_video_track = 1 if clip_video_track < 1
   clip_timeline_offset = c['timeline_offset'] ? c['timeline_offset'].to_f : nil
 
+  # === Narrative role → clip label color ===
+  clip_label_color = ROLE_LABEL_COLORS[c['narrative_role']]
+
   # === Build sub-clips (or single clip if no pauses to remove) ===
   if removable_pauses.any?
     # Split at pause boundaries — work in video time
@@ -714,6 +725,7 @@ config['clips'].each_with_index do |c, idx|
       dur = (sr[:end] - sr[:start]) + start_buf + end_buf
 
       clip_hash = { path: video_path, start_at: buffered_start, duration: dur }
+      clip_hash[:label_color] = clip_label_color if clip_label_color
       if clip_video_track > 1
         clip_hash[:video_track] = clip_video_track
         clip_hash[:audio_track] = clip_video_track
@@ -749,6 +761,7 @@ config['clips'].each_with_index do |c, idx|
     duration = (end_time - start_time) + (buffer * 2)
 
     clip_hash = { path: video_path, start_at: buffered_start, duration: duration }
+    clip_hash[:label_color] = clip_label_color if clip_label_color
     if clip_video_track > 1
       clip_hash[:video_track] = clip_video_track
       clip_hash[:audio_track] = clip_video_track
@@ -829,7 +842,9 @@ if max_segment_duration && long_pauses
       buffered_start = 0.0 if buffered_start < 0
       dur = (sub_end - sub_start) + start_buf + end_buf
 
-      new_clips << { path: video_path, start_at: buffered_start, duration: dur }
+      sub_clip = { path: video_path, start_at: buffered_start, duration: dur }
+      sub_clip[:label_color] = clip[:label_color] if clip[:label_color]
+      new_clips << sub_clip
 
       wav_s = has_sync ? sub_start + sync_offset : sub_start
       wav_e = has_sync ? sub_end + sync_offset : sub_end
