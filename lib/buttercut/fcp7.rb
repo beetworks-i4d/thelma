@@ -435,14 +435,6 @@ class ButterCut
     end
 
     def validate_markers!(markers)
-      markers.reject! do |marker|
-        if marker[:out_time] && marker[:time] && marker[:out_time].to_f < marker[:time].to_f
-          $stderr.puts "  WARNING: skipping marker '#{marker[:name]}' — out_time (#{marker[:out_time]}) before in_time (#{marker[:time]}) [TODO: fix root cause]"
-          true
-        else
-          false
-        end
-      end
       markers.each_with_index do |marker, index|
         unless marker.is_a?(Hash)
           raise ArgumentError, "Marker at index #{index} must be a hash, got #{marker.class}"
