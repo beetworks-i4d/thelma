@@ -219,6 +219,22 @@ if config['speech_analysis']
   $stderr.puts "Loaded speech analysis: #{speech_segments.size} segments, #{long_pauses.size} long pauses"
 end
 
+# Per-source speech analysis map (multi-source support)
+# Maps video_path → { speech_segments:, long_pauses: }
+speech_analysis_cache = {}
+if config['speech_analysis_map']
+  config['speech_analysis_map'].each do |vpath, sa_path|
+    if File.exist?(sa_path)
+      sa_data = JSON.parse(File.read(sa_path))
+      speech_analysis_cache[vpath] = {
+        speech_segments: sa_data['speech_segments'],
+        long_pauses: sa_data['long_pauses']
+      }
+    end
+  end
+  $stderr.puts "Loaded per-source speech analysis for #{speech_analysis_cache.size} source(s)" if speech_analysis_cache.any?
+end
+
 # === Load transcript for in-point restart trimming ===
 transcript_words = nil
 if config['transcript']
@@ -566,6 +582,16 @@ config['clips'].each_with_index do |c, idx|
 
   abort "Clip end (#{end_time}) must be after start (#{start_time})" if end_time <= start_time
 
+  # === Resolve per-clip speech analysis (multi-source) ===
+  clip_speech_segments = speech_segments  # global default
+  clip_long_pauses = long_pauses          # global default
+  clip_source_path = c['video_path'] || video_path
+  if clip_source_path && speech_analysis_cache[clip_source_path]
+    clip_sa = speech_analysis_cache[clip_source_path]
+    clip_speech_segments = clip_sa[:speech_segments]
+    clip_long_pauses = clip_sa[:long_pauses]
+  end
+
   # === Apply trim_in from ingest (LLM-designated in-point adjustment) ===
   if c['trim_in']
     trim_in_val = c['trim_in'].to_f
@@ -576,19 +602,19 @@ config['clips'].each_with_index do |c, idx|
   end
 
   # Snap-to-boundary if speech analysis is available
-  if speech_segments
+  if clip_speech_segments
     if has_sync
       wav_start = start_time + sync_offset
       wav_end = end_time + sync_offset
 
-      snapped_start, adj_s = snap_to_boundary(wav_start, speech_segments, :start)
-      snapped_end, adj_e = snap_to_boundary(wav_end, speech_segments, :end)
+      snapped_start, adj_s = snap_to_boundary(wav_start, clip_speech_segments, :start)
+      snapped_end, adj_e = snap_to_boundary(wav_end, clip_speech_segments, :end)
 
       start_time = snapped_start - sync_offset
       end_time = snapped_end - sync_offset
     else
-      start_time, adj_s = snap_to_boundary(start_time, speech_segments, :start)
-      end_time, adj_e = snap_to_boundary(end_time, speech_segments, :end)
+      start_time, adj_s = snap_to_boundary(start_time, clip_speech_segments, :start)
+      end_time, adj_e = snap_to_boundary(end_time, clip_speech_segments, :end)
     end
 
     if adj_s != 0.0 || adj_e != 0.0
@@ -621,11 +647,11 @@ config['clips'].each_with_index do |c, idx|
 
   # === Find internal pauses to remove ===
   removable_pauses = []
-  if pause_removal_threshold && long_pauses
+  if pause_removal_threshold && clip_long_pauses
     wav_check_start = has_sync ? start_time + sync_offset : start_time
     wav_check_end = has_sync ? end_time + sync_offset : end_time
 
-    long_pauses.each do |p|
+    clip_long_pauses.each do |p|
       if p['start'] > wav_check_start + 0.5 && p['end'] < wav_check_end - 0.5 &&
          p['duration'] >= pause_removal_threshold
         removable_pauses << p
@@ -675,11 +701,11 @@ config['clips'].each_with_index do |c, idx|
       p_end_v = has_sync ? p['end'] - sync_offset : p['end']
 
       # Refine split to sentence boundary if available within 1s
-      if speech_segments
+      if clip_speech_segments
         seg_end_target = has_sync ? p['start'] : p_start_v
         best_boundary = nil
         best_dist = 1.0  # max 1 second tolerance
-        speech_segments.each do |seg|
+        clip_speech_segments.each do |seg|
           dist = (seg['end'] - seg_end_target).abs
           if dist < best_dist
             best_boundary = seg['end']
@@ -939,9 +965,17 @@ pause_removal_markers.each do |prm|
 end
 
 # === Add "tighten manually" markers for below-threshold internal pauses ===
-if long_pauses && speech_segments
+if long_pauses || speech_analysis_cache.any?
   clip_source_ranges.each_with_index do |csr, i|
-    long_pauses.each do |p|
+    # Use per-source pauses if available, else global
+    source_pauses = if csr[:source] && speech_analysis_cache[csr[:source]]
+      speech_analysis_cache[csr[:source]][:long_pauses]
+    else
+      long_pauses
+    end
+    next unless source_pauses
+
+    source_pauses.each do |p|
       next unless p['start'] > csr[:wav_start] + 0.5 && p['end'] < csr[:wav_end] - 0.5
       # Skip pauses that were already removed
       next if pause_removal_threshold && p['duration'] >= pause_removal_threshold

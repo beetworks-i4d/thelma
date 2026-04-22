@@ -52,12 +52,16 @@ video_entry = library_yaml['videos'].first
 video_path = video_entry['path']
 abort "Video file not found: #{video_path}" unless File.exist?(video_path)
 
-# === Resolve speech analysis ===
-speech_analysis_path = nil
-if video_entry['speech_analysis']
-  speech_analysis_path = File.join(lib_dir, 'transcripts', video_entry['speech_analysis'])
-  speech_analysis_path = nil unless File.exist?(speech_analysis_path)
+# === Resolve speech analysis (per-source) ===
+speech_analysis_map = {}
+library_yaml['videos'].each do |v|
+  if v['speech_analysis']
+    sa_path = File.join(lib_dir, 'transcripts', v['speech_analysis'])
+    speech_analysis_map[File.expand_path(v['path'])] = sa_path if File.exist?(sa_path)
+  end
 end
+# First video's speech analysis as legacy fallback
+speech_analysis_path = speech_analysis_map[File.expand_path(video_entry['path'])]
 
 # === Resolve transcript for restart trimming ===
 transcript_path = nil
@@ -146,6 +150,11 @@ config = {
 # Add speech analysis for natural boundary pause removal
 if speech_analysis_path
   config['speech_analysis'] = speech_analysis_path
+end
+
+# Add per-source speech analysis map for multi-source boundary snapping
+if speech_analysis_map.size > 1
+  config['speech_analysis_map'] = speech_analysis_map
 end
 
 # Add transcript for in-point restart trimming
