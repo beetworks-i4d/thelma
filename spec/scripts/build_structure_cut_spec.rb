@@ -1482,4 +1482,64 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
   end
+
+  describe 'multi-source support' do
+    let(:fixture_video_2) { File.expand_path('../fixtures/media/MVI_0323_720p.mov', __dir__) }
+
+    it 'generates XML with clips referencing different source files' do
+      Dir.mktmpdir do |dir|
+        config = {
+          'video_path' => FIXTURE_VIDEO,  # fallback / sequence format source
+          'output_dir' => dir,
+          'editor' => 'fcp7',
+          'name' => 'Multi Source Test',
+          'clips' => [
+            { 'video_start' => 0.5, 'video_end' => 2.0, 'video_path' => FIXTURE_VIDEO },
+            { 'video_start' => 0.5, 'video_end' => 3.0, 'video_path' => fixture_video_2 }
+          ]
+        }
+
+        yaml_path = File.join(dir, 'structure_cut.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0), "Build failed: #{stderr}"
+
+        xml_files = Dir.glob(File.join(dir, '*.xml'))
+        expect(xml_files).not_to be_empty
+
+        doc = Nokogiri::XML(File.read(xml_files.first))
+
+        # Verify two different file elements with different pathurls
+        file_elements = doc.xpath('//xmeml/sequence/media/video/track/clipitem/file[@id]')
+          .select { |f| f.children.any? { |c| c.name == 'pathurl' } }
+        pathurls = file_elements.map { |f| f.at_xpath('pathurl').text }
+
+        expect(pathurls.size).to eq(2)
+        expect(pathurls.uniq.size).to eq(2), "Expected 2 unique sources, got: #{pathurls}"
+        expect(pathurls[0]).to include('MVI_0309')
+        expect(pathurls[1]).to include('MVI_0323')
+      end
+    end
+
+    it 'falls back to global video_path when per-clip paths are absent' do
+      Dir.mktmpdir do |dir|
+        config = base_config(dir)  # no per-clip video_path
+        yaml_path = File.join(dir, 'structure_cut.yaml')
+        File.write(yaml_path, config.to_yaml)
+
+        stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0), "Build failed: #{stderr}"
+
+        xml_files = Dir.glob(File.join(dir, '*.xml'))
+        doc = Nokogiri::XML(File.read(xml_files.first))
+
+        # All clips should reference the same file
+        file_elements = doc.xpath('//xmeml/sequence/media/video/track/clipitem/file[@id]')
+          .select { |f| f.children.any? { |c| c.name == 'pathurl' } }
+        pathurls = file_elements.map { |f| f.at_xpath('pathurl').text }
+        expect(pathurls.uniq.size).to eq(1)
+      end
+    end
+  end
 end
