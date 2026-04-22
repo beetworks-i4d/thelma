@@ -263,7 +263,6 @@ prompt = <<~PROMPT
 
   #{script_block}
   #{asset_pool ? "## Asset Pool\n#{asset_pool.to_yaml}\n" : ''}
-  #{tone_context.empty? ? '' : "#{tone_context}\n"}
   ## Constraints
   target_format: #{target_format}
   target_duration_range: #{target_duration_range} seconds
@@ -328,7 +327,10 @@ prompt = <<~PROMPT
     - "Used alternate take at t=21.30 for punchier delivery"
 PROMPT
 
-$stderr.puts "\n  Prompt: #{prompt.length} chars (~#{(prompt.length / 4.0).ceil} tokens)"
+# P3: Tone context goes to system message with prompt caching (API mode only)
+cached_system = tone_context.empty? ? nil : tone_context
+prompt_total = prompt.length + (cached_system&.length || 0)
+$stderr.puts "\n  Prompt: #{prompt.length} chars + #{cached_system&.length || 0} system (~#{(prompt_total / 4.0).ceil} tokens)"
 
 # ============================================================
 # LLM CALL
@@ -338,7 +340,8 @@ $stderr.puts "\n  Calling LLM (arrangement)..."
 pending_dir = File.join(library_dir, 'pending_llm_calls')
 begin
   response = LLMClient.call(prompt, call_type: 'arrangement', profile: profile, max_tokens: 16384,
-                            pending_dir: pending_dir, call_name: 'arrangement')
+                            pending_dir: pending_dir, call_name: 'arrangement',
+                            cached_system_prompt: cached_system)
 rescue LLMClient::Pending => e
   $stderr.puts e.message
   exit 2

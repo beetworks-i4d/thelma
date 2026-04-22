@@ -44,7 +44,7 @@ module LLMClient
   # --- Main entry point ---
 
   def self.call(prompt, call_type: nil, profile: nil, model: nil, max_tokens: nil,
-                pending_dir: nil, call_name: nil)
+                pending_dir: nil, call_name: nil, cached_system_prompt: nil)
     model ||= profile&.dig('llm_routing', call_type) if call_type
     model ||= DEFAULT_MODEL
     max_tokens ||= DEFAULT_MAX_TOKENS
@@ -93,7 +93,7 @@ module LLMClient
 
     # Step 3: API mode — make the call
     adapter = resolve_adapter(model)
-    adapter.call(prompt, model: model, max_tokens: max_tokens)
+    adapter.call(prompt, model: model, max_tokens: max_tokens, cached_system_prompt: cached_system_prompt)
   end
 
   # --- Adapter resolution ---
@@ -117,7 +117,7 @@ module LLMClient
     API_URL = 'https://api.anthropic.com/v1/messages'
     API_VERSION = '2023-06-01'
 
-    def self.call(prompt, model:, max_tokens: DEFAULT_MAX_TOKENS)
+    def self.call(prompt, model:, max_tokens: DEFAULT_MAX_TOKENS, cached_system_prompt: nil)
       api_key = ENV['ANTHROPIC_API_KEY']
       abort "LLM ERROR: ANTHROPIC_API_KEY environment variable not set.\n" \
             "Set it with: export ANTHROPIC_API_KEY=sk-ant-..." unless api_key
@@ -134,10 +134,18 @@ module LLMClient
         messages: [{ role: 'user', content: prompt }]
       }
 
+      # Prompt caching: place tone guide / static context in system message with cache_control
+      if cached_system_prompt
+        body[:system] = [
+          { type: 'text', text: cached_system_prompt, cache_control: { type: 'ephemeral' } }
+        ]
+      end
+
       request = Net::HTTP::Post.new(uri.path)
       request['Content-Type'] = 'application/json'
       request['x-api-key'] = api_key
       request['anthropic-version'] = API_VERSION
+      request['anthropic-beta'] = 'prompt-caching-2024-07-31' if cached_system_prompt
       request.body = body.to_json
 
       $stderr.puts "  LLM: calling #{model} (#{prompt.length} chars)..."

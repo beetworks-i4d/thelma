@@ -291,7 +291,6 @@ prompt = <<~PROMPT
   #{audio_summary.empty? ? '' : "## Audio Delivery Analysis\n#{audio_summary}\n"}
   #{visual_summary.empty? ? '' : "## Visual Analysis\n#{visual_summary}\n"}
   #{script_block.empty? ? '' : "## Script/Outline (provided by creator)\n#{script_block}\n"}
-  #{tone_context.empty? ? '' : "#{tone_context}\n"}
   ## Output Format
 
   Respond with ONLY valid YAML. Use the exact schema below. Do not wrap in markdown code fences.
@@ -354,7 +353,10 @@ prompt = <<~PROMPT
   - IDs are sequential: group_001, group_002, etc.
 PROMPT
 
-$stderr.puts "\n  Prompt: #{prompt.length} chars (~#{(prompt.length / 4.0).ceil} tokens)"
+# P3: Tone context goes to system message with prompt caching (API mode only)
+cached_system = tone_context.empty? ? nil : tone_context
+prompt_total = prompt.length + (cached_system&.length || 0)
+$stderr.puts "\n  Prompt: #{prompt.length} chars + #{cached_system&.length || 0} system (~#{(prompt_total / 4.0).ceil} tokens)"
 
 # ============================================================
 # LLM CALL
@@ -364,7 +366,8 @@ $stderr.puts "\n  Calling LLM (semantic_ingest)..."
 pending_dir = File.join(library_dir, 'pending_llm_calls')
 begin
   response = LLMClient.call(prompt, call_type: 'semantic_ingest', profile: profile, max_tokens: 8192,
-                            pending_dir: pending_dir, call_name: 'semantic_ingest')
+                            pending_dir: pending_dir, call_name: 'semantic_ingest',
+                            cached_system_prompt: cached_system)
 rescue LLMClient::Pending => e
   $stderr.puts e.message
   exit 2
