@@ -76,8 +76,22 @@ scene_timestamps = []
 
 if File.exist?(scene_changes_path)
   scene_data = YAML.safe_load(File.read(scene_changes_path), permitted_classes: [Date])
-  scene_timestamps = scene_data['sampled_timestamps'] || scene_data['timestamps'] || []
-  $stderr.puts "Loaded #{scene_timestamps.size} scene timestamps"
+
+  # Multi-source: find this video's scene data from sources array
+  video_basename = File.basename(video_path)
+  if scene_data['sources']
+    source_entry = scene_data['sources'].find { |s| s['source'] == video_basename }
+    if source_entry
+      scene_timestamps = source_entry['sampled_timestamps'] || source_entry['timestamps'] || []
+      $stderr.puts "Loaded #{scene_timestamps.size} scene timestamps for #{video_basename}"
+    else
+      $stderr.puts "WARNING: No scene data for #{video_basename} — using fallback"
+    end
+  else
+    # Single-source / legacy format
+    scene_timestamps = scene_data['sampled_timestamps'] || scene_data['timestamps'] || []
+    $stderr.puts "Loaded #{scene_timestamps.size} scene timestamps"
+  end
 else
   $stderr.puts "WARNING: scene_changes.yaml not found — using fallback frame extraction"
 end

@@ -400,12 +400,8 @@ scene_changes_path = File.join(library_dir, 'scene_changes.yaml')
 if file_cached?(scene_changes_path)
   skip 'scene_detection', 'scene_changes.yaml exists'
 else
-  if video_path && File.exist?(video_path)
-    step 'scene_detection'
-    run_script('detect_scenes.rb', video_path, '--output', scene_changes_path)
-  else
-    skip 'scene_detection', 'video file not accessible'
-  end
+  step 'scene_detection'
+  run_script('detect_scenes.rb', '--library', library_name, '--output', scene_changes_path)
 end
 
 # Extract frames at scene-change timestamps (or fallback 3-frame for static shots)

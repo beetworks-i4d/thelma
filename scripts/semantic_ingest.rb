@@ -201,7 +201,14 @@ frames_path = File.join(library_dir, 'visual_frames.yaml')
 if File.exist?(scene_path)
   scenes = YAML.safe_load(File.read(scene_path))
   visual_summary << "Scene changes: #{scenes['total_scenes']} scenes detected\n"
-  visual_summary << "Timestamps: #{(scenes['timestamps'] || []).map { |t| "#{t.round(1)}s" }.join(', ')}\n"
+  if scenes['sources'] && scenes['sources'].size > 1
+    # Multi-source: show per-source scene counts
+    scenes['sources'].each do |src|
+      visual_summary << "  #{src['source']}: #{src['total_scenes']} scenes\n"
+    end
+  else
+    visual_summary << "Timestamps: #{(scenes['timestamps'] || []).map { |t| "#{t.round(1)}s" }.join(', ')}\n"
+  end
 end
 
 # Visual transcript descriptions (from analyze-video skill)
