@@ -40,7 +40,14 @@ abort "arrangement.yaml not found in #{lib_dir}" unless File.exist?(arrangement_
 library_yaml = YAML.safe_load(File.read(File.join(lib_dir, 'library.yaml')), permitted_classes: [Date])
 arrangement = YAML.safe_load(File.read(arrangement_path), permitted_classes: [Date])
 
-# === Resolve video path ===
+# === Build filename → absolute path lookup from all videos ===
+video_path_lookup = {}
+library_yaml['videos'].each do |v|
+  abs = File.expand_path(v['path'])
+  video_path_lookup[File.basename(abs)] = abs
+end
+
+# First video entry for speech_analysis/transcript (global metadata)
 video_entry = library_yaml['videos'].first
 video_path = video_entry['path']
 abort "Video file not found: #{video_path}" unless File.exist?(video_path)
@@ -67,16 +74,31 @@ v2_clips = []
 chapter_meta = []
 
 arrangement['chapters'].each do |chapter|
-  # Record V1 timeline position at chapter start
-  chapter_v1_start = v1_clips.sum { |c| c['video_end'] - c['video_start'] }
+  # Record V1 timeline position at chapter start (with breathing room buffers)
+  # build_structure_cut.rb adds ~3 frames buffer at each cut boundary
+  breathing_room_per_cut = 6.0 / 24.0  # 3 frames in + 3 frames out per cut
+  v1_raw_duration = v1_clips.sum { |c| c['video_end'] - c['video_start'] }
+  v1_buffer_total = v1_clips.size > 0 ? (v1_clips.size - 1) * breathing_room_per_cut : 0.0
+  chapter_v1_start = v1_raw_duration + v1_buffer_total
   v1_clip_start_idx = v1_clips.size
 
   chapter['clips'].each do |clip|
     track = (clip['track'] || 'V1').upcase
+
+    # Resolve per-clip source path from arrangement's source filename
+    clip_source = clip['source']
+    if clip_source
+      clip_video_path = video_path_lookup[clip_source]
+      abort "Unknown source '#{clip_source}' — not in library.yaml videos" unless clip_video_path
+    else
+      clip_video_path = video_path  # fallback to first video (single-source compat)
+    end
+
     clip_entry = {
       'video_start' => clip['t_in'].to_f,
       'video_end' => clip['t_out'].to_f,
-      'track' => track
+      'track' => track,
+      'video_path' => clip_video_path
     }
 
     # Pass through ingest trim fields
@@ -113,7 +135,7 @@ output_dir = File.join(video_dir, 'output')
 FileUtils.mkdir_p(output_dir)
 
 config = {
-  'video_path' => video_path,
+  'video_path' => video_path,  # fallback for single-source; per-clip video_path takes priority
   'output_dir' => output_dir,
   'editor' => 'fcp7',
   'name' => "#{library_name}_arrangement",
