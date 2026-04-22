@@ -171,7 +171,7 @@ RSpec.describe 'orchestrate.rb' do
         puts model
       RUBY
       expect(status.exitstatus).to eq(0)
-      expect(stdout.strip).to eq('claude-sonnet-4-20250514')
+      expect(stdout.strip).to eq('claude-sonnet-4-6')
     end
 
     it 'routes coherence to opus model' do

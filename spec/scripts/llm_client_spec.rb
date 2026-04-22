@@ -18,7 +18,7 @@ RSpec.describe 'LLMClient' do
     it 'returns AnthropicAdapter for claude models' do
       stdout, _, status = Open3.capture3('ruby', '-e', <<~RUBY)
         require '#{LLM_CLIENT_PATH}'
-        adapter = LLMClient.resolve_adapter('claude-sonnet-4-20250514')
+        adapter = LLMClient.resolve_adapter('claude-sonnet-4-6')
         puts adapter.name
       RUBY
       expect(status.exitstatus).to eq(0)
@@ -59,7 +59,7 @@ RSpec.describe 'LLMClient' do
       env = ENV.to_h.reject { |k, _| k == 'ANTHROPIC_API_KEY' }
       _, stderr, status = Open3.capture3(env, 'ruby', '-e', <<~RUBY)
         require '#{LLM_CLIENT_PATH}'
-        LLMClient::AnthropicAdapter.call('test prompt', model: 'claude-sonnet-4-20250514')
+        LLMClient::AnthropicAdapter.call('test prompt', model: 'claude-sonnet-4-6')
       RUBY
       expect(status.exitstatus).to eq(1)
       expect(stderr).to include('ANTHROPIC_API_KEY')
@@ -89,7 +89,7 @@ RSpec.describe 'LLMClient' do
         puts LLMClient::DEFAULT_MODEL
       RUBY
       expect(status.exitstatus).to eq(0)
-      expect(stdout.strip).to eq('claude-sonnet-4-20250514')
+      expect(stdout.strip).to eq('claude-sonnet-4-6')
     end
   end
 
@@ -155,7 +155,7 @@ RSpec.describe 'LLMClient' do
         expect(data['call_type']).to eq('test_call')
         expect(data['prompt']).to include('Test prompt here')
         expect(data['response_path']).to include('my_test_response.yaml')
-        expect(data['model']).to eq('claude-sonnet-4-20250514')
+        expect(data['model']).to eq('claude-sonnet-4-6')
       end
     end
 
