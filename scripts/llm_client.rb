@@ -165,7 +165,27 @@ module LLMClient
       content = result.dig('content', 0, 'text')
       abort "LLM ERROR: Empty response from API" unless content && !content.strip.empty?
 
+      # Log usage and cache metrics
+      usage = result['usage'] || {}
+      input_tokens = usage['input_tokens'] || 0
+      output_tokens = usage['output_tokens'] || 0
+      cache_creation = usage['cache_creation_input_tokens'] || 0
+      cache_read = usage['cache_read_input_tokens'] || 0
+
       $stderr.puts "  LLM: response received (#{content.length} chars)"
+      $stderr.puts "  LLM: tokens — input: #{input_tokens}, output: #{output_tokens}"
+      if cache_creation > 0 || cache_read > 0
+        $stderr.puts "  LLM: cache — created: #{cache_creation}, read: #{cache_read}"
+      end
+
+      # Cost estimation (Opus pricing: $15/M input, $75/M output, cache write $18.75/M, cache read $1.50/M)
+      input_cost = (input_tokens - cache_creation - cache_read) * 15.0 / 1_000_000
+      output_cost = output_tokens * 75.0 / 1_000_000
+      cache_write_cost = cache_creation * 18.75 / 1_000_000
+      cache_read_cost = cache_read * 1.50 / 1_000_000
+      total_cost = input_cost + output_cost + cache_write_cost + cache_read_cost
+      $stderr.puts "  LLM: cost — $#{'%.4f' % total_cost} (in: $#{'%.4f' % input_cost}, out: $#{'%.4f' % output_cost}, cache_w: $#{'%.4f' % cache_write_cost}, cache_r: $#{'%.4f' % cache_read_cost})"
+
       content
     end
   end
