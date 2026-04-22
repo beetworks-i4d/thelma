@@ -178,11 +178,19 @@ module LLMClient
         $stderr.puts "  LLM: cache — created: #{cache_creation}, read: #{cache_read}"
       end
 
-      # Cost estimation (Opus pricing: $15/M input, $75/M output, cache write $18.75/M, cache read $1.50/M)
-      input_cost = (input_tokens - cache_creation - cache_read) * 15.0 / 1_000_000
-      output_cost = output_tokens * 75.0 / 1_000_000
-      cache_write_cost = cache_creation * 18.75 / 1_000_000
-      cache_read_cost = cache_read * 1.50 / 1_000_000
+      # Cost estimation — model-aware pricing
+      # Opus: $15/M input, $75/M output, cache write $18.75/M, cache read $1.50/M
+      # Sonnet: $3/M input, $15/M output, cache write $3.75/M, cache read $0.30/M
+      is_opus = model.include?('opus')
+      in_rate = is_opus ? 15.0 : 3.0
+      out_rate = is_opus ? 75.0 : 15.0
+      cw_rate = is_opus ? 18.75 : 3.75
+      cr_rate = is_opus ? 1.50 : 0.30
+      # API returns input_tokens as non-cached input; cache tokens are separate
+      input_cost = input_tokens * in_rate / 1_000_000
+      output_cost = output_tokens * out_rate / 1_000_000
+      cache_write_cost = cache_creation * cw_rate / 1_000_000
+      cache_read_cost = cache_read * cr_rate / 1_000_000
       total_cost = input_cost + output_cost + cache_write_cost + cache_read_cost
       $stderr.puts "  LLM: cost — $#{'%.4f' % total_cost} (in: $#{'%.4f' % input_cost}, out: $#{'%.4f' % output_cost}, cache_w: $#{'%.4f' % cache_write_cost}, cache_r: $#{'%.4f' % cache_read_cost})"
 
