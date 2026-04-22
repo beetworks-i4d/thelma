@@ -230,7 +230,8 @@ enriched_groups = clip_groups.map do |g|
     entry['audio_profile'] = enrichment['audio_profile'] if enrichment['audio_profile']
     entry
   end
-  { 'id' => g['id'], 'label' => g['label'], 'description' => g['description'], 'clips' => enriched_clips }
+  # P2: Drop group description — redundant when clips have content_summaries
+  { 'id' => g['id'], 'label' => g['label'], 'clips' => enriched_clips }
 end
 
 # --- Format constraints ---
