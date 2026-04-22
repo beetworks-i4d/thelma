@@ -97,6 +97,8 @@ end
 profile = profile_name ? load_profile_by_name(profile_name) : load_profile(library_name)
 tone_guide = load_tone_guide(profile)
 tone_context = build_tone_context(profile, tone_guide)
+# Compact tone context for lightweight LLM calls (thumbnail/title)
+compact_tone_context = build_compact_tone_context(profile)
 
 # Check profile setting
 unless profile.fetch('generate_packaging_brief', true)
@@ -546,7 +548,7 @@ else
   scored_peaks_for_thumb = arranged.map { |seg| [seg, segment_score(seg)] }
     .sort_by { |_, score| -score }
     .first(5)
-  thumb_prompt = build_thumbnail_prompt(hook, scored_peaks_for_thumb, content_type, arranged, tone_context)
+  thumb_prompt = build_thumbnail_prompt(hook, scored_peaks_for_thumb, content_type, arranged, compact_tone_context)
   thumb_response = nil
   begin
     thumb_response = call_llm(thumb_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_thumbnail')
@@ -557,7 +559,7 @@ else
   # Title Direction (LLM) — batch: catch Pending, continue
   spine_state = build_spine(arranged).first&.sub('- Spine state: ', '') || 'unknown'
   template_name = storyline&.dig('template_match', 'template')
-  title_prompt = build_title_prompt(hook, spine_state, content_type, template_name, tone_context)
+  title_prompt = build_title_prompt(hook, spine_state, content_type, template_name, compact_tone_context)
   title_response = nil
   begin
     title_response = call_llm(title_prompt, profile, pending_dir: brief_pending_dir, call_name: 'packaging_title')

@@ -16,6 +16,7 @@ notes: "Solo recording, no dual-system audio typically. Content tends toward ana
 
 tone_profile:
   guide_doc: docs/tone/ivan.md
+  compact_guide_doc: docs/tone/ivan_compact.md
   humor_register:
     - absurdist
     - dry

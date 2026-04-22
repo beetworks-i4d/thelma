@@ -151,6 +151,35 @@ def load_tone_guide(profile)
   content
 end
 
+# Loads the compact tone guide for lightweight LLM calls (packaging thumbnail/title).
+# Falls back to full guide if compact not configured.
+def load_compact_tone_guide(profile)
+  compact_path = profile.dig('tone_profile', 'compact_guide_doc')
+  if compact_path
+    root = File.expand_path('../..', __FILE__)
+    full_path = File.join(root, compact_path)
+    if File.exist?(full_path)
+      content = File.read(full_path)
+      $stderr.puts "  Tone guide (compact): #{compact_path} (#{content.length} chars)"
+      return content
+    end
+  end
+  # Fallback to full guide
+  load_tone_guide(profile)
+end
+
+# Builds a compact tone context block for lightweight LLM calls.
+# Uses compact guide if available, otherwise falls back to full guide.
+def build_compact_tone_context(profile)
+  tp = profile['tone_profile']
+  return '' unless tp
+
+  guide = load_compact_tone_guide(profile)
+  return '' unless guide
+
+  "## Creator Tone Profile\n#{guide}\n"
+end
+
 # Builds a compact tone context block for LLM prompts from profile tone_profile fields.
 # Returns a string suitable for embedding in a prompt, or empty string if no tone_profile.
 def build_tone_context(profile, tone_guide = nil)
