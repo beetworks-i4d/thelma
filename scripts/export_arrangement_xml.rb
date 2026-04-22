@@ -70,12 +70,16 @@ end
 # First video's speech analysis as legacy fallback
 speech_analysis_path = speech_analysis_map[File.expand_path(video_entry['path'])]
 
-# === Resolve transcript for restart trimming ===
-transcript_path = nil
-if video_entry['transcript']
-  transcript_path = File.join(lib_dir, 'transcripts', video_entry['transcript'])
-  transcript_path = nil unless File.exist?(transcript_path)
+# === Resolve transcripts for restart trimming (per-source) ===
+transcript_map = {}
+library_yaml['videos'].each do |v|
+  if v['transcript']
+    t_path = File.join(lib_dir, 'transcripts', v['transcript'])
+    transcript_map[File.expand_path(v['path'])] = t_path if File.exist?(t_path)
+  end
 end
+# First video's transcript as legacy fallback for single-source
+transcript_path = transcript_map[File.expand_path(video_entry['path'])]
 
 # === Build clips from arrangement chapters ===
 # V1 clips are sequential. V2+ clips get timeline_offset set to the
@@ -182,6 +186,11 @@ end
 # Add transcript for in-point restart trimming
 if transcript_path
   config['transcript'] = transcript_path
+end
+
+# Add per-source transcript map for multi-source restart trimming
+if transcript_map.size > 1
+  config['transcript_map'] = transcript_map
 end
 
 # Add classification for Tier 2/3 markers

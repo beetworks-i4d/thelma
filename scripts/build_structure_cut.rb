@@ -248,6 +248,19 @@ if config['transcript']
   end
 end
 
+# Per-source transcript map (multi-source support for restart trimming)
+transcript_cache = {}
+if config['transcript_map']
+  config['transcript_map'].each do |vpath, t_path|
+    if File.exist?(t_path)
+      t_data = JSON.parse(File.read(t_path))
+      words = t_data['segments'].flat_map { |s| s['words'] || [] }
+      transcript_cache[vpath] = words
+    end
+  end
+  $stderr.puts "Loaded per-source transcripts for #{transcript_cache.size} source(s)" if transcript_cache.any?
+end
+
 # === Load classification for tiered markers ===
 classification_segments = nil
 classification_branch_a = false
@@ -623,8 +636,10 @@ config['clips'].each_with_index do |c, idx|
   end
 
   # === Trim in-point restart false-starts ===
-  if transcript_words
-    new_start, trimmed = trim_restart_inpoint(start_time, end_time, transcript_words, sync_offset, has_sync)
+  # Use per-source transcript when available (multi-source), fall back to global
+  clip_transcript_words = transcript_cache[clip_source_path] || transcript_words
+  if clip_transcript_words
+    new_start, trimmed = trim_restart_inpoint(start_time, end_time, clip_transcript_words, sync_offset, has_sync)
     if trimmed
       $stderr.puts "Clip #{idx + 1}: trimmed restart #{'%.2f' % start_time}→#{'%.2f' % new_start}s (#{'%.1f' % (new_start - start_time)}s removed: '#{trimmed}')"
       start_time = new_start
