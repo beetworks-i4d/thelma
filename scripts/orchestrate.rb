@@ -116,17 +116,14 @@ library_yaml_path = File.join(library_dir, 'library.yaml')
 abort "Library not found: #{library_dir}" unless File.exist?(library_yaml_path)
 
 library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
-video = library['videos']&.first
-abort "No videos in library.yaml" unless video
-
-video_path = video['path']
-abort "Video file not found: #{video_path}" unless File.exist?(video_path.to_s)
+videos = library['videos']
+abort "No videos in library.yaml" unless videos && videos.any?
 
 transcripts_dir = File.join(library_dir, 'transcripts')
 FileUtils.mkdir_p(transcripts_dir)
 
 $stderr.puts "Thelma Pipeline — #{library_name}"
-$stderr.puts "Video: #{File.basename(video_path)}"
+$stderr.puts "Videos: #{videos.size} source file(s)"
 
 # --- Load profile ---
 
@@ -150,95 +147,139 @@ end
 $stderr.puts "Branch: #{branch}#{analyze_only ? ' (analyze-only)' : ''}"
 
 # ============================================================
-# PHASE 1: INGEST
+# PHASE 1: INGEST (per-video)
 # ============================================================
 
 phase '1 — Ingest'
 
-# 1a. Audio cleanup
-basename = File.basename(video_path, File.extname(video_path))
+# Track per-video outputs for downstream consumers
+per_video_outputs = []
 
-# Determine the audio source: production audio or video audio
-has_sync = video.key?('sync_audio') && video['sync_audio']
-if has_sync
-  production_audio = video['sync_audio']['path']
-  treated_basename = File.basename(production_audio, File.extname(production_audio))
-else
-  production_audio = nil
-  treated_basename = basename
-end
-
-treated_wav = File.join(transcripts_dir, "#{treated_basename}_treated.wav")
-
-if file_cached?(treated_wav)
-  skip 'audio_cleanup', 'treated WAV exists'
-else
-  step 'audio_cleanup'
-  input = production_audio || video_path
-  run_script('audio_cleanup.rb', input, transcripts_dir)
-end
-
-# 1b. WhisperX transcription
-transcript_name = video['transcript']
-transcript_path = transcript_name ? File.join(transcripts_dir, transcript_name) : nil
-
-if transcript_path && file_cached?(transcript_path)
-  skip 'whisperx', 'transcript exists'
-else
-  step 'whisperx transcription'
-  whisperx_bin = File.expand_path('~/.thelma/whisperx')
-  whisperx_bin = 'whisperx' unless File.exist?(whisperx_bin)
-  lang_code = library['language'] == 'english' ? 'en' : (library['language'] || 'en')
-  whisper_model = 'turbo'
-
-  run_command("#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} --model #{whisper_model} --language #{lang_code} " \
-              "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} --compute_type int8")
-
-  # Find the generated transcript
-  expected = File.join(transcripts_dir, "#{treated_basename}_treated.json")
-  if File.exist?(expected)
-    transcript_path = expected
-    transcript_name = File.basename(expected)
-    $stderr.puts "  Transcript: #{transcript_name}"
-  else
-    abort "PIPELINE ABORT: WhisperX did not produce expected output: #{expected}"
+videos.each_with_index do |video, vi|
+  video_path = video['path']
+  unless File.exist?(video_path.to_s)
+    $stderr.puts "  WARNING: Video not found, skipping: #{video_path}"
+    next
   end
-end
 
-# 1c. Audio sync offset (dual-system only)
-if has_sync
-  offset = video.dig('sync_audio', 'offset')
-  if offset
-    skip 'audio_sync_offset', "cached (#{offset}s)"
+  basename = File.basename(video_path, File.extname(video_path))
+  $stderr.puts "\n  --- Video #{vi + 1}/#{videos.size}: #{basename} ---"
+
+  # Determine the audio source: production audio or video audio
+  has_sync = video.key?('sync_audio') && video['sync_audio']
+  if has_sync
+    production_audio = video['sync_audio']['path']
+    treated_basename = File.basename(production_audio, File.extname(production_audio))
   else
-    step 'audio_sync_offset'
-    run_script('audio_sync_offset.rb', video_path, production_audio, library_yaml_path)
+    production_audio = nil
+    treated_basename = basename
   end
+
+  treated_wav = File.join(transcripts_dir, "#{treated_basename}_treated.wav")
+
+  # 1a. Audio cleanup
+  if file_cached?(treated_wav)
+    skip 'audio_cleanup', 'treated WAV exists'
+  else
+    step 'audio_cleanup'
+    input = production_audio || video_path
+    run_script('audio_cleanup.rb', input, transcripts_dir)
+  end
+
+  # 1b. WhisperX transcription
+  transcript_name = video['transcript']
+  transcript_path = transcript_name ? File.join(transcripts_dir, transcript_name) : nil
+
+  if transcript_path && file_cached?(transcript_path)
+    skip 'whisperx', 'transcript exists'
+  else
+    step 'whisperx transcription'
+    whisperx_bin = File.expand_path('~/.thelma/whisperx')
+    whisperx_bin = 'whisperx' unless File.exist?(whisperx_bin)
+    lang_code = library['language'] == 'english' ? 'en' : (library['language'] || 'en')
+    whisper_model = 'turbo'
+
+    run_command("#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} --model #{whisper_model} --language #{lang_code} " \
+                "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} --compute_type int8")
+
+    # Find the generated transcript
+    expected = File.join(transcripts_dir, "#{treated_basename}_treated.json")
+    if File.exist?(expected)
+      transcript_path = expected
+      transcript_name = File.basename(expected)
+      $stderr.puts "  Transcript: #{transcript_name}"
+    else
+      abort "PIPELINE ABORT: WhisperX did not produce expected output: #{expected}"
+    end
+  end
+
+  # 1c. Audio sync offset (dual-system only)
+  if has_sync
+    offset = video.dig('sync_audio', 'offset')
+    if offset
+      skip 'audio_sync_offset', "cached (#{offset}s)"
+    else
+      step 'audio_sync_offset'
+      run_script('audio_sync_offset.rb', video_path, production_audio, library_yaml_path)
+    end
+  end
+
+  # 1d. Speech analysis (VAD)
+  speech_analysis_name = video['speech_analysis']
+  speech_analysis_path = speech_analysis_name ? File.join(transcripts_dir, speech_analysis_name) : nil
+
+  if speech_analysis_path && file_cached?(speech_analysis_path)
+    skip 'audio_analysis (VAD)', 'speech analysis exists'
+  else
+    step 'audio_analysis (VAD)'
+    audio_input = has_sync ? production_audio : video_path
+    run_script('audio_analysis.rb', audio_input, library_yaml_path)
+    # Reload library.yaml to pick up cached speech_analysis filename
+    library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+    videos = library['videos']
+    video = videos[vi]
+    speech_analysis_name = video['speech_analysis']
+    speech_analysis_path = speech_analysis_name ? File.join(transcripts_dir, speech_analysis_name) : nil
+  end
+
+  # 1e. Transcript cleanup
+  cleaned_name = video['cleaned_transcript']
+  cleaned_path = cleaned_name ? File.join(transcripts_dir, cleaned_name) : nil
+
+  if cleaned_path && file_cached?(cleaned_path)
+    skip 'transcript_cleanup', 'cleaned transcript exists'
+  else
+    step 'transcript_cleanup'
+    sa_flag = speech_analysis_path && file_cached?(speech_analysis_path) ? ['--speech-analysis', speech_analysis_path, '--protect-rhetorical'] : []
+    run_script('transcript_cleanup.rb', transcript_path, *sa_flag)
+  end
+
+  per_video_outputs << {
+    video_path: video_path,
+    treated_wav: treated_wav,
+    transcript_path: transcript_path,
+    speech_analysis_path: speech_analysis_path,
+    cleaned_path: cleaned_path,
+    has_sync: has_sync,
+    production_audio: production_audio
+  }
 end
 
-# 1d. Speech analysis (VAD)
-speech_analysis_name = video['speech_analysis']
-speech_analysis_path = speech_analysis_name ? File.join(transcripts_dir, speech_analysis_name) : nil
+# Reload library.yaml after all per-video processing (scripts may have updated it)
+library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+videos = library['videos']
 
-if speech_analysis_path && file_cached?(speech_analysis_path)
-  skip 'audio_analysis (VAD)', 'speech analysis exists'
-else
-  step 'audio_analysis (VAD)'
-  audio_input = has_sync ? production_audio : video_path
-  run_script('audio_analysis.rb', audio_input, library_yaml_path)
-end
+# For downstream phases that need a single reference, use first video
+first_video = videos.first
+first_output = per_video_outputs.first
+video_path = first_video['path']
+transcript_path = first_output&.dig(:transcript_path)
+cleaned_path = first_output&.dig(:cleaned_path)
+speech_analysis_path = first_output&.dig(:speech_analysis_path)
+treated_wav = first_output&.dig(:treated_wav)
+has_sync = first_output&.dig(:has_sync) || false
 
-# 1e. Transcript cleanup
-cleaned_name = video['cleaned_transcript']
-cleaned_path = cleaned_name ? File.join(transcripts_dir, cleaned_name) : nil
-
-if cleaned_path && file_cached?(cleaned_path)
-  skip 'transcript_cleanup', 'cleaned transcript exists'
-else
-  step 'transcript_cleanup'
-  sa_flag = speech_analysis_path && file_cached?(speech_analysis_path) ? ['--speech-analysis', speech_analysis_path, '--protect-rhetorical'] : []
-  run_script('transcript_cleanup.rb', transcript_path, *sa_flag)
-end
+$stderr.puts "\nPhase 1 complete: #{per_video_outputs.size}/#{videos.size} videos processed"
 
 # 1f. Parse script (Branch A only)
 if branch == 'A'
@@ -325,20 +366,27 @@ else
 end
 
 # ============================================================
-# PHASE 1.5c: AUDIO EMOTION
+# PHASE 1.5c: AUDIO EMOTION (per-video)
 # ============================================================
 
 phase '1.5c — Audio Emotion'
 
-audio_features_name = video['audio_features']
-if audio_features_name
-  skip 'audio_emotion', 'audio_features cached in library.yaml'
-else
-  if file_cached?(treated_wav)
-    step 'audio_emotion'
-    run_script('audio_emotion.rb', treated_wav, classified_path, library_yaml_path)
+videos.each_with_index do |v, vi|
+  v_basename = File.basename(v['path'], File.extname(v['path']))
+  if v['audio_features']
+    skip "audio_emotion (#{v_basename})", 'cached in library.yaml'
   else
-    skip 'audio_emotion', 'no treated WAV available'
+    pvo = per_video_outputs[vi]
+    tw = pvo&.dig(:treated_wav)
+    if tw && file_cached?(tw)
+      step "audio_emotion (#{v_basename})"
+      run_script('audio_emotion.rb', tw, classified_path, library_yaml_path)
+      # Reload library.yaml after audio_emotion caches its output
+      library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+      videos = library['videos']
+    else
+      skip "audio_emotion (#{v_basename})", 'no treated WAV available'
+    end
   end
 end
 
@@ -352,10 +400,9 @@ scene_changes_path = File.join(library_dir, 'scene_changes.yaml')
 if file_cached?(scene_changes_path)
   skip 'scene_detection', 'scene_changes.yaml exists'
 else
-  video_file = video['path']
-  if video_file && File.exist?(video_file)
+  if video_path && File.exist?(video_path)
     step 'scene_detection'
-    run_script('detect_scenes.rb', video_file, '--output', scene_changes_path)
+    run_script('detect_scenes.rb', video_path, '--output', scene_changes_path)
   else
     skip 'scene_detection', 'video file not accessible'
   end
@@ -366,16 +413,15 @@ visual_frames_path = File.join(library_dir, 'visual_frames.yaml')
 if file_cached?(visual_frames_path)
   skip 'extract_visual_frames', 'visual_frames.yaml exists'
 else
-  video_file = video['path']
-  if video_file && File.exist?(video_file)
+  if video_path && File.exist?(video_path)
     step 'extract_visual_frames'
-    run_script('extract_visual_frames.rb', '--library', library_name, '--video', video_file)
+    run_script('extract_visual_frames.rb', '--library', library_name, '--video', video_path)
   else
     skip 'extract_visual_frames', 'video file not accessible'
   end
 end
 
-visual_name = video['visual_transcript']
+visual_name = first_video['visual_transcript']
 if visual_name && visual_name.to_s.strip != ''
   skip 'visual_analysis', 'visual_transcript exists'
 else
