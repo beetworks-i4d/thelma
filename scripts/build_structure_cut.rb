@@ -106,18 +106,25 @@ profile = if profile_name
            end
 
 # === Validate required fields ===
-%w[video_path output_dir clips].each do |key|
+%w[output_dir clips].each do |key|
   abort "Missing required field: #{key}" unless config[key]
 end
 
+# video_path: global fallback for single-source; per-clip 'video_path' takes priority
 video_path = config['video_path']
-abort "Video not found: #{video_path}" unless File.exist?(video_path)
+has_per_clip_paths = config['clips'].any? { |c| c['video_path'] }
+if video_path
+  abort "Video not found: #{video_path}" unless File.exist?(video_path)
+elsif !has_per_clip_paths
+  abort "Missing required field: video_path (no per-clip video_path found either)"
+end
 
 output_dir = config['output_dir']
 editor = (config['editor'] || 'fcp7').to_sym
 
 # === Source format detection ===
-source_probe = JSON.parse(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of json #{Shellwords.escape(video_path)}`)
+probe_path = video_path || config['clips'].find { |c| c['video_path'] }&.dig('video_path')
+source_probe = JSON.parse(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of json #{Shellwords.escape(probe_path)}`)
 source_stream = source_probe['streams']&.first || {}
 source_width = (source_stream['width'] || 1920).to_i
 source_height = (source_stream['height'] || 1080).to_i
@@ -646,6 +653,10 @@ config['clips'].each_with_index do |c, idx|
   clip_video_track = 1 if clip_video_track < 1
   clip_timeline_offset = c['timeline_offset'] ? c['timeline_offset'].to_f : nil
 
+  # Per-clip video path (multi-source support)
+  clip_video_path = c['video_path'] || video_path
+  abort "Clip #{idx + 1}: no video_path (set per-clip or global)" unless clip_video_path
+
   # === Tier 0: Narrative role indicator marker at clip start ===
   role = c['narrative_role']
   if role && role != 'transition' && ROLE_MARKER_PPRO[role]
@@ -738,7 +749,7 @@ config['clips'].each_with_index do |c, idx|
       buffered_start = 0.0 if buffered_start < 0
       dur = (sr[:end] - sr[:start]) + start_buf + end_buf
 
-      clip_hash = { path: video_path, start_at: buffered_start, duration: dur }
+      clip_hash = { path: clip_video_path, start_at: buffered_start, duration: dur }
       if clip_video_track > 1
         clip_hash[:video_track] = clip_video_track
         clip_hash[:audio_track] = clip_video_track
@@ -750,7 +761,7 @@ config['clips'].each_with_index do |c, idx|
 
       wav_range_start = has_sync ? sr[:start] + sync_offset : sr[:start]
       wav_range_end = has_sync ? sr[:end] + sync_offset : sr[:end]
-      clip_source_ranges << { wav_start: wav_range_start, wav_end: wav_range_end }
+      clip_source_ranges << { wav_start: wav_range_start, wav_end: wav_range_end, source: clip_video_path }
 
       if has_sync
         ws = (sr[:start] + sync_offset) - start_buf
@@ -773,7 +784,7 @@ config['clips'].each_with_index do |c, idx|
     buffered_start = 0.0 if buffered_start < 0
     duration = (end_time - start_time) + (buffer * 2)
 
-    clip_hash = { path: video_path, start_at: buffered_start, duration: duration }
+    clip_hash = { path: clip_video_path, start_at: buffered_start, duration: duration }
     if clip_video_track > 1
       clip_hash[:video_track] = clip_video_track
       clip_hash[:audio_track] = clip_video_track
@@ -783,7 +794,7 @@ config['clips'].each_with_index do |c, idx|
 
     wav_range_start = has_sync ? start_time + sync_offset : start_time
     wav_range_end = has_sync ? end_time + sync_offset : end_time
-    clip_source_ranges << { wav_start: wav_range_start, wav_end: wav_range_end }
+    clip_source_ranges << { wav_start: wav_range_start, wav_end: wav_range_end, source: clip_video_path }
 
     if has_sync
       wav_start = (start_time + sync_offset) - buffer
@@ -854,12 +865,12 @@ if max_segment_duration && long_pauses
       buffered_start = 0.0 if buffered_start < 0
       dur = (sub_end - sub_start) + start_buf + end_buf
 
-      sub_clip = { path: video_path, start_at: buffered_start, duration: dur }
+      sub_clip = { path: clip[:path], start_at: buffered_start, duration: dur }
       new_clips << sub_clip
 
       wav_s = has_sync ? sub_start + sync_offset : sub_start
       wav_e = has_sync ? sub_end + sync_offset : sub_end
-      new_clip_source_ranges << { wav_start: wav_s, wav_end: wav_e }
+      new_clip_source_ranges << { wav_start: wav_s, wav_end: wav_e, source: clip[:path] }
 
       if has_sync
         ws = wav_s - start_buf
@@ -998,11 +1009,13 @@ PPRO_SUGGEST  = 4292131840
 PPRO_REFERENCE = 4286611584
 
 # Helper: find timeline position for a classified segment
-def seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+# source: optional path to scope matching to a specific source file (multi-source support)
+def seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync, source: nil)
   seg_t = seg['t'].to_f
   seg_wav_t = has_sync ? seg_t + sync_offset : seg_t
 
   clip_idx = clip_source_ranges.each_with_index.find { |csr, _|
+    next false if source && csr[:source] != source
     seg_wav_t >= csr[:wav_start] - 0.05 && seg_wav_t < csr[:wav_end] + 0.05
   }&.last
   return nil unless clip_idx
@@ -1011,11 +1024,12 @@ def seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, ha
   (timeline_positions[clip_idx] + offset_in_clip).round(2)
 end
 
-def seg_end_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+def seg_end_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync, source: nil)
   seg_e = seg['e'].to_f
   seg_wav_e = has_sync ? seg_e + sync_offset : seg_e
 
   clip_idx = clip_source_ranges.each_with_index.find { |csr, _|
+    next false if source && csr[:source] != source
     seg_wav_e >= csr[:wav_start] - 0.05 && seg_wav_e <= csr[:wav_end] + 0.5
   }&.last
   return nil unless clip_idx
@@ -1061,14 +1075,25 @@ if config['chapters'] && config['chapters'].is_a?(Array) && config['chapters'].a
   $stderr.puts "Chapter SECTION markers: #{tier1_markers.size}" if tier1_markers.any?
 end
 
+# === Build segment → source lookup (multi-source support) ===
+# Classification segments use 't'/'e' timestamps matching arrangement clip video_start/video_end.
+# Build a lookup so seg_to_timeline can scope to the correct source file.
+seg_source_lookup = {}
+if has_per_clip_paths
+  config['clips'].each do |c|
+    seg_source_lookup[c['video_start'].to_f.round(2)] = c['video_path'] if c['video_path']
+  end
+end
+
 # === TIER 1: Structure Markers (from classification) ===
 # Only generated when classification segments are available (arranged segments)
 
 if classification_segments && !classification_segments.empty?
   # Map arranged segments to timeline positions
   arranged = classification_segments.map { |seg|
-    tl_start = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
-    tl_end = seg_end_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+    seg_source = seg_source_lookup[seg['t'].to_f.round(2)]
+    tl_start = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync, source: seg_source)
+    tl_end = seg_end_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync, source: seg_source)
     next nil unless tl_start
     seg.merge('tl_start' => tl_start, 'tl_end' => tl_end || tl_start + 1.0)
   }.compact.sort_by { |s| s['tl_start'] }
@@ -1195,7 +1220,8 @@ $stderr.puts "Tier 1 (structure): #{tier1_markers.size} markers" if tier1_marker
 unless markers_only_structure
   if classification_segments && !classification_segments.empty? && !classification_branch_a
     arranged = classification_segments.map { |seg|
-      tl_start = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+      seg_source = seg_source_lookup[seg['t'].to_f.round(2)]
+      tl_start = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync, source: seg_source)
       next nil unless tl_start
       seg.merge('tl_start' => tl_start)
     }.compact.sort_by { |s| s['tl_start'] }
@@ -1287,7 +1313,8 @@ unless markers_only_structure
     video_patterns = edit_patterns['video_overlay_patterns'] || []
 
     classification_segments.each do |seg|
-      tl_time = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+      seg_source = seg_source_lookup[seg['t'].to_f.round(2)]
+      tl_time = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync, source: seg_source)
       next unless tl_time
 
       matching_patterns = []
@@ -1327,7 +1354,8 @@ tier3_count = 0
 unless no_emotion_markers || markers_only_structure
   if classification_segments && !classification_branch_a
     classification_segments.each do |seg|
-      tl_time = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync)
+      seg_source = seg_source_lookup[seg['t'].to_f.round(2)]
+      tl_time = seg_to_timeline(seg, clip_source_ranges, timeline_positions, sync_offset, has_sync, source: seg_source)
       next unless tl_time
 
       seg_t = seg['t'].to_f
