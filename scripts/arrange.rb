@@ -234,6 +234,27 @@ enriched_groups = clip_groups.map do |g|
   { 'id' => g['id'], 'label' => g['label'], 'clips' => enriched_clips }
 end
 
+# --- Source file durations (for LLM boundary awareness) ---
+
+unique_sources = all_ingest_clips.map { |c| c['source'] }.compact.uniq
+source_durations = {}
+library_videos = library['videos'] || []
+unique_sources.each do |src|
+  video_entry = library_videos.find { |v| File.basename(v['path']) == src }
+  next unless video_entry
+  abs_path = File.expand_path(video_entry['path'])
+  dur_str = `ffprobe -v error -show_entries format=duration -of csv=p=0 "#{abs_path}" 2>/dev/null`.strip
+  source_durations[src] = dur_str.to_f.round(2) if dur_str =~ /\d/
+end
+
+source_durations_block = ""
+if source_durations.any?
+  source_durations_block = "\n## Source File Durations\n"
+  source_durations.sort.each do |src, dur|
+    source_durations_block << "- #{src}: #{dur}s\n"
+  end
+end
+
 # --- Format constraints ---
 
 format_defaults = profile.dig('format_defaults', target_format) || {}
@@ -261,6 +282,7 @@ prompt = <<~PROMPT
   ## Open Loops
   #{open_loops.to_yaml}
 
+  #{source_durations_block}
   #{script_block}
   #{asset_pool ? "## Asset Pool\n#{asset_pool.to_yaml}\n" : ''}
   ## Constraints
@@ -279,7 +301,7 @@ prompt = <<~PROMPT
   5. **Keep logic**: Every `fine` clip should appear unless explicitly dropped with reasoning in key_decisions.
   6. **B-roll matching**: If asset_pool is available, match assets to clips by semantic relevance. If no pool, suggest B-roll in broll_suggestions with type (image|video|graphic|screen_recording) and a short concept tag.
   7. **Chapter assignment**: Every clip must belong to exactly one chapter.
-  8. **t_in / t_out**: Use the `t` value as t_in (or `trim_in` if set — it overrides the in-point). Use the `e` value (if available) as t_out. If `e` is not available, estimate from content.
+  8. **t_in / t_out**: Use the `t` value as t_in (or `trim_in` if set — it overrides the in-point). Use the `e` value (if available) as t_out. If `e` is not available, estimate from content. IMPORTANT: t_out must never exceed the source file's duration (listed in Source File Durations above). Clip boundaries must fit within the source they reference.
   9. **trim_in**: If a clip has `trim_in`, use that as the effective t_in instead of `t`. Pass `trim_in` through to the output clip.
   10. **mid_cuts**: If a clip has `mid_cuts`, pass them through to the output clip unchanged. They represent internal ranges to excise.
   11. **Duration**: Estimate total duration from sum of (t_out - t_in) for all V1 clips. Warn if outside target range.
