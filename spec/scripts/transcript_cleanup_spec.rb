@@ -172,13 +172,17 @@ RSpec.describe 'transcript_cleanup.rb' do
   end
 
   describe 'edge cases' do
-    it 'aborts on empty segments array' do
+    it 'passes through empty segments array gracefully' do
       Dir.mktmpdir do |dir|
         path = File.join(dir, 'empty.json')
         File.write(path, { 'segments' => [] }.to_json)
-        _stdout, stderr, status = Open3.capture3('ruby', CLEANUP_SCRIPT, path)
-        expect(status.exitstatus).to eq(1)
+        stdout, stderr, status = Open3.capture3('ruby', CLEANUP_SCRIPT, path)
+        expect(status.exitstatus).to eq(0)
         expect(stderr).to include('No segments found')
+        output_path = stdout.strip
+        expect(File.exist?(output_path)).to be true
+        output = JSON.parse(File.read(output_path))
+        expect(output['segments']).to eq([])
       end
     end
 
