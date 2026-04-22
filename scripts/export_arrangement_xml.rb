@@ -111,11 +111,13 @@ arrangement['chapters'].each do |chapter|
     # t_out values that exceed the actual file length, causing black frames
     source_filename = clip_source || File.basename(video_path)
     source_dur = source_duration_lookup[source_filename]
-    if source_dur && video_end > source_dur
+    if source_dur && video_end > source_dur + 0.01  # 10ms tolerance for ffprobe rounding
       overshoot = video_end - source_dur
       clip_idx = v1_clips.size + v2_clips.size + 1
       $stderr.puts "  WARN: clip ##{clip_idx} (source: #{source_filename}) t_out clamped from #{'%.2f' % video_end} to #{'%.2f' % source_dur} (overshoot #{'%.2f' % overshoot}s)"
       video_end = source_dur
+    elsif source_dur && video_end > source_dur
+      video_end = source_dur  # silent micro-clamp for rounding noise
     end
 
     clip_entry = {
