@@ -47,6 +47,13 @@ library_yaml['videos'].each do |v|
   video_path_lookup[File.basename(abs)] = abs
 end
 
+# === Build filename → duration lookup via ffprobe ===
+source_duration_lookup = {}
+video_path_lookup.each do |filename, abs_path|
+  dur_str = `ffprobe -v error -show_entries format=duration -of csv=p=0 "#{abs_path}" 2>/dev/null`.strip
+  source_duration_lookup[filename] = dur_str.to_f if dur_str =~ /\d/
+end
+
 # First video entry for speech_analysis/transcript (global metadata)
 video_entry = library_yaml['videos'].first
 video_path = video_entry['path']
@@ -98,9 +105,22 @@ arrangement['chapters'].each do |chapter|
       clip_video_path = video_path  # fallback to first video (single-source compat)
     end
 
+    video_end = clip['t_out'].to_f
+
+    # Clamp video_end to source file duration — LLM may produce round-number
+    # t_out values that exceed the actual file length, causing black frames
+    source_filename = clip_source || File.basename(video_path)
+    source_dur = source_duration_lookup[source_filename]
+    if source_dur && video_end > source_dur
+      overshoot = video_end - source_dur
+      clip_idx = v1_clips.size + v2_clips.size + 1
+      $stderr.puts "  WARN: clip ##{clip_idx} (source: #{source_filename}) t_out clamped from #{'%.2f' % video_end} to #{'%.2f' % source_dur} (overshoot #{'%.2f' % overshoot}s)"
+      video_end = source_dur
+    end
+
     clip_entry = {
       'video_start' => clip['t_in'].to_f,
-      'video_end' => clip['t_out'].to_f,
+      'video_end' => video_end,
       'track' => track,
       'video_path' => clip_video_path
     }
