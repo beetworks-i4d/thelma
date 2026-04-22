@@ -209,9 +209,16 @@ $stderr.puts "  Branch: #{branch} (#{branch == 'A' ? 'script-faithful' : 'semant
 
 enriched_groups = clip_groups.map do |g|
   enriched_clips = (g['clips'] || []).map do |c|
+    usability = c['usability'] || 'fine'
+
+    # P1: Unusable clips get minimal representation — they're dropped by Rule 2 anyway
+    if usability == 'unusable'
+      next { 't' => c['t'], 'source' => c['source'], 'usability' => 'unusable' }
+    end
+
     t_val = c['t'].to_f
     enrichment = t_lookup[t_val] || {}
-    entry = { 't' => c['t'], 'source' => c['source'], 'usability' => c['usability'] || 'fine',
+    entry = { 't' => c['t'], 'source' => c['source'], 'usability' => usability,
               'content_summary' => c['content_summary'] }
     entry['cluster'] = c['cluster'] if c['cluster']
     entry['trim_in'] = c['trim_in'] if c['trim_in']
