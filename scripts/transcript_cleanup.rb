@@ -328,7 +328,17 @@ end
 
 data = JSON.parse(File.read(path))
 segments = data['segments'] || []
-abort "No segments found in transcript" if segments.empty?
+if segments.empty?
+  # No speech segments — write pass-through output and exit cleanly
+  dir = File.dirname(path)
+  base = File.basename(path, '.json')
+  output_path = File.join(dir, "#{base}_cleaned.json")
+  File.write(output_path, JSON.pretty_generate(data))
+  $stderr.puts "No segments found — pass-through (no cleanup needed)"
+  $stderr.puts "Saved: #{output_path}"
+  puts output_path
+  exit 0
+end
 
 # Track which indices to drop and why
 drops = {}  # index => reason string
