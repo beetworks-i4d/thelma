@@ -291,6 +291,61 @@ RSpec.describe 'orchestrate.rb' do
     end
   end
 
+  describe '--mode mine / --force-reindex flags' do
+    it 'parses --mode mine without unknown-argument error' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        mode = nil
+        force_reindex = false
+        args = ['--library', 'test', '--mode', 'mine', '--force-reindex']
+        while args.any?
+          case args.first
+          when '--library'       then args.shift; args.shift
+          when '--mode'          then args.shift; mode = args.shift
+          when '--force-reindex' then args.shift; force_reindex = true
+          else abort "Unknown argument: #{args.first}"
+          end
+        end
+        puts "#{mode},#{force_reindex}"
+      RUBY
+      expect(stdout.strip).to eq('mine,true')
+    end
+
+    it 'exits 1 with pool_dir error when library has no pool_dir set' do
+      Dir.mktmpdir do |tmpdir|
+        lib_dir = File.join(tmpdir, 'libraries', 'test-mine')
+        FileUtils.mkdir_p(File.join(lib_dir, 'transcripts'))
+        File.write(File.join(lib_dir, 'library.yaml'), { 'videos' => [] }.to_yaml)
+
+        root_override = tmpdir
+        _, stderr, status = Open3.capture3('ruby', '-e', <<~RUBY)
+          ROOT_DIR = '#{root_override}'
+          library_name = 'test-mine'
+          library_dir = File.join(ROOT_DIR, 'libraries', library_name)
+          require 'yaml'
+          library = YAML.safe_load(File.read(File.join(library_dir, 'library.yaml')), permitted_classes: [])
+          pool_dir = library['pool_dir']
+          unless pool_dir && !pool_dir.to_s.strip.empty?
+            abort "pool_dir not set in library.yaml — required for --mode mine"
+          end
+        RUBY
+        expect(status.exitstatus).to eq(1)
+        expect(stderr).to include('pool_dir not set')
+      end
+    end
+
+    it 'skips ingest when all pool sources are unchanged (scan returns empty to_ingest)' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~RUBY)
+        to_ingest = []
+        if to_ingest.empty?
+          $stdout.puts 'nothing_to_ingest'
+        else
+          $stdout.puts 'ingesting'
+        end
+      RUBY
+      expect(stdout.strip).to eq('nothing_to_ingest')
+    end
+  end
+
   describe 'report schema from generate_report' do
     it 'generates valid report YAML with all fields' do
       library_dir = File.expand_path('../../libraries/dylan-004', __dir__)

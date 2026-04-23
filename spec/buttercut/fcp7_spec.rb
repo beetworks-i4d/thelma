@@ -101,4 +101,50 @@ RSpec.describe ButterCut::FCP7 do
     end
 
   end
+
+  describe 'audio-only source support' do
+    let(:audio_only_path) { '/tmp/fcp7_audio.m4a' }
+
+    def build_audio_only_metadata(duration_seconds:, sample_rate: '48000')
+      {
+        'streams' => [
+          { 'codec_type' => 'audio', 'sample_rate' => sample_rate }
+        ],
+        'format' => { 'duration' => duration_seconds.to_s, 'tags' => {} }
+      }
+    end
+
+    before do
+      allow_any_instance_of(described_class).to receive(:extract_metadata_from_ffprobe) do |_instance, path|
+        if path == audio_only_path
+          build_audio_only_metadata(duration_seconds: 5.0)
+        else
+          metadata_by_path.fetch(path)
+        end
+      end
+    end
+
+    it 'generates XML without video clipitem for audio-only source' do
+      generator = described_class.new([
+        { path: clip_a_path },
+        { path: audio_only_path, media_type: :audio_only }
+      ])
+      xml = generator.to_xml
+      # Audio-only clip should not appear in any video track clipitem
+      expect(xml).not_to match(/<clipitem id="clipitem-video-2">/)
+      # But should have an audio clipitem
+      expect(xml).to match(/<clipitem id="clipitem-audio-\d+">/)
+    end
+
+    it 'uses first video clip dimensions for sequence format when mixed with audio-only' do
+      generator = described_class.new([
+        { path: audio_only_path, media_type: :audio_only },
+        { path: clip_a_path }
+      ])
+      xml = generator.to_xml
+      # Sequence dimensions should come from clip_a (1920x1080), not audio sentinel
+      expect(xml).to include('<width>1920</width>')
+      expect(xml).to include('<height>1080</height>')
+    end
+  end
 end

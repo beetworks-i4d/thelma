@@ -60,7 +60,8 @@ transcripts_dir = File.join(library_dir, 'transcripts')
 def load_words(filename, transcripts_dir)
   path = File.join(transcripts_dir, filename.to_s)
   return [] unless File.exist?(path)
-  data = JSON.parse(File.read(path)) rescue return []
+  data = JSON.parse(File.read(path)) rescue nil
+  return [] unless data
   (data['segments'] || [])
     .flat_map { |s| (s['words'] || []).map { |w| w['word']&.downcase&.gsub(/[^a-z0-9]/, '') } }
     .reject(&:empty?)
