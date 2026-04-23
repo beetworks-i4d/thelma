@@ -17,6 +17,8 @@ require 'fileutils'
 require 'date'
 require 'tmpdir'
 
+AUDIO_ONLY_EXTS_EARXML = %w[.m4a .mp3 .wav .aac].freeze
+
 SCRIPT_DIR = File.dirname(__FILE__)
 BUILD_SCRIPT = File.join(SCRIPT_DIR, 'build_structure_cut.rb')
 
@@ -126,10 +128,15 @@ arrangement['chapters'].each do |chapter|
 
     clip_entry = {
       'video_start' => clip['t_in'].to_f,
-      'video_end' => video_end,
-      'track' => track,
-      'video_path' => clip_video_path
+      'video_end'   => video_end,
+      'track'       => track,
+      'video_path'  => clip_video_path
     }
+
+    # Propagate audio-only media type so build_structure_cut emits audio clipitem only
+    if AUDIO_ONLY_EXTS_EARXML.include?(File.extname(clip_video_path.to_s).downcase)
+      clip_entry['media_type'] = 'audio_only'
+    end
 
     # Pass through ingest trim fields
     clip_entry['trim_in'] = clip['trim_in'].to_f if clip['trim_in']

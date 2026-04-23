@@ -7,6 +7,7 @@ require 'digest'
 class ButterCut
   # Shared functionality for editor-specific generators.
   class EditorBase
+    AUDIO_ONLY_EXTENSIONS = %w[.m4a .mp3 .wav .aac .flac].freeze
     DEFAULT_START_TIME = "0s"
     DEFAULT_INITIAL_OFFSET = "0s"
     DEFAULT_VOLUME_ADJUSTMENT = "-13.100000000000001db"
@@ -200,28 +201,40 @@ class ButterCut
       "#{duration_num / divisor}/#{duration_denom / divisor}s"
     end
 
+    # Returns true when the path has an audio-only file extension (no video stream).
+    def audio_only_file?(path)
+      AUDIO_ONLY_EXTENSIONS.include?(File.extname(path.to_s).downcase)
+    end
+
+    # Returns the first clip path that has a video stream.
+    # Falls back to the first clip if all are audio-only.
+    def first_video_clip_path
+      video_clip = @clips.find { |c| !audio_only_file?(c[:path]) }
+      video_clip ? video_clip[:path] : @clips.first[:path]
+    end
+
     def format_width
-      video_width(@clips.first[:path])
+      video_width(first_video_clip_path)
     end
 
     def format_height
-      video_height(@clips.first[:path])
+      video_height(first_video_clip_path)
     end
 
     def format_frame_duration
-      frame_duration(@clips.first[:path])
+      frame_duration(first_video_clip_path)
     end
 
     def format_frame_rate
-      frame_rate(@clips.first[:path])
+      frame_rate(first_video_clip_path)
     end
 
     def format_nominal_frame_rate
-      nominal_frame_rate(@clips.first[:path])
+      nominal_frame_rate(first_video_clip_path)
     end
 
     def format_color_space
-      color_space(@clips.first[:path])
+      color_space(first_video_clip_path)
     end
 
     def format_audio_rate
@@ -360,22 +373,48 @@ class ButterCut
         filename = get_filename(video_file_path)
         file_url = path_to_file_url(video_file_path)
 
-        file_to_asset[abs_path] = {
-          asset_id: asset_id,
-          asset_uid: asset_uid,
-          abs_path: abs_path,
-          filename: filename,
-          basename: get_basename(filename),
-          file_url: file_url,
-          asset_duration: duration_to_fraction(video_file_path),
-          audio_rate: audio_sample_rate(video_file_path),
-          timecode: clip_timecode_fraction(video_file_path),
-          frame_duration: frame_duration(video_file_path),
-          frame_rate: frame_rate(video_file_path),
-          width: video_width(video_file_path),
-          height: video_height(video_file_path),
-          color_space: color_space(video_file_path)
-        }
+        if audio_only_file?(video_file_path)
+          # Audio-only: no video stream. Use 30/1 as sentinel frame rate so
+          # timeline math works. Width/height are unused for audio-only clips.
+          metadata    = extract_metadata(video_file_path)
+          audio_dur   = metadata.dig('format', 'duration').to_f
+          dur_frames  = (audio_dur * 30).round
+          audio_str   = metadata['streams']&.find { |s| s['codec_type'] == 'audio' }
+          file_to_asset[abs_path] = {
+            asset_id:       asset_id,
+            asset_uid:      asset_uid,
+            abs_path:       abs_path,
+            filename:       filename,
+            basename:       get_basename(filename),
+            file_url:       file_url,
+            asset_duration: "#{dur_frames}/30s",
+            audio_rate:     audio_str&.dig('sample_rate') || '48000',
+            timecode:       '0s',
+            frame_duration: '1/30s',
+            frame_rate:     '30/1',
+            width:          1920,
+            height:         1080,
+            color_space:    '1-1-1 (Rec. 709)',
+            audio_only:     true
+          }
+        else
+          file_to_asset[abs_path] = {
+            asset_id:       asset_id,
+            asset_uid:      asset_uid,
+            abs_path:       abs_path,
+            filename:       filename,
+            basename:       get_basename(filename),
+            file_url:       file_url,
+            asset_duration: duration_to_fraction(video_file_path),
+            audio_rate:     audio_sample_rate(video_file_path),
+            timecode:       clip_timecode_fraction(video_file_path),
+            frame_duration: frame_duration(video_file_path),
+            frame_rate:     frame_rate(video_file_path),
+            width:          video_width(video_file_path),
+            height:         video_height(video_file_path),
+            color_space:    color_space(video_file_path)
+          }
+        end
       end
       file_to_asset
     end

@@ -58,6 +58,12 @@ require 'nokogiri'
 require 'fileutils'
 require 'shellwords'
 
+AUDIO_ONLY_EXTS = %w[.m4a .mp3 .wav .aac].freeze
+
+def audio_only_path?(path)
+  path && AUDIO_ONLY_EXTS.include?(File.extname(path.to_s).downcase)
+end
+
 # === Format helpers ===
 def res_label(w, h)
   long_side = [w, h].max
@@ -123,7 +129,14 @@ output_dir = config['output_dir']
 editor = (config['editor'] || 'fcp7').to_sym
 
 # === Source format detection ===
-probe_path = video_path || config['clips'].find { |c| c['video_path'] }&.dig('video_path')
+# Find the first non-audio-only path for probing video dimensions/frame rate.
+probe_path = if video_path && !audio_only_path?(video_path)
+  video_path
+else
+  config['clips'].find { |c| c['video_path'] && !audio_only_path?(c['video_path']) }&.dig('video_path') ||
+    video_path ||
+    config['clips'].first&.dig('video_path')
+end
 source_probe = JSON.parse(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of json #{Shellwords.escape(probe_path)}`)
 source_stream = source_probe['streams']&.first || {}
 source_width = (source_stream['width'] || 1920).to_i
@@ -698,6 +711,9 @@ config['clips'].each_with_index do |c, idx|
   clip_video_path = c['video_path'] || video_path
   abort "Clip #{idx + 1}: no video_path (set per-clip or global)" unless clip_video_path
 
+  # Detect audio-only source (no video stream — audio clipitem only in XML)
+  is_audio_only_clip = c['media_type'] == 'audio_only' || audio_only_path?(clip_video_path)
+
   # === Tier 0: Narrative role indicator marker at clip start ===
   role = c['narrative_role']
   if role && role != 'transition' && ROLE_MARKER_PPRO[role]
@@ -791,6 +807,7 @@ config['clips'].each_with_index do |c, idx|
       dur = (sr[:end] - sr[:start]) + start_buf + end_buf
 
       clip_hash = { path: clip_video_path, start_at: buffered_start, duration: dur }
+      clip_hash[:media_type] = :audio_only if is_audio_only_clip
       if clip_video_track > 1
         clip_hash[:video_track] = clip_video_track
         clip_hash[:audio_track] = clip_video_track
@@ -826,6 +843,7 @@ config['clips'].each_with_index do |c, idx|
     duration = (end_time - start_time) + (buffer * 2)
 
     clip_hash = { path: clip_video_path, start_at: buffered_start, duration: duration }
+    clip_hash[:media_type] = :audio_only if is_audio_only_clip
     if clip_video_track > 1
       clip_hash[:video_track] = clip_video_track
       clip_hash[:audio_track] = clip_video_track

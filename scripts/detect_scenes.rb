@@ -112,6 +112,8 @@ def detect_scenes_for_video(vpath, threshold)
   }
 end
 
+AUDIO_ONLY_EXTS = %w[.m4a .mp3 .wav .aac].freeze
+
 # === Library mode: iterate all videos ===
 if library_name
   library_dir = File.expand_path("../../libraries/#{library_name}", __FILE__)
@@ -127,6 +129,13 @@ if library_name
   sources = []
   all_videos.each do |v|
     vpath = v['path']
+
+    # Skip audio-only sources — no video stream for scene detection
+    if vpath && AUDIO_ONLY_EXTS.include?(File.extname(vpath.to_s).downcase)
+      $stderr.puts "  Skipping audio-only source: #{File.basename(vpath)}"
+      next
+    end
+
     unless vpath && File.exist?(vpath)
       $stderr.puts "  WARNING: Video not found, skipping: #{vpath}"
       next
