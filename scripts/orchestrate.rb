@@ -18,6 +18,7 @@ require 'fileutils'
 require 'shellwords'
 require_relative 'load_profile'
 require_relative 'llm_client'
+require_relative 'pool_index'
 
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
@@ -30,6 +31,8 @@ branch_override = nil
 analyze_only = false
 no_review = false
 llm_mode = nil
+mode = nil
+force_reindex = false
 
 args = ARGV.dup
 while args.any?
@@ -52,13 +55,19 @@ while args.any?
   when '--llm-mode'
     args.shift
     llm_mode = args.shift
+  when '--mode'
+    args.shift
+    mode = args.shift
+  when '--force-reindex'
+    args.shift
+    force_reindex = true
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex]" unless library_name
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
@@ -117,10 +126,98 @@ abort "Library not found: #{library_dir}" unless File.exist?(library_yaml_path)
 
 library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
 videos = library['videos']
-abort "No videos in library.yaml" unless videos && videos.any?
 
 transcripts_dir = File.join(library_dir, 'transcripts')
 FileUtils.mkdir_p(transcripts_dir)
+
+# ============================================================
+# MINE MODE: pool-based incremental ingestion
+# ============================================================
+
+if mode == 'mine'
+  pool_dir = library['pool_dir']
+  abort "pool_dir not set in library.yaml — required for --mode mine" unless pool_dir && !pool_dir.to_s.strip.empty?
+  pool_dir = File.expand_path(pool_dir)
+  abort "pool_dir not found: #{pool_dir}" unless File.directory?(pool_dir)
+
+  phase 'MINE — Pool Indexing'
+  $stderr.puts "Pool: #{pool_dir}"
+
+  index = PoolIndex.load(library_dir)
+  scan = PoolIndex.scan_pool(pool_dir, index, force: force_reindex)
+
+  $stderr.puts "  Scan: #{scan[:new].size} new, #{scan[:changed].size} changed, " \
+               "#{scan[:unchanged].size} unchanged, #{scan[:removed].size} removed"
+
+  to_ingest = scan[:new] + scan[:changed]
+
+  if to_ingest.empty?
+    $stderr.puts "  All sources up to date — nothing to ingest"
+  else
+    to_ingest.each do |full_path|
+      filename = File.basename(full_path)
+      $stderr.puts "\n  --- Ingesting: #{filename} ---"
+
+      PoolIndex.add_source(index, full_path)
+      is_audio_only = PoolIndex.audio_only?(full_path)
+      attrs = {}
+
+      # Audio cleanup
+      src_basename = File.basename(full_path, File.extname(full_path))
+      treated_wav = File.join(transcripts_dir, "#{src_basename}_treated.wav")
+      if file_cached?(treated_wav)
+        skip 'audio_cleanup', 'treated WAV exists'
+      else
+        step 'audio_cleanup'
+        run_script('audio_cleanup.rb', full_path, transcripts_dir)
+      end
+
+      # WhisperX transcription
+      expected_transcript = File.join(transcripts_dir, "#{src_basename}_treated.json")
+      if file_cached?(expected_transcript)
+        skip 'whisperx', 'transcript exists'
+      else
+        step 'whisperx transcription'
+        whisperx_bin = File.expand_path('~/.thelma/whisperx')
+        whisperx_bin = 'whisperx' unless File.exist?(whisperx_bin)
+        lang_code = library['language'] == 'english' ? 'en' : (library['language'] || 'en')
+        run_command("#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} " \
+                    "--model turbo --language #{lang_code} " \
+                    "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} " \
+                    "--compute_type int8")
+        abort "PIPELINE ABORT: WhisperX did not produce: #{expected_transcript}" unless File.exist?(expected_transcript)
+      end
+      attrs[:transcript_file] = File.basename(expected_transcript) if File.exist?(expected_transcript)
+
+      # Scene detection (video only)
+      unless is_audio_only
+        sc_path = File.join(transcripts_dir, "#{src_basename}_scenes.yaml")
+        if file_cached?(sc_path)
+          skip 'detect_scenes', 'scene data cached'
+        else
+          step 'detect_scenes'
+          run_script('detect_scenes.rb', full_path, '--output', sc_path)
+        end
+        attrs[:scene_changes] = File.basename(sc_path) if File.exist?(sc_path)
+      end
+
+      PoolIndex.mark_ingested(index, filename, attrs)
+      PoolIndex.save(library_dir, index)
+    end
+  end
+
+  # HQ audio matching
+  phase 'MINE — HQ Audio Matching'
+  run_script('match_hq_audio.rb', '--library', library_name)
+
+  $stderr.puts "\n#{'=' * 60}"
+  $stderr.puts "MINE PIPELINE COMPLETE"
+  $stderr.puts "  Index: #{PoolIndex.index_path(library_dir)}"
+  $stderr.puts '=' * 60
+  exit 0
+end
+
+abort "No videos in library.yaml" unless videos && videos.any?
 
 $stderr.puts "Thelma Pipeline — #{library_name}"
 $stderr.puts "Videos: #{videos.size} source file(s)"
