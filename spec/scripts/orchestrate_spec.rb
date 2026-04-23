@@ -346,6 +346,50 @@ RSpec.describe 'orchestrate.rb' do
     end
   end
 
+  describe 'mine mode arc discovery integration' do
+    it 'passes --force-rediscover to discover_arcs when --force-rediscover set' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        force_rediscover = true
+        library_name = 'test-pool'
+        profile_name = nil
+        llm_mode     = nil
+        discover_flags = ['--library', library_name]
+        discover_flags += ['--profile', profile_name] if profile_name
+        discover_flags += ['--llm-mode', llm_mode]    if llm_mode
+        discover_flags << '--force-rediscover'         if force_rediscover
+        puts discover_flags.join(' ')
+      RUBY
+      expect(stdout.strip).to eq('--library test-pool --force-rediscover')
+    end
+
+    it 'omits --force-rediscover when flag not set' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        force_rediscover = false
+        discover_flags = ['--library', 'test-pool']
+        discover_flags << '--force-rediscover' if force_rediscover
+        puts discover_flags.join(' ')
+      RUBY
+      expect(stdout.strip).not_to include('--force-rediscover')
+    end
+
+    it 'parses --force-rediscover flag from CLI args' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        force_rediscover = false
+        args = ['--library', 'pool', '--mode', 'mine', '--force-rediscover']
+        while args.any?
+          case args.first
+          when '--library'           then args.shift; args.shift
+          when '--mode'              then args.shift; args.shift
+          when '--force-rediscover'  then args.shift; force_rediscover = true
+          else args.shift
+          end
+        end
+        puts force_rediscover
+      RUBY
+      expect(stdout.strip).to eq('true')
+    end
+  end
+
   describe 'report schema from generate_report' do
     it 'generates valid report YAML with all fields' do
       library_dir = File.expand_path('../../libraries/dylan-004', __dir__)
