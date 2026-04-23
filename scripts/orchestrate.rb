@@ -33,6 +33,7 @@ no_review = false
 llm_mode = nil
 mode = nil
 force_reindex = false
+force_rediscover = false
 
 args = ARGV.dup
 while args.any?
@@ -61,13 +62,16 @@ while args.any?
   when '--force-reindex'
     args.shift
     force_reindex = true
+  when '--force-rediscover'
+    args.shift
+    force_rediscover = true
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover]" unless library_name
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
@@ -210,9 +214,19 @@ if mode == 'mine'
   phase 'MINE — HQ Audio Matching'
   run_script('match_hq_audio.rb', '--library', library_name)
 
+  # Arc discovery — discover_arcs.rb handles its own cache check internally
+  phase 'MINE — Arc Discovery'
+  discover_flags = ['--library', library_name]
+  discover_flags += ['--profile', profile_name] if profile_name
+  discover_flags += ['--llm-mode', llm_mode]    if llm_mode
+  discover_flags << '--force-rediscover'         if force_rediscover
+  arc_candidates_path = run_script('discover_arcs.rb', *discover_flags)
+  # run_script propagates exit 2 (Claude Code pending) automatically
+
   $stderr.puts "\n#{'=' * 60}"
   $stderr.puts "MINE PIPELINE COMPLETE"
-  $stderr.puts "  Index: #{PoolIndex.index_path(library_dir)}"
+  $stderr.puts "  Index:      #{PoolIndex.index_path(library_dir)}"
+  $stderr.puts "  Candidates: #{arc_candidates_path}"
   $stderr.puts '=' * 60
   exit 0
 end
