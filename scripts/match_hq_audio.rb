@@ -17,6 +17,7 @@ require 'json'
 require 'date'
 require 'open3'
 require_relative 'pool_index'
+require_relative 'library_resolver'
 
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR    = File.expand_path('..', SCRIPTS_DIR)
@@ -42,7 +43,7 @@ end
 
 abort "Usage: ruby scripts/match_hq_audio.rb --library <name>" unless library_name
 
-library_dir = File.join(ROOT_DIR, 'libraries', library_name)
+library_dir = LibraryResolver.resolve(library_name)
 abort "Library not found: #{library_dir}" unless File.directory?(library_dir)
 
 library_yaml_path = File.join(library_dir, 'library.yaml')

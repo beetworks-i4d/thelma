@@ -23,6 +23,7 @@ require 'fileutils'
 require_relative 'pool_index'
 require_relative 'load_profile'
 require_relative 'llm_client'
+require_relative 'library_resolver'
 
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR    = File.expand_path('..', SCRIPTS_DIR)
@@ -61,7 +62,7 @@ LLMClient.mode = llm_mode.to_sym if llm_mode
 
 # ─── Load library + index ────────────────────────────────────────────────────
 
-library_dir = File.join(ROOT_DIR, 'libraries', library_name)
+library_dir = LibraryResolver.resolve(library_name)
 abort "Library not found: #{library_dir}" unless File.directory?(library_dir)
 
 library_yaml_path = File.join(library_dir, 'library.yaml')

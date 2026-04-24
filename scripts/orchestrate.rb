@@ -19,6 +19,7 @@ require 'shellwords'
 require_relative 'load_profile'
 require_relative 'llm_client'
 require_relative 'pool_index'
+require_relative 'library_resolver'
 
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
@@ -37,6 +38,7 @@ force_rediscover = false
 discover_only    = false
 candidate_id     = nil
 force_cascade    = false
+pool_dir_arg     = nil
 
 args = ARGV.dup
 while args.any?
@@ -77,13 +79,16 @@ while args.any?
   when '--force-cascade'
     args.shift
     force_cascade = true
+  when '--pool-dir'
+    args.shift
+    pool_dir_arg = args.shift
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--pool-dir <path>]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--pool-dir <path>]" unless library_name
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
@@ -134,11 +139,57 @@ def file_cached?(path)
   path && File.exist?(path) && File.size(path) > 0
 end
 
-# --- Load library ---
+def create_library!(library_name, library_dir, pool_dir)
+  FileUtils.mkdir_p(library_dir)
+  FileUtils.mkdir_p(File.join(library_dir, 'transcripts'))
+  settings_path = File.join(ROOT_DIR, 'libraries', 'settings.yaml')
+  editor = if File.exist?(settings_path)
+    (YAML.safe_load(File.read(settings_path)) || {})['editor']
+  end
+  library = {
+    'library_name'    => library_name,
+    'created_date'    => Date.today.to_s,
+    'last_updated'    => Date.today.to_s,
+    'language'        => 'english',
+    'editor'          => editor || 'premiere',
+    'pool_dir'        => pool_dir,
+    'user_context'    => '',
+    'footage_summary' => 'No footage analyzed yet.',
+    'script_parsed'   => nil,
+    'videos'          => []
+  }
+  File.write(File.join(library_dir, 'library.yaml'), library.to_yaml)
+  $stderr.puts "Created library: #{library_dir}"
+end
 
-library_dir = File.join(ROOT_DIR, 'libraries', library_name)
+# --- Resolve or auto-create library ---
+
+library_dir = LibraryResolver.resolve(library_name)
+
+unless File.exist?(File.join(library_dir, 'library.yaml'))
+  pool_dir_for_create = pool_dir_arg
+
+  if pool_dir_for_create.nil? && $stdin.tty?
+    $stderr.puts "Library '#{library_name}' doesn't exist. Creating new library."
+    $stderr.print "Pool folder path (where your footage lives):\n> "
+    pool_dir_for_create = $stdin.gets&.strip
+  end
+
+  unless pool_dir_for_create && !pool_dir_for_create.empty?
+    abort "Library '#{library_name}' not found. Use --pool-dir <path> to create it."
+  end
+
+  pool_dir_for_create = File.expand_path(pool_dir_for_create)
+  abort "Pool directory not found: #{pool_dir_for_create}" unless File.directory?(pool_dir_for_create)
+
+  library_dir = File.join(pool_dir_for_create, '.thelma')
+  create_library!(library_name, library_dir, pool_dir_for_create)
+  LibraryResolver.register(library_name, library_dir)
+end
+
+ENV['THELMA_LIBRARY_DIR'] = library_dir
+
 library_yaml_path = File.join(library_dir, 'library.yaml')
-abort "Library not found: #{library_dir}" unless File.exist?(library_yaml_path)
 
 library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
 videos = library['videos']

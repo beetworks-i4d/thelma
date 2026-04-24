@@ -21,6 +21,7 @@ AUDIO_ONLY_EXTS_EARXML = %w[.m4a .mp3 .wav .aac].freeze
 
 SCRIPT_DIR = File.dirname(__FILE__)
 BUILD_SCRIPT = File.join(SCRIPT_DIR, 'build_structure_cut.rb')
+require_relative 'library_resolver'
 
 # === Parse CLI ===
 library_name = nil
@@ -33,7 +34,7 @@ if (idx = ARGV.index('--profile'))
 end
 abort "Usage: ruby scripts/export_arrangement_xml.rb --library <name> [--profile <name>]" unless library_name
 
-lib_dir = File.join(SCRIPT_DIR, '..', 'libraries', library_name)
+lib_dir = LibraryResolver.resolve(library_name)
 abort "Library not found: #{lib_dir}" unless File.directory?(lib_dir)
 
 arrangement_path = File.join(lib_dir, 'arrangement.yaml')

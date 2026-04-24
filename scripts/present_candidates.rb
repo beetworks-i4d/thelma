@@ -7,6 +7,7 @@
 
 require 'yaml'
 require 'date'
+require_relative 'library_resolver'
 
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR    = File.expand_path('..', SCRIPTS_DIR)
@@ -22,7 +23,7 @@ while args.any?
 end
 abort "Usage: ruby scripts/present_candidates.rb --library <name>" unless library_name
 
-library_dir = File.join(ROOT_DIR, 'libraries', library_name)
+library_dir = LibraryResolver.resolve(library_name)
 abort "Library not found: #{library_dir}" unless File.directory?(library_dir)
 
 candidates_path = File.join(library_dir, 'arc_candidates.yaml')

@@ -25,10 +25,11 @@ RSpec.describe 'orchestrate.rb' do
       expect(stderr).to include('Unknown argument')
     end
 
-    it 'exits 1 when library does not exist' do
+    it 'exits 1 when library does not exist and no --pool-dir given' do
       _, stderr, status = Open3.capture3('ruby', ORCHESTRATE_SCRIPT, '--library', 'nonexistent-library-xyz')
       expect(status.exitstatus).to eq(1)
-      expect(stderr).to include('Library not found')
+      expect(stderr).to include("nonexistent-library-xyz")
+      expect(stderr).to include("--pool-dir")
     end
   end
 
@@ -476,6 +477,119 @@ RSpec.describe 'orchestrate.rb' do
       RUBY
       expect(stdout.strip).to eq('pool_index,hq_match,arc_discovery,discover_only_exit')
       expect(stdout).not_to include('candidate_selection')
+    end
+  end
+
+  describe '--pool-dir flag and auto-create' do
+    it 'parses --pool-dir flag without unknown-argument error' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        pool_dir_arg = nil
+        args = ['--library', 'test', '--pool-dir', '/tmp/testpool']
+        while args.any?
+          case args.first
+          when '--library'   then args.shift; args.shift
+          when '--pool-dir'  then args.shift; pool_dir_arg = args.shift
+          else abort "Unknown argument: #{args.first}"
+          end
+        end
+        puts pool_dir_arg
+      RUBY
+      expect(stdout.strip).to eq('/tmp/testpool')
+    end
+
+    it 'auto-creates library at <pool_dir>/.thelma with correct library.yaml' do
+      Dir.mktmpdir do |tmpdir|
+        pool_dir    = File.join(tmpdir, 'footage')
+        library_dir = File.join(pool_dir, '.thelma')
+        FileUtils.mkdir_p(pool_dir)
+
+        stdout, stderr, status = Open3.capture3('ruby', '-e', <<~RUBY)
+          require 'yaml'
+          require 'date'
+          require 'fileutils'
+          library_name = 'newtest'
+          pool_dir     = '#{pool_dir}'
+          library_dir  = File.join(pool_dir, '.thelma')
+          FileUtils.mkdir_p(library_dir)
+          FileUtils.mkdir_p(File.join(library_dir, 'transcripts'))
+          library = {
+            'library_name'    => library_name,
+            'created_date'    => Date.today.to_s,
+            'last_updated'    => Date.today.to_s,
+            'language'        => 'english',
+            'editor'          => 'premiere',
+            'pool_dir'        => pool_dir,
+            'user_context'    => '',
+            'footage_summary' => 'No footage analyzed yet.',
+            'script_parsed'   => nil,
+            'videos'          => []
+          }
+          File.write(File.join(library_dir, 'library.yaml'), library.to_yaml)
+          puts 'created'
+        RUBY
+
+        expect(status.exitstatus).to eq(0)
+        expect(stdout.strip).to eq('created')
+        expect(File.exist?(File.join(library_dir, 'library.yaml'))).to eq(true)
+
+        lib = YAML.safe_load(File.read(File.join(library_dir, 'library.yaml')))
+        expect(lib['library_name']).to eq('newtest')
+        expect(lib['pool_dir']).to eq(pool_dir)
+        expect(lib['videos']).to eq([])
+      end
+    end
+
+    it 'registers the library in libraries_registry.yaml after auto-create' do
+      Dir.mktmpdir do |tmpdir|
+        registry_path = File.join(tmpdir, 'libraries_registry.yaml')
+        new_dir = File.join(tmpdir, 'footage', '.thelma')
+        FileUtils.mkdir_p(new_dir)
+
+        stdout, _, status = Open3.capture3('ruby', '-e', <<~RUBY)
+          require 'yaml'
+          registry_path = '#{registry_path}'
+          library_name  = 'newtest'
+          library_dir   = '#{new_dir}'
+          reg = { 'libraries' => {} }
+          reg['libraries'][library_name] = { 'path' => library_dir }
+          File.write(registry_path, reg.to_yaml)
+          data = YAML.safe_load(File.read(registry_path))
+          puts data.dig('libraries', library_name, 'path')
+        RUBY
+
+        expect(status.exitstatus).to eq(0)
+        expect(stdout.strip).to eq(new_dir)
+      end
+    end
+
+    it 'aborts with clear message in non-interactive mode without --pool-dir' do
+      stdout, stderr, status = Open3.capture3('ruby', '-e', <<~'RUBY')
+        pool_dir_for_create = nil
+        interactive = false  # simulate non-tty
+        unless pool_dir_for_create && !pool_dir_for_create.empty?
+          abort "Library 'newtest' not found. Use --pool-dir <path> to create it."
+        end
+      RUBY
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to include('--pool-dir')
+    end
+
+    it 'backward compat: resolves existing libraries/<name> without registry' do
+      Dir.mktmpdir do |tmpdir|
+        lib_dir = File.join(tmpdir, 'libraries', 'mylegacylib')
+        FileUtils.mkdir_p(lib_dir)
+
+        stdout, _, status = Open3.capture3('ruby', '-e', <<~RUBY)
+          # Simulate LibraryResolver.resolve with no ENV, no registry
+          root_dir = '#{tmpdir}'
+          library_name = 'mylegacylib'
+          resolved = File.join(root_dir, 'libraries', library_name)
+          puts resolved
+        RUBY
+
+        expect(status.exitstatus).to eq(0)
+        expect(stdout.strip).to eq(File.join(tmpdir, 'libraries', 'mylegacylib'))
+      end
     end
   end
 

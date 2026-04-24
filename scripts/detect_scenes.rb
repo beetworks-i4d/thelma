@@ -11,6 +11,7 @@
 require 'yaml'
 require 'open3'
 require 'date'
+require_relative 'library_resolver'
 
 # --- Flag parsing ---
 
@@ -116,7 +117,7 @@ AUDIO_ONLY_EXTS = %w[.m4a .mp3 .wav .aac].freeze
 
 # === Library mode: iterate all videos ===
 if library_name
-  library_dir = File.expand_path("../../libraries/#{library_name}", __FILE__)
+  library_dir = LibraryResolver.resolve(library_name)
   library_yaml = File.join(library_dir, 'library.yaml')
   abort "Library not found: #{library_dir}" unless File.exist?(library_yaml)
   library = YAML.safe_load(File.read(library_yaml), permitted_classes: [Date])

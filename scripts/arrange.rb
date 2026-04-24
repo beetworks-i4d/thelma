@@ -22,6 +22,7 @@ require 'json'
 require 'digest'
 require_relative 'load_profile'
 require_relative 'llm_client'
+require_relative 'library_resolver'
 
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
@@ -70,7 +71,7 @@ LLMClient.mode = llm_mode.to_sym if llm_mode
 
 # --- Load library ---
 
-library_dir = File.join(ROOT_DIR, 'libraries', library_name)
+library_dir = LibraryResolver.resolve(library_name)
 library_yaml_path = File.join(library_dir, 'library.yaml')
 abort "Library not found: #{library_dir}" unless File.exist?(library_yaml_path)
 

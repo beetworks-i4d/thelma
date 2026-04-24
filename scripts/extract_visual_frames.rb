@@ -15,6 +15,7 @@ require 'date'
 require 'digest'
 require 'open3'
 require 'fileutils'
+require_relative 'library_resolver'
 
 ROOT_DIR = File.expand_path('..', __dir__)
 
@@ -47,7 +48,7 @@ unless File.exist?(video_path)
   exit 1
 end
 
-library_dir = File.join(ROOT_DIR, 'libraries', library_name)
+library_dir = LibraryResolver.resolve(library_name)
 unless File.directory?(library_dir)
   $stderr.puts "ERROR: Library not found: #{library_dir}"
   exit 1
