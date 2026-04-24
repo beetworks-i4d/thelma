@@ -32,8 +32,11 @@ analyze_only = false
 no_review = false
 llm_mode = nil
 mode = nil
-force_reindex = false
+force_reindex    = false
 force_rediscover = false
+discover_only    = false
+candidate_id     = nil
+force_cascade    = false
 
 args = ARGV.dup
 while args.any?
@@ -65,13 +68,22 @@ while args.any?
   when '--force-rediscover'
     args.shift
     force_rediscover = true
+  when '--discover-only'
+    args.shift
+    discover_only = true
+  when '--candidate'
+    args.shift
+    candidate_id = args.shift
+  when '--force-cascade'
+    args.shift
+    force_cascade = true
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade]" unless library_name
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
@@ -223,11 +235,63 @@ if mode == 'mine'
   arc_candidates_path = run_script('discover_arcs.rb', *discover_flags)
   # run_script propagates exit 2 (Claude Code pending) automatically
 
+  # ── Discover-only exit ────────────────────────────────────────────────────
+  if discover_only
+    $stderr.puts "\n#{'=' * 60}"
+    $stderr.puts "ARC DISCOVERY COMPLETE (--discover-only)"
+    $stderr.puts "  Index:      #{PoolIndex.index_path(library_dir)}"
+    $stderr.puts "  Candidates: #{arc_candidates_path}"
+    $stderr.puts '=' * 60
+    puts arc_candidates_path
+    exit 0
+  end
+
+  arc_data   = YAML.safe_load(File.read(arc_candidates_path), permitted_classes: [Date])
+  mine_candidates = arc_data['candidates'] || []
+  abort "No arc candidates found — re-run arc discovery" if mine_candidates.empty?
+
+  selected_candidate_id = candidate_id
+
+  # ── Interactive candidate selection ───────────────────────────────────────
+  unless selected_candidate_id
+    phase 'MINE — Candidate Selection'
+    system('ruby', File.join(SCRIPTS_DIR, 'present_candidates.rb'), '--library', library_name)
+    abort "Failed to display candidates" unless $?.success?
+    print "\nSelect [1-#{mine_candidates.size}] or (q)uit: "
+    $stdout.flush
+    input = $stdin.gets&.strip
+    if input.nil? || input.downcase == 'q'
+      $stderr.puts "No candidate selected — pipeline paused."
+      exit 0
+    end
+    idx = input.to_i - 1
+    abort "Invalid selection: #{input}" if idx < 0 || idx >= mine_candidates.size
+    selected_candidate_id = mine_candidates[idx]['id']
+  end
+
+  $stderr.puts "  Candidate: #{selected_candidate_id}"
+
+  # ── Convert candidate → arrangement.yaml ──────────────────────────────────
+  phase 'MINE — Candidate Conversion'
+  convert_flags = ['--library', library_name, '--candidate', selected_candidate_id]
+  convert_flags += ['--profile', profile_name] if profile_name
+  convert_flags << '--force' if force_cascade
+  run_script('convert_candidate.rb', *convert_flags)
+
+  # ── Export XML ────────────────────────────────────────────────────────────
+  phase 'MINE — Export XML'
+  export_flags = ['--library', library_name]
+  export_flags += ['--profile', profile_name] if profile_name
+  mine_xml_path = run_script('export_arrangement_xml.rb', *export_flags)
+
   $stderr.puts "\n#{'=' * 60}"
   $stderr.puts "MINE PIPELINE COMPLETE"
-  $stderr.puts "  Index:      #{PoolIndex.index_path(library_dir)}"
-  $stderr.puts "  Candidates: #{arc_candidates_path}"
+  $stderr.puts "  Candidate: #{selected_candidate_id}"
+  $stderr.puts "  XML:       #{mine_xml_path}"
+  pickup_md = File.join(library_dir, 'pickup_recording_suggestions.md')
+  $stderr.puts "  Pickups:   #{pickup_md}" if File.exist?(pickup_md)
   $stderr.puts '=' * 60
+  puts mine_xml_path
   exit 0
 end
 

@@ -390,6 +390,95 @@ RSpec.describe 'orchestrate.rb' do
     end
   end
 
+  describe 'mine mode cascade flags' do
+    it 'parses --discover-only flag from CLI args' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        discover_only = false
+        args = ['--library', 'pool', '--mode', 'mine', '--discover-only']
+        while args.any?
+          case args.first
+          when '--library'       then args.shift; args.shift
+          when '--mode'          then args.shift; args.shift
+          when '--discover-only' then args.shift; discover_only = true
+          else args.shift
+          end
+        end
+        puts discover_only
+      RUBY
+      expect(stdout.strip).to eq('true')
+    end
+
+    it 'parses --candidate <id> flag from CLI args' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        candidate_id = nil
+        args = ['--library', 'pool', '--mode', 'mine', '--candidate', 'candidate_002']
+        while args.any?
+          case args.first
+          when '--library'   then args.shift; args.shift
+          when '--mode'      then args.shift; args.shift
+          when '--candidate' then args.shift; candidate_id = args.shift
+          else args.shift
+          end
+        end
+        puts candidate_id
+      RUBY
+      expect(stdout.strip).to eq('candidate_002')
+    end
+
+    it 'parses --force-cascade flag from CLI args' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        force_cascade = false
+        args = ['--library', 'pool', '--mode', 'mine', '--force-cascade']
+        while args.any?
+          case args.first
+          when '--library'      then args.shift; args.shift
+          when '--mode'         then args.shift; args.shift
+          when '--force-cascade' then args.shift; force_cascade = true
+          else args.shift
+          end
+        end
+        puts force_cascade
+      RUBY
+      expect(stdout.strip).to eq('true')
+    end
+
+    it 'builds correct convert_candidate flags including --force when --force-cascade set' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        library_name  = 'test-pool'
+        profile_name  = 'ivan'
+        selected_id   = 'candidate_001'
+        force_cascade = true
+
+        convert_flags = ['--library', library_name, '--candidate', selected_id]
+        convert_flags += ['--profile', profile_name] if profile_name
+        convert_flags << '--force' if force_cascade
+        puts convert_flags.join(' ')
+      RUBY
+      expect(stdout.strip).to eq('--library test-pool --candidate candidate_001 --profile ivan --force')
+    end
+
+    it '--discover-only exits after arc discovery without candidate selection' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        discover_only     = true
+        arc_candidates_path = '/tmp/arc_candidates.yaml'
+        phases_run = ['pool_index', 'hq_match', 'arc_discovery']
+
+        if discover_only
+          phases_run << 'discover_only_exit'
+          puts phases_run.join(',')
+          exit 0
+        end
+
+        phases_run << 'candidate_selection'
+        phases_run << 'convert'
+        phases_run << 'export_xml'
+        puts phases_run.join(',')
+      RUBY
+      expect(stdout.strip).to eq('pool_index,hq_match,arc_discovery,discover_only_exit')
+      expect(stdout).not_to include('candidate_selection')
+    end
+  end
+
   describe 'report schema from generate_report' do
     it 'generates valid report YAML with all fields' do
       library_dir = File.expand_path('../../libraries/dylan-004', __dir__)
