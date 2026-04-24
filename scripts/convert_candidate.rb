@@ -114,7 +114,7 @@ ROLE_LABELS = {
   'transition'  => 'Transition'
 }.freeze
 
-def build_chapters(clip_sequence)
+def build_chapters(clip_sequence, source_durations)
   chapters           = []
   current_chapter    = nil
   current_major_role = nil
@@ -162,7 +162,7 @@ def build_chapters(clip_sequence)
   chapters
 end
 
-chapters = build_chapters(clip_sequence)
+chapters = build_chapters(clip_sequence, source_durations)
 
 # ─── Broll suggestions ───────────────────────────────────────────────────────
 
