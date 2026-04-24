@@ -228,6 +228,8 @@ class ButterCut
         source_out_frames = source_in_frames + source_duration_frames
 
         asset_duration_frames = frames_for_fraction(asset[:asset_duration], asset[:frame_duration])
+        # Clamp: breathing-room buffer or floating-point drift must never push out past EOF
+        source_out_frames = [source_out_frames, asset_duration_frames].min
         asset_timecode_start = frames_for_fraction(asset[:timecode], asset[:frame_duration])
 
         # Timeline track: which track in the sequence (V1=1, V2=2)

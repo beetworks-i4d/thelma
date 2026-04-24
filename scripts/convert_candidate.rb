@@ -89,10 +89,13 @@ clip_sequence   = candidate['clip_sequence'] || []
 unique_sources  = clip_sequence.map { |c| c['source'] }.compact.uniq
 
 source_paths = {}
+source_durations = {}
 unique_sources.each do |filename|
   abs = find_in_pool(pool_dir, filename)
   if abs
     source_paths[filename] = abs
+    dur_str = `ffprobe -v error -show_entries format=duration -of csv=p=0 "#{abs}" 2>/dev/null`.strip
+    source_durations[filename] = dur_str.empty? ? nil : dur_str.to_f
   else
     $stderr.puts "  WARNING: Source file not found in pool: #{filename}"
   end
@@ -136,10 +139,20 @@ def build_chapters(clip_sequence)
       current_major_role = role if is_major
     end
 
+    t_in  = clip['t_in'].to_f
+    t_out = clip['t_out'].to_f
+    src   = clip['source']
+    if source_durations[src]
+      clamped = [t_out, source_durations[src]].min
+      if clamped < t_out
+        $stderr.puts "  CLAMP: #{src} t_out #{t_out} → #{clamped} (file duration #{source_durations[src]})"
+        t_out = clamped
+      end
+    end
     current_chapter['clips'] << {
-      'source'         => clip['source'],
-      't_in'           => clip['t_in'].to_f,
-      't_out'          => clip['t_out'].to_f,
+      'source'         => src,
+      't_in'           => t_in,
+      't_out'          => t_out,
       'track'          => 'V1',
       'narrative_role' => role
     }
