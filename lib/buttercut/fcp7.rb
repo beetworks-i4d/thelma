@@ -182,11 +182,11 @@ class ButterCut
 
         clip_end = add_fractions(offset_fraction, duration_info[:timeline])
 
-        # Update auto-offsets for all tracks this clip occupies
-        unless media_type == :audio_only
-          vk = [:video, video_track]
-          track_offsets[vk] = clip_end if fraction_to_rational(clip_end) > fraction_to_rational(track_offsets[vk])
-        end
+        # Update auto-offsets for all tracks this clip occupies.
+        # Audio-only clips must also advance the video offset so the next AV clip
+        # doesn't start its audio track at a stale (earlier) position.
+        vk = [:video, video_track]
+        track_offsets[vk] = clip_end if fraction_to_rational(clip_end) > fraction_to_rational(track_offsets[vk])
         ak = [:audio, audio_track]
         track_offsets[ak] = clip_end if fraction_to_rational(clip_end) > fraction_to_rational(track_offsets[ak])
 
