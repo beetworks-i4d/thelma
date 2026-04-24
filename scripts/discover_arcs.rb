@@ -353,6 +353,20 @@ abort "ERROR: LLM response did not contain valid YAML with 'candidates' key.\n#{
 candidates  = parsed['candidates']  || []
 unused_clips = parsed['unused_clips'] || []
 
+# Fix: Replace LLM's estimated_duration with deterministic sum of clip_sequence
+def format_duration(secs)
+  m = (secs / 60).floor
+  s = (secs % 60).round
+  format('%d:%02d', m, s)
+end
+
+candidates.each do |c|
+  next unless c['clip_sequence'].is_a?(Array)
+  actual_secs = c['clip_sequence'].sum { |clip| clip['t_out'].to_f - clip['t_in'].to_f }
+  c['llm_estimated_duration'] = c['estimated_duration']
+  c['estimated_duration'] = format_duration(actual_secs)
+end
+
 $stderr.puts "Discovered #{candidates.size} candidate arc(s):"
 candidates.each_with_index do |c, i|
   dur  = c['estimated_duration'] || '?'
