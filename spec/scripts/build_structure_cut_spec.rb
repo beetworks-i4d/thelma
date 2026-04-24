@@ -169,7 +169,7 @@ RSpec.describe 'build_structure_cut.rb' do
     it 'applies default 3-frame buffer to clip start and duration' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
-        config['clips'] = [{ 'video_start' => 2.0, 'video_end' => 5.0 }]
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 3.5 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
@@ -191,7 +191,7 @@ RSpec.describe 'build_structure_cut.rb' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
         config['breathing_room_frames'] = 0
-        config['clips'] = [{ 'video_start' => 2.0, 'video_end' => 5.0 }]
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 3.5 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
