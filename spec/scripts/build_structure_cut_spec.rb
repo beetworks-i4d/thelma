@@ -35,8 +35,8 @@ def base_config(dir, video_path: FIXTURE_VIDEO)
     'editor' => 'fcp7',
     'name' => 'Test Cut',
     'clips' => [
-      { 'video_start' => 1.0, 'video_end' => 3.0 },
-      { 'video_start' => 5.0, 'video_end' => 8.0 }
+      { 'video_start' => 0.5, 'video_end' => 2.0 },
+      { 'video_start' => 2.5, 'video_end' => 4.0 }
     ]
   }
 end
@@ -264,8 +264,8 @@ RSpec.describe 'build_structure_cut.rb' do
             'confidence' => 'high'
           },
           {
-            't' => 5.5,
-            'e' => 7.0,
+            't' => 3.0,
+            'e' => 3.8,
             'states' => %w[competence aspiration],
             'distillation' => 'three-step framework reveal',
             'signal' => 'framework reveal',
@@ -1039,7 +1039,7 @@ RSpec.describe 'build_structure_cut.rb' do
         config = base_config(dir)
         config['clips'] = [
           { 'video_start' => 1.0, 'video_end' => 3.0, 'track' => 'V1' },
-          { 'video_start' => 5.0, 'video_end' => 8.0, 'track' => 'V1' },
+          { 'video_start' => 3.2, 'video_end' => 4.0, 'track' => 'V1' },
           { 'video_start' => 2.0, 'video_end' => 4.0, 'track' => 'V2', 'timeline_offset' => 0.0 }
         ]
         yaml_path = File.join(dir, 'test.yaml')
@@ -1062,7 +1062,7 @@ RSpec.describe 'build_structure_cut.rb' do
         config = base_config(dir)
         config['clips'] = [
           { 'video_start' => 1.0, 'video_end' => 3.0 },
-          { 'video_start' => 5.0, 'video_end' => 8.0 }
+          { 'video_start' => 2.5, 'video_end' => 4.0 }
         ]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
@@ -1110,14 +1110,14 @@ RSpec.describe 'build_structure_cut.rb' do
 
     it 'merges segments shorter than min_segment_duration with neighbors' do
       Dir.mktmpdir do |dir|
-        # Create speech data with two pauses that would create a 1-second middle segment
+        # Create speech data with two pauses that would create a short middle segment
         speech_data = {
           'speech_segments' => [
-            { 'start' => 1.0, 'end' => 10.0 }
+            { 'start' => 0.2, 'end' => 4.0 }
           ],
           'long_pauses' => [
-            { 'start' => 4.0, 'end' => 4.9, 'duration' => 0.9 },
-            { 'start' => 5.5, 'end' => 6.4, 'duration' => 0.9 }
+            { 'start' => 1.0, 'end' => 1.9, 'duration' => 0.9 },
+            { 'start' => 2.2, 'end' => 3.1, 'duration' => 0.9 }
           ]
         }
         sa_path = File.join(dir, 'speech_analysis.json')
@@ -1126,8 +1126,8 @@ RSpec.describe 'build_structure_cut.rb' do
         config = base_config(dir)
         config['speech_analysis'] = sa_path
         config['auto_remove_pauses_above'] = 900
-        config['min_segment_duration'] = 2
-        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 10.0 }]
+        config['min_segment_duration'] = 0.5
+        config['clips'] = [{ 'video_start' => 0.2, 'video_end' => 4.0 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
@@ -1174,10 +1174,10 @@ RSpec.describe 'build_structure_cut.rb' do
       Dir.mktmpdir do |dir|
         speech_data = {
           'speech_segments' => [
-            { 'start' => 1.0, 'end' => 8.0 }
+            { 'start' => 0.2, 'end' => 4.0 }
           ],
           'long_pauses' => [
-            { 'start' => 4.0, 'end' => 5.0, 'duration' => 1.0 }
+            { 'start' => 1.5, 'end' => 2.5, 'duration' => 1.0 }
           ]
         }
         sa_path = File.join(dir, 'speech_analysis.json')
@@ -1185,7 +1185,8 @@ RSpec.describe 'build_structure_cut.rb' do
 
         config = base_config(dir)
         config['speech_analysis'] = sa_path
-        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 8.0 }]
+        config['min_segment_duration'] = 0
+        config['clips'] = [{ 'video_start' => 0.2, 'video_end' => 4.0 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, '--remove-pauses', yaml_path)
@@ -1206,37 +1207,37 @@ RSpec.describe 'build_structure_cut.rb' do
     def restart_transcript_words
       # First attempt: "I think it's very telling that the flood of images we see"
       first = [
-        { 'word' => 'I', 'start' => 10.0, 'end' => 10.1 },
-        { 'word' => 'think', 'start' => 10.1, 'end' => 10.3 },
-        { 'word' => "it's", 'start' => 10.3, 'end' => 10.5 },
-        { 'word' => 'very', 'start' => 10.5, 'end' => 10.7 },
-        { 'word' => 'telling', 'start' => 10.7, 'end' => 11.0 },
-        { 'word' => 'that', 'start' => 11.0, 'end' => 11.2 },
-        { 'word' => 'the', 'start' => 11.2, 'end' => 11.3 },
-        { 'word' => 'flood', 'start' => 11.3, 'end' => 11.5 },
-        { 'word' => 'of', 'start' => 11.5, 'end' => 11.6 },
-        { 'word' => 'images', 'start' => 11.6, 'end' => 11.9 },
-        { 'word' => 'we', 'start' => 11.9, 'end' => 12.0 },
-        { 'word' => 'see,', 'start' => 12.0, 'end' => 12.3 }
+        { 'word' => 'I', 'start' => 0.10, 'end' => 0.14 },
+        { 'word' => 'think', 'start' => 0.14, 'end' => 0.22 },
+        { 'word' => "it's", 'start' => 0.22, 'end' => 0.30 },
+        { 'word' => 'very', 'start' => 0.30, 'end' => 0.38 },
+        { 'word' => 'telling', 'start' => 0.38, 'end' => 0.50 },
+        { 'word' => 'that', 'start' => 0.50, 'end' => 0.58 },
+        { 'word' => 'the', 'start' => 0.58, 'end' => 0.62 },
+        { 'word' => 'flood', 'start' => 0.62, 'end' => 0.70 },
+        { 'word' => 'of', 'start' => 0.70, 'end' => 0.74 },
+        { 'word' => 'images', 'start' => 0.74, 'end' => 0.86 },
+        { 'word' => 'we', 'start' => 0.86, 'end' => 0.90 },
+        { 'word' => 'see,', 'start' => 0.90, 'end' => 1.00 }
       ]
-      # Second attempt (after 1s gap): same opening, continues further
+      # Second attempt (after ~0.3s gap): same opening, continues further
       second = [
-        { 'word' => 'I', 'start' => 13.3, 'end' => 13.4 },
-        { 'word' => 'think', 'start' => 13.4, 'end' => 13.6 },
-        { 'word' => "it's", 'start' => 13.6, 'end' => 13.8 },
-        { 'word' => 'very', 'start' => 13.8, 'end' => 14.0 },
-        { 'word' => 'telling', 'start' => 14.0, 'end' => 14.3 },
-        { 'word' => 'that', 'start' => 14.3, 'end' => 14.5 },
-        { 'word' => 'at', 'start' => 14.5, 'end' => 14.6 },
-        { 'word' => 'the', 'start' => 14.6, 'end' => 14.7 },
-        { 'word' => 'present', 'start' => 14.7, 'end' => 15.0 },
-        { 'word' => 'moment', 'start' => 15.0, 'end' => 15.3 },
-        { 'word' => 'the', 'start' => 15.3, 'end' => 15.4 },
-        { 'word' => 'flood', 'start' => 15.4, 'end' => 15.6 },
-        { 'word' => 'of', 'start' => 15.6, 'end' => 15.7 },
-        { 'word' => 'images', 'start' => 15.7, 'end' => 16.0 },
-        { 'word' => 'continues', 'start' => 16.0, 'end' => 16.4 },
-        { 'word' => 'growing.', 'start' => 16.4, 'end' => 16.8 }
+        { 'word' => 'I', 'start' => 1.30, 'end' => 1.34 },
+        { 'word' => 'think', 'start' => 1.34, 'end' => 1.42 },
+        { 'word' => "it's", 'start' => 1.42, 'end' => 1.50 },
+        { 'word' => 'very', 'start' => 1.50, 'end' => 1.58 },
+        { 'word' => 'telling', 'start' => 1.58, 'end' => 1.70 },
+        { 'word' => 'that', 'start' => 1.70, 'end' => 1.78 },
+        { 'word' => 'at', 'start' => 1.78, 'end' => 1.82 },
+        { 'word' => 'the', 'start' => 1.82, 'end' => 1.86 },
+        { 'word' => 'present', 'start' => 1.86, 'end' => 1.98 },
+        { 'word' => 'moment', 'start' => 1.98, 'end' => 2.10 },
+        { 'word' => 'the', 'start' => 2.10, 'end' => 2.14 },
+        { 'word' => 'flood', 'start' => 2.14, 'end' => 2.22 },
+        { 'word' => 'of', 'start' => 2.22, 'end' => 2.26 },
+        { 'word' => 'images', 'start' => 2.26, 'end' => 2.38 },
+        { 'word' => 'continues', 'start' => 2.38, 'end' => 2.54 },
+        { 'word' => 'growing.', 'start' => 2.54, 'end' => 2.70 }
       ]
       { 'segments' => [{ 'words' => first + second }] }
     end
@@ -1245,17 +1246,17 @@ RSpec.describe 'build_structure_cut.rb' do
       # "lots and lots of artists gave lots and lots of labels"
       # — both tails have unique content, it's rhetorical
       words = [
-        { 'word' => 'lots', 'start' => 10.0, 'end' => 10.2 },
-        { 'word' => 'and', 'start' => 10.2, 'end' => 10.3 },
-        { 'word' => 'lots', 'start' => 10.3, 'end' => 10.5 },
-        { 'word' => 'of', 'start' => 10.5, 'end' => 10.6 },
-        { 'word' => 'artists', 'start' => 10.6, 'end' => 10.9 },
-        { 'word' => 'gave', 'start' => 10.9, 'end' => 11.1 },
-        { 'word' => 'lots', 'start' => 11.1, 'end' => 11.3 },
-        { 'word' => 'and', 'start' => 11.3, 'end' => 11.4 },
-        { 'word' => 'lots', 'start' => 11.4, 'end' => 11.6 },
-        { 'word' => 'of', 'start' => 11.6, 'end' => 11.7 },
-        { 'word' => 'labels', 'start' => 11.7, 'end' => 12.0 }
+        { 'word' => 'lots', 'start' => 0.10, 'end' => 0.30 },
+        { 'word' => 'and', 'start' => 0.30, 'end' => 0.40 },
+        { 'word' => 'lots', 'start' => 0.40, 'end' => 0.60 },
+        { 'word' => 'of', 'start' => 0.60, 'end' => 0.70 },
+        { 'word' => 'artists', 'start' => 0.70, 'end' => 1.00 },
+        { 'word' => 'gave', 'start' => 1.00, 'end' => 1.20 },
+        { 'word' => 'lots', 'start' => 1.20, 'end' => 1.40 },
+        { 'word' => 'and', 'start' => 1.40, 'end' => 1.50 },
+        { 'word' => 'lots', 'start' => 1.50, 'end' => 1.70 },
+        { 'word' => 'of', 'start' => 1.70, 'end' => 1.80 },
+        { 'word' => 'labels', 'start' => 1.80, 'end' => 2.10 }
       ]
       { 'segments' => [{ 'words' => words }] }
     end
@@ -1267,7 +1268,7 @@ RSpec.describe 'build_structure_cut.rb' do
 
         config = base_config(dir)
         config['transcript'] = tr_path
-        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 16.8 }]
+        config['clips'] = [{ 'video_start' => 0.1, 'video_end' => 2.7 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
@@ -1277,10 +1278,10 @@ RSpec.describe 'build_structure_cut.rb' do
         doc = Nokogiri::XML(File.read(stdout.strip))
         clips = doc.xpath('//sequence/media/video/track/clipitem')
         expect(clips.size).to eq(1)
-        # In-point should have moved from 10.0 to ~13.3 (start of second attempt)
+        # In-point should have moved from 0.1 to ~1.3 (start of second attempt)
         in_frame = clips.first.at_xpath('in').text.to_i
-        # At ~25fps, 3.3s offset ≈ 82-83 frames (minus breathing room buffer)
-        expect(in_frame).to be > 60
+        # At ~25fps, 1.2s offset ≈ 30 frames (minus breathing room buffer)
+        expect(in_frame).to be > 20
       end
     end
 
@@ -1291,7 +1292,7 @@ RSpec.describe 'build_structure_cut.rb' do
 
         config = base_config(dir)
         config['transcript'] = tr_path
-        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 12.0 }]
+        config['clips'] = [{ 'video_start' => 0.1, 'video_end' => 2.1 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
@@ -1308,7 +1309,7 @@ RSpec.describe 'build_structure_cut.rb' do
 
         config = base_config(dir)
         config['transcript'] = tr_path
-        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 16.8 }]
+        config['clips'] = [{ 'video_start' => 0.1, 'video_end' => 2.7 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
@@ -1324,8 +1325,8 @@ RSpec.describe 'build_structure_cut.rb' do
     it 'applies trim_in to adjust clip in-point' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
-        # Clip from 10.0-20.0 with trim_in at 12.5
-        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 20.0, 'trim_in' => 12.5 }]
+        # Clip from 0.5-4.0 with trim_in at 2.0
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 4.0, 'trim_in' => 2.0 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
@@ -1335,10 +1336,10 @@ RSpec.describe 'build_structure_cut.rb' do
         doc = Nokogiri::XML(File.read(stdout.strip))
         clips = doc.xpath('//sequence/media/video/track/clipitem')
         expect(clips.size).to eq(1)
-        # In-point should reflect ~12.5s, not 10.0s
+        # In-point should reflect ~2.0s, not 0.5s
         in_frame = clips.first.at_xpath('in').text.to_i
-        # At ~25fps, 12.5s ≈ 312 frames minus breathing room buffer (~3 frames)
-        expect(in_frame).to be > 290
+        # At ~25fps, 2.0s ≈ 50 frames minus breathing room buffer (~3 frames)
+        expect(in_frame).to be > 35
       end
     end
 
@@ -1346,7 +1347,7 @@ RSpec.describe 'build_structure_cut.rb' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
         # trim_in before clip start — should be ignored
-        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 20.0, 'trim_in' => 5.0 }]
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 3.5, 'trim_in' => 0.5 }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
@@ -1360,8 +1361,9 @@ RSpec.describe 'build_structure_cut.rb' do
     it 'creates sub-clips when mid_cuts are present' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
-        # Clip from 10.0-30.0 with a mid_cut excising 15.0-18.0
-        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 30.0, 'mid_cuts' => [[15.0, 18.0]] }]
+        # Clip from 0.5-4.0 with a mid_cut excising 1.5-2.0; disable min_segment_duration floor
+        config['min_segment_duration'] = 0
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 4.0, 'mid_cuts' => [[1.5, 2.0]] }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
@@ -1379,7 +1381,7 @@ RSpec.describe 'build_structure_cut.rb' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
         # mid_cut entirely outside clip — should be ignored
-        config['clips'] = [{ 'video_start' => 10.0, 'video_end' => 20.0, 'mid_cuts' => [[25.0, 28.0]] }]
+        config['clips'] = [{ 'video_start' => 0.5, 'video_end' => 4.0, 'mid_cuts' => [[5.0, 6.0]] }]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
         stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
@@ -1398,10 +1400,10 @@ RSpec.describe 'build_structure_cut.rb' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
         config['clips'] = [
-          { 'video_start' => 1.0, 'video_end' => 3.0, 'narrative_role' => 'hook' },
-          { 'video_start' => 5.0, 'video_end' => 8.0, 'narrative_role' => 'setup' },
-          { 'video_start' => 10.0, 'video_end' => 15.0, 'narrative_role' => 'continuation' },
-          { 'video_start' => 20.0, 'video_end' => 25.0, 'narrative_role' => 'payoff' }
+          { 'video_start' => 0.1, 'video_end' => 1.0, 'narrative_role' => 'hook' },
+          { 'video_start' => 1.2, 'video_end' => 2.0, 'narrative_role' => 'setup' },
+          { 'video_start' => 2.2, 'video_end' => 3.0, 'narrative_role' => 'continuation' },
+          { 'video_start' => 3.2, 'video_end' => 4.0, 'narrative_role' => 'payoff' }
         ]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
@@ -1430,7 +1432,7 @@ RSpec.describe 'build_structure_cut.rb' do
         config = base_config(dir)
         config['clips'] = [
           { 'video_start' => 1.0, 'video_end' => 3.0, 'narrative_role' => 'transition' },
-          { 'video_start' => 5.0, 'video_end' => 8.0 }
+          { 'video_start' => 3.2, 'video_end' => 4.0 }
         ]
         yaml_path = File.join(dir, 'test.yaml')
         File.write(yaml_path, config.to_yaml)
@@ -1450,9 +1452,9 @@ RSpec.describe 'build_structure_cut.rb' do
       Dir.mktmpdir do |dir|
         config = base_config(dir)
         config['clips'] = [
-          { 'video_start' => 1.0, 'video_end' => 5.0, 'track' => 'V1' },
-          { 'video_start' => 10.0, 'video_end' => 15.0, 'track' => 'V1' },
-          { 'video_start' => 20.0, 'video_end' => 28.0, 'track' => 'V1' }
+          { 'video_start' => 0.2, 'video_end' => 1.2, 'track' => 'V1' },
+          { 'video_start' => 1.4, 'video_end' => 2.4, 'track' => 'V1' },
+          { 'video_start' => 2.6, 'video_end' => 3.6, 'track' => 'V1' }
         ]
         config['chapters'] = [
           { 'id' => 'ch_01', 'label' => 'Hook — opening moment', 'v1_clip_start' => 0, 'v1_clip_end' => 0 },
