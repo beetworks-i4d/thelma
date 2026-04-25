@@ -228,8 +228,20 @@ class ButterCut
         source_out_frames = source_in_frames + source_duration_frames
 
         asset_duration_frames = frames_for_fraction(asset[:asset_duration], asset[:frame_duration])
-        # Clamp: breathing-room buffer or floating-point drift must never push out past EOF
-        source_out_frames = [source_out_frames, asset_duration_frames].min
+        # Clamp source_out to EOF. When it fires, also recalculate timeline_duration and
+        # timeline_end from the clamped source range — otherwise Premiere reads past <out>
+        # to fill the larger timeline slot, producing diagonal striping.
+        # Use integer division (floor) — not round — so the timeline can never be 1 frame
+        # longer than the clamped source can supply. frames_for_fraction uses round(), which
+        # rounds 955.833 → 956 and leaves a 1-frame source deficit → silence + stripe.
+        if source_out_frames > asset_duration_frames
+          source_out_frames = asset_duration_frames
+          clamped_source_frames = source_out_frames - source_in_frames
+          asset_fd_num, asset_fd_denom = asset[:frame_duration].match(/(\d+)\/(\d+)/).captures.map(&:to_i)
+          tl_fd_num, tl_fd_denom = timeline_frame_duration.match(/(\d+)\/(\d+)/).captures.map(&:to_i)
+          timeline_duration_frames = (clamped_source_frames * asset_fd_num * tl_fd_denom) / (asset_fd_denom * tl_fd_num)
+          timeline_end_frames = timeline_start_frames + timeline_duration_frames
+        end
         asset_timecode_start = frames_for_fraction(asset[:timecode], asset[:frame_duration])
 
         # Timeline track: which track in the sequence (V1=1, V2=2)
