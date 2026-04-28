@@ -235,6 +235,7 @@ RSpec.describe 'PoolIndex' do
         expect(entry['sha256']).to eq(PoolIndex.compute_sha256(path))
         expect(entry['media_type']).to eq('video_with_audio')
         expect(entry['transcript_file']).to be_nil
+        expect(entry['visual_analysis']).to be_nil
         expect(entry['hq_audio_source']).to be_nil
         expect(entry['added_at']).not_to be_nil
         expect(idx['sources']['video.mp4']).to eq(entry)
@@ -284,6 +285,13 @@ RSpec.describe 'PoolIndex' do
       expect(entry['ingested_at']).not_to be_nil
       expect(entry['transcript_file']).to eq('clip.json')
       expect(entry['speech_analysis']).to eq('clip_sa.json')
+    end
+
+    it 'records visual_analysis field' do
+      idx = PoolIndex.empty_index
+      idx['sources']['clip.mp4'] = { 'sha256' => 'abc' }
+      PoolIndex.mark_ingested(idx, 'clip.mp4', 'visual_analysis' => 'clip_visual_analysis.yaml')
+      expect(idx['sources']['clip.mp4']['visual_analysis']).to eq('clip_visual_analysis.yaml')
     end
   end
 
