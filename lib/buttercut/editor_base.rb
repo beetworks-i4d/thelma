@@ -374,12 +374,32 @@ class ButterCut
         file_url = path_to_file_url(video_file_path)
 
         if audio_only_file?(video_file_path)
-          # Audio-only: no video stream. Use 30/1 as sentinel frame rate so
-          # timeline math works. Width/height are unused for audio-only clips.
+          # Audio-only: no video stream. Use the sequence's frame rate so
+          # Premiere interprets in/out frame values correctly. Audio has no
+          # inherent frame rate — a mismatched timebase causes EOF clips to
+          # show silence+striping because Premiere reads in/out at the
+          # sequence rate, not the file's declared rate.
           metadata    = extract_metadata(video_file_path)
           audio_dur   = metadata.dig('format', 'duration').to_f
-          dur_frames  = (audio_dur * 30).round
           audio_str   = metadata['streams']&.find { |s| s['codec_type'] == 'audio' }
+
+          seq_rate = format_frame_rate
+          rate_num, rate_denom = seq_rate.split('/').map(&:to_i)
+          if rate_num > 0 && rate_denom > 0
+            total_frames = (audio_dur * rate_num.to_f / rate_denom).round
+            dur_num = total_frames * rate_denom
+            dur_denom = rate_num
+            d = gcd(dur_num, dur_denom)
+            asset_dur_fraction = "#{dur_num / d}/#{dur_denom / d}s"
+            fd_fraction = "#{rate_denom}/#{rate_num}s"
+          else
+            # Fallback when all clips are audio-only (no video to derive rate)
+            total_frames = (audio_dur * 30).round
+            asset_dur_fraction = "#{total_frames}/30s"
+            fd_fraction = '1/30s'
+            seq_rate = '30/1'
+          end
+
           file_to_asset[abs_path] = {
             asset_id:       asset_id,
             asset_uid:      asset_uid,
@@ -387,11 +407,11 @@ class ButterCut
             filename:       filename,
             basename:       get_basename(filename),
             file_url:       file_url,
-            asset_duration: "#{dur_frames}/30s",
+            asset_duration: asset_dur_fraction,
             audio_rate:     audio_str&.dig('sample_rate') || '48000',
             timecode:       '0s',
-            frame_duration: '1/30s',
-            frame_rate:     '30/1',
+            frame_duration: fd_fraction,
+            frame_rate:     seq_rate,
             width:          1920,
             height:         1080,
             color_space:    '1-1-1 (Rec. 709)',

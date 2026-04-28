@@ -148,10 +148,11 @@ RSpec.describe ButterCut::FCP7 do
     end
 
     context 'when source is clamped to EOF' do
-      # File: 3.1s → 93 frames at 30fps sentinel
-      # Clip: start_at=3.0s (source_in=90), duration=2.0s (source_out=150) → clamp to 93
-      # clamped_source_frames = 3; exact timeline = 3×25/30 = 2.5 frames
-      # floor(2.5)=2 ✓   round(2.5)=3 ✗ — round leaves a 0.6-frame source deficit → Premiere silence/stripe
+      # Audio-only files now use the sequence timebase (25fps), not a hardcoded 30fps.
+      # File: 3.1s → 78 frames at 25fps (matching sequence)
+      # Clip: start_at=3.0s (source_in=75), duration=2.0s (source_out=125) → clamp to 78
+      # clamped_source_frames = 3; same timebase → timeline = 3 frames exactly
+      # No fractional frame conversion needed — source and timeline share the same rate.
       before do
         allow_any_instance_of(described_class).to receive(:extract_metadata_from_ffprobe) do |_instance, path|
           if path == audio_only_path
@@ -162,7 +163,7 @@ RSpec.describe ButterCut::FCP7 do
         end
       end
 
-      it 'uses floor so timeline duration never exceeds clamped source capacity' do
+      it 'clamps source_out to file duration and sets correct timeline duration' do
         generator = described_class.new([
           { path: clip_a_path },
           { path: audio_only_path, media_type: :audio_only, start_at: 3.0, duration: 2.0 }
@@ -171,8 +172,8 @@ RSpec.describe ButterCut::FCP7 do
         audio_clip = xml.match(/<clipitem id="clipitem-audio-2">(.*?)<\/clipitem>/m)&.captures&.first
         expect(audio_clip).not_to be_nil
         duration_val = audio_clip.match(/<duration>(\d+)<\/duration>/)[1].to_i
-        # floor(2.5)=2: 2 timeline frames × 30/25 = 2.4 source frames needed, have 3 → surplus ✓
-        expect(duration_val).to eq(2)
+        # 3 source frames at 25fps = 3 timeline frames at 25fps (no cross-rate conversion)
+        expect(duration_val).to eq(3)
       end
     end
   end
