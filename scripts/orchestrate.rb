@@ -37,8 +37,9 @@ force_reindex    = false
 force_rediscover = false
 discover_only    = false
 candidate_id     = nil
-force_cascade    = false
-pool_dir_arg     = nil
+force_cascade      = false
+force_revisualize  = false
+pool_dir_arg       = nil
 
 args = ARGV.dup
 while args.any?
@@ -79,16 +80,19 @@ while args.any?
   when '--force-cascade'
     args.shift
     force_cascade = true
+  when '--force-revisualize'
+    args.shift
+    force_revisualize = true
   when '--pool-dir'
     args.shift
     pool_dir_arg = args.shift
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--pool-dir <path>]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--pool-dir <path>]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>]" unless library_name
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
@@ -266,6 +270,19 @@ if mode == 'mine'
           run_script('detect_scenes.rb', full_path, '--output', sc_path)
         end
         attrs[:scene_changes] = File.basename(sc_path) if File.exist?(sc_path)
+
+        # Visual analysis: per-shot frame extraction
+        va_path = File.join(transcripts_dir, "#{src_basename}_visual_analysis.yaml")
+        if !force_revisualize && file_cached?(va_path)
+          skip 'visual_analysis', 'visual_analysis.yaml cached'
+        else
+          step 'visual_analysis'
+          va_flags = ['--library', library_name, '--video', full_path]
+          va_flags += ['--scene-file', sc_path] if File.exist?(sc_path)
+          va_flags << '--force' if force_revisualize
+          run_script('extract_visual_frames.rb', *va_flags)
+        end
+        attrs[:visual_analysis] = File.basename(va_path) if File.exist?(va_path)
       end
 
       PoolIndex.mark_ingested(index, filename, attrs)
@@ -630,14 +647,17 @@ else
   run_script('detect_scenes.rb', '--library', library_name, '--output', scene_changes_path)
 end
 
-# Extract frames at scene-change timestamps (or fallback 3-frame for static shots)
-visual_frames_path = File.join(library_dir, 'visual_frames.yaml')
-if file_cached?(visual_frames_path)
-  skip 'extract_visual_frames', 'visual_frames.yaml exists'
+# Per-shot visual frame extraction (produces visual_analysis.yaml + sampled frames)
+first_video_basename = File.basename(video_path || '', File.extname(video_path || ''))
+va_path = File.join(transcripts_dir, "#{first_video_basename}_visual_analysis.yaml")
+if !force_revisualize && file_cached?(va_path)
+  skip 'extract_visual_frames', 'visual_analysis.yaml exists'
 else
   if video_path && File.exist?(video_path)
     step 'extract_visual_frames'
-    run_script('extract_visual_frames.rb', '--library', library_name, '--video', video_path)
+    va_flags = ['--library', library_name, '--video', video_path]
+    va_flags << '--force' if force_revisualize
+    run_script('extract_visual_frames.rb', *va_flags)
   else
     skip 'extract_visual_frames', 'video file not accessible'
   end
@@ -649,8 +669,8 @@ if visual_name && visual_name.to_s.strip != ''
 else
   step 'visual_analysis'
   $stderr.puts "  NOTE: Visual analysis requires Claude vision. Run analyze-video skill separately."
-  if file_cached?(visual_frames_path)
-    $stderr.puts "  Scene-driven frames ready: #{visual_frames_path}"
+  if file_cached?(va_path)
+    $stderr.puts "  Per-shot frames ready: #{va_path}"
   end
   $stderr.puts "  Continuing without visual transcript."
 end

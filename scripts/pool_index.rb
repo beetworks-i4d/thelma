@@ -18,6 +18,7 @@
 #       speech_analysis: null|filename
 #       audio_features: null|filename
 #       scene_changes: null|filename
+#       visual_analysis: null|filename   # per-source visual_analysis.yaml (Phase 2)
 #       hq_audio_source: null|filename   # matched HQ audio file (video sources only)
 #       hq_audio_offset: null|float      # waveform sync offset in seconds
 #       role: null|hq_audio_for          # 'hq_audio_for' on matched audio-only sources
@@ -141,6 +142,7 @@ module PoolIndex
       'speech_analysis' => nil,
       'audio_features'  => nil,
       'scene_changes'   => nil,
+      'visual_analysis' => nil,
       'hq_audio_source' => nil,
       'hq_audio_offset' => nil,
       'role'            => nil,

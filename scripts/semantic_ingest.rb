@@ -233,6 +233,35 @@ videos.each do |v|
   end
 end
 
+# Per-shot visual analysis (from extract_visual_frames.rb Phase 2)
+# When populated (Session 2+), includes shot classification, composition, etc.
+# When null fields (Session 1), only adds shot boundaries — no prompt change.
+videos.each do |v|
+  source_name = File.basename(v['path'])
+  src_base = File.basename(source_name, File.extname(source_name))
+  va_path = File.join(transcripts_dir, "#{src_base}_visual_analysis.yaml")
+  next unless File.exist?(va_path)
+
+  va = YAML.safe_load(File.read(va_path), permitted_classes: [Date]) rescue nil
+  next unless va && va['shots']
+
+  # Only include if at least one shot has a populated classification field
+  has_classifications = va['shots'].any? { |s| s['shot_type'] || s['composition'] || s['camera_motion'] }
+  next unless has_classifications
+
+  visual_summary << "\n--- SHOT ANALYSIS: #{source_name} ---\n"
+  va['shots'].each do |shot|
+    parts = ["#{shot['t_start']}s-#{shot['t_end']}s"]
+    parts << shot['shot_type'] if shot['shot_type']
+    parts << shot['composition'] if shot['composition']
+    parts << shot['camera_motion'] if shot['camera_motion']
+    parts << "text:yes" if shot['text_overlay_present']
+    parts << "motion_gfx:yes" if shot['motion_graphic_present']
+    parts << "b-roll:#{shot['b_roll_semantic_tag']}" if shot['b_roll_semantic_tag']
+    visual_summary << "  [#{shot['shot_id']}] #{parts.join(' | ')}\n"
+  end
+end
+
 $stderr.puts "  Visual analysis: #{visual_summary.empty? ? 'none available' : 'included'}"
 
 # --- 4. Script/outline ---
