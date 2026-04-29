@@ -149,13 +149,15 @@ def build_chapters(clip_sequence, source_durations)
         t_out = clamped
       end
     end
-    current_chapter['clips'] << {
+    clip_entry = {
       'source'         => src,
       't_in'           => t_in,
       't_out'          => t_out,
       'track'          => 'V1',
       'narrative_role' => role
     }
+    clip_entry['speaker'] = clip['speaker'] if clip['speaker']
+    current_chapter['clips'] << clip_entry
   end
 
   chapters << current_chapter if current_chapter
