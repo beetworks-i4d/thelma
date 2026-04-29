@@ -236,6 +236,9 @@ RSpec.describe 'PoolIndex' do
         expect(entry['media_type']).to eq('video_with_audio')
         expect(entry['transcript_file']).to be_nil
         expect(entry['visual_analysis']).to be_nil
+        expect(entry['speakers_detected']).to be_nil
+        expect(entry['speaker_count']).to eq(1)
+        expect(entry['diarization_enabled']).to eq(false)
         expect(entry['hq_audio_source']).to be_nil
         expect(entry['added_at']).not_to be_nil
         expect(idx['sources']['video.mp4']).to eq(entry)
@@ -292,6 +295,19 @@ RSpec.describe 'PoolIndex' do
       idx['sources']['clip.mp4'] = { 'sha256' => 'abc' }
       PoolIndex.mark_ingested(idx, 'clip.mp4', 'visual_analysis' => 'clip_visual_analysis.yaml')
       expect(idx['sources']['clip.mp4']['visual_analysis']).to eq('clip_visual_analysis.yaml')
+    end
+
+    it 'records speaker tracking fields' do
+      idx = PoolIndex.empty_index
+      idx['sources']['podcast.mp4'] = { 'sha256' => 'abc' }
+      PoolIndex.mark_ingested(idx, 'podcast.mp4',
+        'speakers_detected' => ['SPEAKER_00', 'SPEAKER_01'],
+        'speaker_count' => 2,
+        'diarization_enabled' => true)
+      entry = idx['sources']['podcast.mp4']
+      expect(entry['speakers_detected']).to eq(['SPEAKER_00', 'SPEAKER_01'])
+      expect(entry['speaker_count']).to eq(2)
+      expect(entry['diarization_enabled']).to eq(true)
     end
   end
 

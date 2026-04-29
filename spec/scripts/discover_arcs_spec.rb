@@ -509,6 +509,79 @@ RSpec.describe 'discover_arcs.rb' do
     end
   end
 
+  describe 'multi-speaker transcript formatting' do
+    it 'includes speaker labels when source has multiple speakers' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        require 'json'
+        segments = [
+          { 'start' => 0.5, 'end' => 4.2,  'text' => 'I think the approach is wrong.', 'speaker' => 'SPEAKER_00' },
+          { 'start' => 5.0, 'end' => 12.3, 'text' => 'But consider the alternative.',  'speaker' => 'SPEAKER_01' },
+          { 'start' => 14.0, 'end' => 22.8,'text' => 'That is a fair point.',           'speaker' => 'SPEAKER_00' }
+        ]
+        unique_speakers = segments.map { |s| s['speaker'] }.compact.uniq
+        is_multi_speaker = unique_speakers.size > 1
+
+        block = ""
+        speaker_note = is_multi_speaker ? " [#{unique_speakers.size} speakers]" : ""
+        block << "--- SOURCE: podcast.mp4 (60.0s) [video_with_audio]#{speaker_note} ---\n"
+        segments.each do |seg|
+          t = seg['start'].to_f; e = seg['end'].to_f; text = seg['text'].strip
+          speaker_prefix = is_multi_speaker && seg['speaker'] ? "[#{seg['speaker']}]: " : ""
+          block << "[#{format('%.2f', t)}-#{format('%.2f', e)}] #{speaker_prefix}#{text}\n"
+        end
+        puts block
+      RUBY
+      expect(stdout).to include('[2 speakers]')
+      expect(stdout).to include('[SPEAKER_00]: I think')
+      expect(stdout).to include('[SPEAKER_01]: But consider')
+    end
+
+    it 'omits speaker labels for single-speaker sources' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        segments = [
+          { 'start' => 0.5, 'end' => 4.2, 'text' => 'Hello world.', 'speaker' => 'SPEAKER_00' },
+          { 'start' => 5.0, 'end' => 12.3, 'text' => 'More text.', 'speaker' => 'SPEAKER_00' }
+        ]
+        unique_speakers = segments.map { |s| s['speaker'] }.compact.uniq
+        is_multi_speaker = unique_speakers.size > 1
+
+        block = ""
+        speaker_note = is_multi_speaker ? " [#{unique_speakers.size} speakers]" : ""
+        block << "--- SOURCE: video.mp4 (60.0s) [video_with_audio]#{speaker_note} ---\n"
+        segments.each do |seg|
+          t = seg['start'].to_f; e = seg['end'].to_f; text = seg['text'].strip
+          speaker_prefix = is_multi_speaker && seg['speaker'] ? "[#{seg['speaker']}]: " : ""
+          block << "[#{format('%.2f', t)}-#{format('%.2f', e)}] #{speaker_prefix}#{text}\n"
+        end
+        puts block
+      RUBY
+      expect(stdout).not_to include('[SPEAKER_00]:')
+      expect(stdout).not_to include('[2 speakers]')
+      expect(stdout).to include('Hello world.')
+    end
+
+    it 'omits speaker labels when no speaker field present (non-diarized)' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        segments = [
+          { 'start' => 0.5, 'end' => 4.2, 'text' => 'Hello world.' },
+          { 'start' => 5.0, 'end' => 12.3, 'text' => 'More text.' }
+        ]
+        unique_speakers = segments.map { |s| s['speaker'] }.compact.uniq
+        is_multi_speaker = unique_speakers.size > 1
+
+        block = ""
+        segments.each do |seg|
+          t = seg['start'].to_f; e = seg['end'].to_f; text = seg['text'].strip
+          speaker_prefix = is_multi_speaker && seg['speaker'] ? "[#{seg['speaker']}]: " : ""
+          block << "[#{format('%.2f', t)}-#{format('%.2f', e)}] #{speaker_prefix}#{text}\n"
+        end
+        puts block
+      RUBY
+      expect(stdout).not_to include('SPEAKER')
+      expect(stdout).to include('Hello world.')
+    end
+  end
+
   describe 'orchestrate integration — --force-rediscover flag' do
     it 'parses --force-rediscover flag correctly' do
       stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')

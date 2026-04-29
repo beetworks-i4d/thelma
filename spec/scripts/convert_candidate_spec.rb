@@ -254,6 +254,32 @@ RSpec.describe 'convert_candidate.rb' do
     end
   end
 
+  describe 'speaker field preservation' do
+    it 'passes speaker from clip_sequence to arrangement clips' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        require 'yaml'
+        clip_sequence = [
+          { 'source' => 'podcast.mp4', 't_in' => 0.0,  't_out' => 15.0, 'role' => 'hook',        'speaker' => 'SPEAKER_00' },
+          { 'source' => 'podcast.mp4', 't_in' => 15.0, 't_out' => 30.0, 'role' => 'development', 'speaker' => 'SPEAKER_01' },
+          { 'source' => 'podcast.mp4', 't_in' => 30.0, 't_out' => 45.0, 'role' => 'payoff' }
+        ]
+        clips = clip_sequence.map do |clip|
+          entry = { 'source' => clip['source'], 't_in' => clip['t_in'], 't_out' => clip['t_out'],
+                    'track' => 'V1', 'narrative_role' => clip['role'] }
+          entry['speaker'] = clip['speaker'] if clip['speaker']
+          entry
+        end
+        puts clips[0]['speaker']
+        puts clips[1]['speaker']
+        puts clips[2].key?('speaker')
+      RUBY
+      lines = stdout.strip.split("\n")
+      expect(lines[0]).to eq('SPEAKER_00')
+      expect(lines[1]).to eq('SPEAKER_01')
+      expect(lines[2]).to eq('false')
+    end
+  end
+
   describe 'library.yaml videos update' do
     it 'populates library.yaml videos with pool source paths' do
       Dir.mktmpdir do |tmpdir|

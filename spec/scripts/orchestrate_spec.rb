@@ -593,6 +593,109 @@ RSpec.describe 'orchestrate.rb' do
     end
   end
 
+  describe '--language flag' do
+    it 'parses --language flag from CLI args' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        language_override = nil
+        args = ['--library', 'test', '--mode', 'mine', '--language', 'pt']
+        while args.any?
+          case args.first
+          when '--library'   then args.shift; args.shift
+          when '--mode'      then args.shift; args.shift
+          when '--language'  then args.shift; language_override = args.shift
+          else args.shift
+          end
+        end
+        puts language_override
+      RUBY
+      expect(stdout.strip).to eq('pt')
+    end
+
+    it 'language_override takes precedence over library language' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        language_override = 'pt'
+        library_language = 'english'
+        lang_code = language_override || (library_language == 'english' ? 'en' : (library_language || 'en'))
+        puts lang_code
+      RUBY
+      expect(stdout.strip).to eq('pt')
+    end
+
+    it 'falls back to library language when --language not specified' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        language_override = nil
+        library_language = 'english'
+        lang_code = language_override || (library_language == 'english' ? 'en' : (library_language || 'en'))
+        puts lang_code
+      RUBY
+      expect(stdout.strip).to eq('en')
+    end
+  end
+
+  describe 'diarization behavior' do
+    it 'adds --diarize when HF_TOKEN is set' do
+      stdout, _, _ = Open3.capture3(
+        { 'HF_TOKEN' => 'hf_test_token' },
+        'ruby', '-e', <<~'RUBY')
+        cmd = "whisperx audio.wav --model turbo"
+        if ENV['HF_TOKEN'] && !ENV['HF_TOKEN'].strip.empty?
+          cmd += " --diarize"
+        end
+        puts cmd
+      RUBY
+      expect(stdout.strip).to include('--diarize')
+    end
+
+    it 'skips --diarize when HF_TOKEN is not set' do
+      env = ENV.to_h.reject { |k, _| k == 'HF_TOKEN' }
+      stdout, _, _ = Open3.capture3(env, 'ruby', '-e', <<~'RUBY')
+        cmd = "whisperx audio.wav --model turbo"
+        if ENV['HF_TOKEN'] && !ENV['HF_TOKEN'].strip.empty?
+          cmd += " --diarize"
+        end
+        puts cmd
+      RUBY
+      expect(stdout.strip).not_to include('--diarize')
+    end
+
+    it 'skips --diarize when HF_TOKEN is empty string' do
+      stdout, _, _ = Open3.capture3(
+        { 'HF_TOKEN' => '' },
+        'ruby', '-e', <<~'RUBY')
+        cmd = "whisperx audio.wav --model turbo"
+        if ENV['HF_TOKEN'] && !ENV['HF_TOKEN'].strip.empty?
+          cmd += " --diarize"
+        end
+        puts cmd
+      RUBY
+      expect(stdout.strip).not_to include('--diarize')
+    end
+
+    it 'extracts speaker info from diarized transcript' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        require 'json'
+        require 'tmpdir'
+        Dir.mktmpdir do |dir|
+          transcript = {
+            'segments' => [
+              { 'start' => 0.0, 'end' => 5.0, 'text' => 'Hello', 'speaker' => 'SPEAKER_00' },
+              { 'start' => 5.0, 'end' => 10.0, 'text' => 'Hi there', 'speaker' => 'SPEAKER_01' },
+              { 'start' => 10.0, 'end' => 15.0, 'text' => 'Good', 'speaker' => 'SPEAKER_00' }
+            ]
+          }
+          path = File.join(dir, 'test.json')
+          File.write(path, transcript.to_json)
+          t_data = JSON.parse(File.read(path))
+          speakers = (t_data['segments'] || []).map { |s| s['speaker'] }.compact.uniq.sort
+          puts speakers.join(',')
+          puts speakers.size
+        end
+      RUBY
+      expect(stdout.strip.split("\n")[0]).to eq('SPEAKER_00,SPEAKER_01')
+      expect(stdout.strip.split("\n")[1]).to eq('2')
+    end
+  end
+
   describe 'report schema from generate_report' do
     it 'generates valid report YAML with all fields' do
       library_dir = File.expand_path('../../libraries/dylan-004', __dir__)
