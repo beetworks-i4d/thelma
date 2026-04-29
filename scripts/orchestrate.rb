@@ -290,6 +290,44 @@ if mode == 'mine'
     end
   end
 
+  # Visual analysis: per-shot frame extraction for all video sources
+  # Runs as a separate pass so already-ingested sources also get visual analysis.
+  phase 'MINE — Visual Analysis'
+  index = PoolIndex.load(library_dir)  # reload in case ingestion updated it
+  va_count = 0
+  (index['sources'] || {}).each do |filename, entry|
+    next if entry['media_type'] == 'audio_only'
+    next unless entry['ingested_at']  # skip un-ingested sources
+
+    src_base = File.basename(filename, File.extname(filename))
+    va_path = File.join(transcripts_dir, "#{src_base}_visual_analysis.yaml")
+    sc_path = File.join(transcripts_dir, "#{src_base}_scenes.yaml")
+
+    if !force_revisualize && file_cached?(va_path)
+      next  # already done
+    end
+
+    # Resolve full path from pool
+    full_path = Dir.glob(File.join(pool_dir, '**', filename)).first
+    unless full_path && File.exist?(full_path)
+      $stderr.puts "  SKIP #{filename}: file not found in pool"
+      next
+    end
+
+    step "visual_analysis: #{filename}"
+    va_flags = ['--library', library_name, '--video', full_path]
+    va_flags += ['--scene-file', sc_path] if File.exist?(sc_path)
+    va_flags << '--force' if force_revisualize
+    run_script('extract_visual_frames.rb', *va_flags)
+
+    if File.exist?(va_path)
+      PoolIndex.mark_ingested(index, filename, 'visual_analysis' => File.basename(va_path))
+      va_count += 1
+    end
+  end
+  PoolIndex.save(library_dir, index) if va_count > 0
+  $stderr.puts va_count > 0 ? "  Generated #{va_count} visual analysis file(s)" : "  All sources up to date"
+
   # HQ audio matching
   phase 'MINE — HQ Audio Matching'
   run_script('match_hq_audio.rb', '--library', library_name)
