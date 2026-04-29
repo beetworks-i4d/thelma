@@ -19,6 +19,9 @@
 #       audio_features: null|filename
 #       scene_changes: null|filename
 #       visual_analysis: null|filename   # per-source visual_analysis.yaml (Phase 2)
+#       speakers_detected: null|[list]   # speaker labels from diarization (e.g. ["SPEAKER_00", "SPEAKER_01"])
+#       speaker_count: 1                 # number of detected speakers (default 1)
+#       diarization_enabled: false       # whether diarization ran for this source
 #       hq_audio_source: null|filename   # matched HQ audio file (video sources only)
 #       hq_audio_offset: null|float      # waveform sync offset in seconds
 #       role: null|hq_audio_for          # 'hq_audio_for' on matched audio-only sources
@@ -143,6 +146,9 @@ module PoolIndex
       'audio_features'  => nil,
       'scene_changes'   => nil,
       'visual_analysis' => nil,
+      'speakers_detected' => nil,
+      'speaker_count' => 1,
+      'diarization_enabled' => false,
       'hq_audio_source' => nil,
       'hq_audio_offset' => nil,
       'role'            => nil,
