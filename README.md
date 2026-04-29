@@ -110,6 +110,29 @@ Result: Ready-to-import timeline at:
 
 Claude makes editorial decisions based on transcript analysis and your preferences, then exports a timeline for your editor.
 
+### Speaker Diarization (Optional)
+
+For multi-speaker content (podcasts, interviews, panels), Thelma can identify and label individual speakers using WhisperX's diarization feature. This is **optional** — the pipeline works without it.
+
+**Setup:**
+
+1. Sign up at [huggingface.co](https://huggingface.co)
+2. Visit the [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) model page and accept the terms
+3. Generate an access token at Settings > Access Tokens
+4. Set the environment variable:
+   ```bash
+   export HF_TOKEN=hf_your_token_here
+   ```
+
+When `HF_TOKEN` is set, Thelma automatically passes `--diarize` to WhisperX during transcription. Speaker labels appear as `SPEAKER_00`, `SPEAKER_01`, etc. in transcripts and carry through to arc discovery and arrangement.
+
+Without `HF_TOKEN`, the pipeline runs normally — you'll see a note in the output that diarization was skipped. Single-speaker projects don't need this.
+
+**Notes:**
+- Speaker labels are generic (`SPEAKER_00`, `SPEAKER_01`) and don't reflect actual names
+- You can specify source language explicitly with `--language pt` (or `en`, `es`, etc.) for better accuracy
+- Generated metadata (chapter labels, key decisions) appears in English regardless of source language
+
 ### XML Generation
 
 For direct XML generation without Claude Code, see [docs/basic-xml-generation.md](docs/basic-xml-generation.md).
