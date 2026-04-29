@@ -40,6 +40,7 @@ candidate_id     = nil
 force_cascade      = false
 force_revisualize  = false
 pool_dir_arg       = nil
+language_override  = nil
 
 args = ARGV.dup
 while args.any?
@@ -86,13 +87,16 @@ while args.any?
   when '--pool-dir'
     args.shift
     pool_dir_arg = args.shift
+  when '--language'
+    args.shift
+    language_override = args.shift
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>]" unless library_name
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
@@ -211,6 +215,13 @@ if mode == 'mine'
   pool_dir = File.expand_path(pool_dir)
   abort "pool_dir not found: #{pool_dir}" unless File.directory?(pool_dir)
 
+  # Language + tone profile warning
+  effective_lang = language_override || (library['language'] == 'english' ? 'en' : (library['language'] || 'en'))
+  if effective_lang != 'en' && profile_name && !%w[_default].include?(profile_name)
+    $stderr.puts "  WARNING: Language '#{effective_lang}' with tone profile '#{profile_name}' — " \
+                 "tone profiles are English-tuned and may not apply optimally."
+  end
+
   phase 'MINE — Pool Indexing'
   $stderr.puts "Pool: #{pool_dir}"
 
@@ -251,14 +262,29 @@ if mode == 'mine'
         step 'whisperx transcription'
         whisperx_bin = File.expand_path('~/.thelma/whisperx')
         whisperx_bin = 'whisperx' unless File.exist?(whisperx_bin)
-        lang_code = library['language'] == 'english' ? 'en' : (library['language'] || 'en')
-        run_command("#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} " \
-                    "--model turbo --language #{lang_code} " \
-                    "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} " \
-                    "--compute_type int8")
+        lang_code = language_override || (library['language'] == 'english' ? 'en' : (library['language'] || 'en'))
+        whisperx_cmd = "#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} " \
+                       "--model turbo --language #{lang_code} " \
+                       "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} " \
+                       "--compute_type int8"
+        if ENV['HF_TOKEN'] && !ENV['HF_TOKEN'].strip.empty?
+          whisperx_cmd += " --diarize"
+        else
+          $stderr.puts "  NOTE: HF_TOKEN not set — skipping diarization. Set HF_TOKEN for speaker labels."
+        end
+        run_command(whisperx_cmd)
         abort "PIPELINE ABORT: WhisperX did not produce: #{expected_transcript}" unless File.exist?(expected_transcript)
       end
       attrs[:transcript_file] = File.basename(expected_transcript) if File.exist?(expected_transcript)
+
+      # Extract speaker info from diarized transcript
+      if File.exist?(expected_transcript)
+        t_data = JSON.parse(File.read(expected_transcript)) rescue {}
+        speakers = (t_data['segments'] || []).map { |s| s['speaker'] }.compact.uniq.sort
+        attrs[:diarization_enabled] = ENV['HF_TOKEN'] && !ENV['HF_TOKEN'].strip.empty? ? true : false
+        attrs[:speakers_detected] = speakers.empty? ? nil : speakers
+        attrs[:speaker_count] = speakers.empty? ? 1 : speakers.size
+      end
 
       # Scene detection (video only)
       unless is_audio_only
@@ -411,6 +437,13 @@ $stderr.puts "Videos: #{videos.size} source file(s)"
 profile = profile_name ? load_profile_by_name(profile_name) : load_profile(library_name)
 $stderr.puts "Profile: #{profile['name']} (merged with defaults)"
 
+# Language + tone profile warning for non-English content
+std_lang = language_override || (library['language'] == 'english' ? 'en' : (library['language'] || 'en'))
+if std_lang != 'en' && profile['name'] && !%w[_default].include?(profile['name'])
+  $stderr.puts "  WARNING: Language '#{std_lang}' with tone profile '#{profile['name']}' — " \
+               "tone profiles are English-tuned and may not apply optimally."
+end
+
 # --- Branch detection ---
 
 branch = branch_override
@@ -477,11 +510,17 @@ videos.each_with_index do |video, vi|
     step 'whisperx transcription'
     whisperx_bin = File.expand_path('~/.thelma/whisperx')
     whisperx_bin = 'whisperx' unless File.exist?(whisperx_bin)
-    lang_code = library['language'] == 'english' ? 'en' : (library['language'] || 'en')
+    lang_code = language_override || (library['language'] == 'english' ? 'en' : (library['language'] || 'en'))
     whisper_model = 'turbo'
 
-    run_command("#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} --model #{whisper_model} --language #{lang_code} " \
-                "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} --compute_type int8")
+    whisperx_cmd = "#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} --model #{whisper_model} --language #{lang_code} " \
+                   "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} --compute_type int8"
+    if ENV['HF_TOKEN'] && !ENV['HF_TOKEN'].strip.empty?
+      whisperx_cmd += " --diarize"
+    else
+      $stderr.puts "  NOTE: HF_TOKEN not set — skipping diarization. Set HF_TOKEN for speaker labels."
+    end
+    run_command(whisperx_cmd)
 
     # Find the generated transcript
     expected = File.join(transcripts_dir, "#{treated_basename}_treated.json")
