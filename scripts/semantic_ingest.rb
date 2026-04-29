@@ -128,11 +128,16 @@ videos.each_with_index do |v, idx|
   source_name = File.basename(v['path'])
   all_segment_count += segs.size
 
+  # Detect if this source has multi-speaker diarization
+  has_speakers = segs.any? { |s| s['speaker'] }
+  unique_speakers = segs.map { |s| s['speaker'] }.compact.uniq
+
   transcript_block << "\n--- SOURCE: #{source_name} (#{v['duration']}) ---\n"
   segs.each do |s|
     t_start = s['start'].round(2)
     t_end = s['end'].round(2)
-    transcript_block << "[#{t_start}-#{t_end}] #{s['text'].strip}\n"
+    speaker_prefix = has_speakers && unique_speakers.size > 1 && s['speaker'] ? "[#{s['speaker']}]: " : ""
+    transcript_block << "[#{t_start}-#{t_end}] #{speaker_prefix}#{s['text'].strip}\n"
   end
 end
 

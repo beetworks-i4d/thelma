@@ -164,19 +164,28 @@ pool_overview = <<~SECTION
   Total pool duration: #{total_dur_str}
 SECTION
 
-# Source transcripts block
+# Source transcripts block — includes speaker labels when diarized
 transcript_block = +"## Source Transcripts\n\n"
+has_any_multi_speaker = false
 transcripts_by_source.sort_by { |fn, _| fn }.each do |filename, data|
   entry   = sources[filename]
   dur_s   = entry['duration'] ? format('%.1fs', entry['duration']) : '?'
   mtype   = entry['media_type'] || 'unknown'
   segments = data['segments'] || []
-  transcript_block << "--- SOURCE: #{filename} (#{dur_s}) [#{mtype}] ---\n"
+
+  # Detect multi-speaker content
+  unique_speakers = segments.map { |s| s['speaker'] }.compact.uniq
+  is_multi_speaker = unique_speakers.size > 1
+  has_any_multi_speaker ||= is_multi_speaker
+
+  speaker_note = is_multi_speaker ? " [#{unique_speakers.size} speakers]" : ""
+  transcript_block << "--- SOURCE: #{filename} (#{dur_s}) [#{mtype}]#{speaker_note} ---\n"
   segments.each do |seg|
     t    = (seg['start'] || seg['t'] || 0).to_f
     e    = (seg['end']   || seg['e'] || t).to_f
     text = (seg['text']  || seg['content'] || '').strip
-    transcript_block << "[#{format('%.2f', t)}-#{format('%.2f', e)}] #{text}\n"
+    speaker_prefix = is_multi_speaker && seg['speaker'] ? "[#{seg['speaker']}]: " : ""
+    transcript_block << "[#{format('%.2f', t)}-#{format('%.2f', e)}] #{speaker_prefix}#{text}\n"
   end
   transcript_block << "\n"
 end
@@ -273,6 +282,12 @@ prompt = <<~PROMPT
   CROSS-SOURCE ARCS: Look for arcs spanning multiple source files. Audio-only sources
   (voice memos, HQ audio recordings) should participate where their content is relevant.
 
+  MULTI-SPEAKER CONTENT: When multi-speaker conversational sources are present (marked
+  with [N speakers]), narrative arcs may involve dialogic structure — Speaker A's claim
+  with Speaker B's response, mutual insight discoveries, debate-resolution pairs, etc.
+  Use speaker dynamics as signal for what makes a coherent arc. Include speaker labels
+  in clip content_summary when relevant (e.g. "SPEAKER_00 argues X, SPEAKER_01 counters with Y").
+
   MISSING BRIDGES: When a semantic leap between clips weakens the arc, flag it in
   missing_bridge_clips. Describe what the creator should record as a pickup shot and why.
   Format: between_clips is a list of [preceding_clip_index, following_clip_index] (0-based).
@@ -305,6 +320,7 @@ prompt = <<~PROMPT
           t_in: 0.0
           t_out: 0.0
           role: hook|setup|development|payoff|transition
+          speaker: null|SPEAKER_00
           content_summary: "what the speaker says or does in this clip"
       missing_bridge_clips: []
       confidence: high|medium|low
