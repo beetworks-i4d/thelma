@@ -205,7 +205,7 @@ scene_path = File.join(library_dir, 'scene_changes.yaml')
 frames_path = File.join(library_dir, 'visual_frames.yaml')
 
 if File.exist?(scene_path)
-  scenes = YAML.safe_load(File.read(scene_path))
+  scenes = YAML.safe_load(File.read(scene_path), aliases: true)
   visual_summary << "Scene changes: #{scenes['total_scenes']} scenes detected\n"
   if scenes['sources'] && scenes['sources'].size > 1
     # Multi-source: show per-source scene counts
@@ -247,7 +247,7 @@ videos.each do |v|
   va_path = File.join(transcripts_dir, "#{src_base}_visual_analysis.yaml")
   next unless File.exist?(va_path)
 
-  va = YAML.safe_load(File.read(va_path), permitted_classes: [Date]) rescue nil
+  va = YAML.safe_load(File.read(va_path), permitted_classes: [Date], aliases: true) rescue nil
   next unless va && va['shots']
 
   # Only include if at least one shot has a populated classification field
