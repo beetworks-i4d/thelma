@@ -1212,18 +1212,18 @@ BEGIN {
       prompt = <<~PROMPT
         You are classifying video transcript segments using the Content Psychopharmacology framework.
 
-        For each segment below, produce a YAML entry with these fields:
-        - t: start time (seconds)
-        - e: end time (seconds)
-        - states: [primary_state, optional_companion_1, optional_companion_2] from: #{states_list.join(', ')}
-        - distillation: 5-word max summary of WHAT the segment says (the idea, not delivery)
-        - signal: short description of the visible/verbal element triggering the state
-        - dur: spike (momentary), mood (emotional tone), or identity (lasting impact)
-        - roles: [primary, secondary, tertiary] — content importance
-        - notes: 10-word max editorial note
-        - rationale: 5-15 word explanation of why these states
-        - confidence: high, medium, or low
-        - signpost: true if meta-commentary announcing content without delivering it, false otherwise
+        For each segment below, produce a JSON object with a "segments" array. Each entry has:
+        - "t": start time (seconds, number)
+        - "e": end time (seconds, number)
+        - "states": array of 1-3 strings from: #{states_list.join(', ')}
+        - "distillation": 5-word max summary of WHAT the segment says (the idea, not delivery)
+        - "signal": short description of the visible/verbal element triggering the state
+        - "dur": "spike" (momentary), "mood" (emotional tone), or "identity" (lasting impact)
+        - "roles": array from ["primary", "secondary", "tertiary"] — content importance
+        - "notes": 10-word max editorial note
+        - "rationale": 5-15 word explanation of why these states
+        - "confidence": "high", "medium", or "low"
+        - "signpost": true if meta-commentary announcing content without delivering it, false otherwise
 
         Rules:
         - Skip segments under 3 seconds or obvious filler (um, uh, false starts)
@@ -1234,10 +1234,7 @@ BEGIN {
         Transcript segments#{chunk_label}:
         #{chunk_lines}
 
-        Respond with ONLY valid YAML. Start with:
-        ```yaml
-        segments:
-        ```
+        Respond with ONLY valid JSON. No markdown fences. Start directly with {"segments": [
       PROMPT
 
       pending_dir = File.join(File.dirname(output_path), 'pending_llm_calls')
@@ -1251,13 +1248,13 @@ BEGIN {
         exit 2
       end
 
-      # Extract YAML from response (may be wrapped in markdown code block)
-      yaml_text = response.gsub(/\A```ya?ml\s*/, '').gsub(/```\s*\z/, '').strip
+      # Extract JSON from response (strip markdown fences if present)
+      json_text = response.gsub(/\A```(?:json)?\s*/, '').gsub(/```\s*\z/, '').strip
 
       begin
-        chunk_classified = YAML.safe_load(yaml_text, permitted_classes: [Date])
-      rescue Psych::SyntaxError => e
-        abort "PIPELINE ABORT: Classification LLM returned invalid YAML#{chunk_label}\n#{e.message}\n\nResponse:\n#{yaml_text[0..500]}"
+        chunk_classified = JSON.parse(json_text)
+      rescue JSON::ParserError => e
+        abort "PIPELINE ABORT: Classification LLM returned invalid JSON#{chunk_label}\n#{e.message}\n\nResponse:\n#{json_text[0..500]}"
       end
 
       chunk_segments = chunk_classified['segments'] || []
