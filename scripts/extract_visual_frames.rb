@@ -109,7 +109,7 @@ scene_sources = [
 
 scene_sources.each do |spath|
   next unless File.exist?(spath)
-  scene_data = YAML.safe_load(File.read(spath), permitted_classes: [Date])
+  scene_data = YAML.safe_load(File.read(spath), permitted_classes: [Date], aliases: true)
   break unless scene_data
 
   # Multi-source format: find this video's entry
