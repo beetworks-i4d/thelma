@@ -1,6 +1,4 @@
 ---
 libraries:
-  dbtest:
-    path: "/Users/i4d/Desktop/RAW/dbtest/.thelma"
-  kpodcast:
-    path: "/Users/i4d/Desktop/RAW/Kpodcasttext/.thelma"
+  every-ai-business-idea:
+    path: /Users/i4d/Desktop/RAW/everyaibusinessidea/.thelma
