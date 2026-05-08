@@ -407,7 +407,7 @@ $stderr.puts "\n  Prompt: #{prompt.length} chars + #{cached_system&.length || 0}
 $stderr.puts "\n  Calling LLM (semantic_ingest)..."
 pending_dir = File.join(library_dir, 'pending_llm_calls')
 begin
-  response = LLMClient.call(prompt, call_type: 'semantic_ingest', profile: profile, max_tokens: 8192,
+  response = LLMClient.call(prompt, call_type: 'semantic_ingest', profile: profile, max_tokens: 32768,
                             pending_dir: pending_dir, call_name: 'semantic_ingest',
                             cached_system_prompt: cached_system)
 rescue LLMClient::Pending => e
