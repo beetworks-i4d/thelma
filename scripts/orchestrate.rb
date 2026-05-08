@@ -1189,71 +1189,90 @@ BEGIN {
     segments = transcript_data['segments'] || []
     abort "PIPELINE ABORT: No segments in transcript" if segments.empty?
 
-    # Build segment listing for prompt
-    segment_lines = segments.map { |s|
-      "[#{s['start']&.round(2)}-#{s['end']&.round(2)}] #{s['text']&.strip}"
-    }.join("\n")
-
     transcript_hash = Digest::MD5.hexdigest(File.read(transcript_path))
 
     states_list = %w[vindication outrage awe competence fear schadenfreude amusement
                      catharsis nostalgia belonging escape calm aspiration sensual curiosity]
 
-    prompt = <<~PROMPT
-      You are classifying video transcript segments using the Content Psychopharmacology framework.
+    # Chunk segments to avoid hitting output token limits.
+    # ~100 segments per chunk keeps output well under 16k tokens.
+    chunk_size = 100
+    chunks = segments.each_slice(chunk_size).to_a
+    all_classified_segments = []
 
-      For each segment below, produce a YAML entry with these fields:
-      - t: start time (seconds)
-      - e: end time (seconds)
-      - states: [primary_state, optional_companion_1, optional_companion_2] from: #{states_list.join(', ')}
-      - distillation: 5-word max summary of WHAT the segment says (the idea, not delivery)
-      - signal: short description of the visible/verbal element triggering the state
-      - dur: spike (momentary), mood (emotional tone), or identity (lasting impact)
-      - roles: [primary, secondary, tertiary] — content importance
-      - notes: 10-word max editorial note
-      - rationale: 5-15 word explanation of why these states
-      - confidence: high, medium, or low
-      - signpost: true if meta-commentary announcing content without delivering it, false otherwise
+    $stderr.puts "  Classification: #{segments.size} segments in #{chunks.size} chunk(s)"
 
-      Rules:
-      - Skip segments under 3 seconds or obvious filler (um, uh, false starts)
-      - Primary state is FIRST in the states array
-      - distillation must be 5 words or fewer
-      - Keep numbers literal in distillation
+    chunks.each_with_index do |chunk, ci|
+      chunk_lines = chunk.map { |s|
+        "[#{s['start']&.round(2)}-#{s['end']&.round(2)}] #{s['text']&.strip}"
+      }.join("\n")
 
-      Transcript segments:
-      #{segment_lines}
+      chunk_label = chunks.size > 1 ? " (chunk #{ci + 1}/#{chunks.size})" : ""
 
-      Respond with ONLY valid YAML. Start with:
-      ```yaml
-      transcript_hash: #{transcript_hash}
-      segments:
-      ```
-    PROMPT
+      prompt = <<~PROMPT
+        You are classifying video transcript segments using the Content Psychopharmacology framework.
 
-    pending_dir = File.join(File.dirname(output_path), 'pending_llm_calls')
-    begin
-      response = LLMClient.call(prompt, call_type: 'classification', profile: profile,
-                                pending_dir: pending_dir, call_name: 'classification')
-    rescue LLMClient::Pending => e
-      $stderr.puts e.message
-      exit 2
+        For each segment below, produce a YAML entry with these fields:
+        - t: start time (seconds)
+        - e: end time (seconds)
+        - states: [primary_state, optional_companion_1, optional_companion_2] from: #{states_list.join(', ')}
+        - distillation: 5-word max summary of WHAT the segment says (the idea, not delivery)
+        - signal: short description of the visible/verbal element triggering the state
+        - dur: spike (momentary), mood (emotional tone), or identity (lasting impact)
+        - roles: [primary, secondary, tertiary] — content importance
+        - notes: 10-word max editorial note
+        - rationale: 5-15 word explanation of why these states
+        - confidence: high, medium, or low
+        - signpost: true if meta-commentary announcing content without delivering it, false otherwise
+
+        Rules:
+        - Skip segments under 3 seconds or obvious filler (um, uh, false starts)
+        - Primary state is FIRST in the states array
+        - distillation must be 5 words or fewer
+        - Keep numbers literal in distillation
+
+        Transcript segments#{chunk_label}:
+        #{chunk_lines}
+
+        Respond with ONLY valid YAML. Start with:
+        ```yaml
+        segments:
+        ```
+      PROMPT
+
+      pending_dir = File.join(File.dirname(output_path), 'pending_llm_calls')
+      call_name = chunks.size > 1 ? "classification_chunk_#{ci + 1}" : 'classification'
+      begin
+        response = LLMClient.call(prompt, call_type: 'classification', profile: profile,
+                                  pending_dir: pending_dir, call_name: call_name,
+                                  max_tokens: 16_384)
+      rescue LLMClient::Pending => e
+        $stderr.puts e.message
+        exit 2
+      end
+
+      # Extract YAML from response (may be wrapped in markdown code block)
+      yaml_text = response.gsub(/\A```ya?ml\s*/, '').gsub(/```\s*\z/, '').strip
+
+      begin
+        chunk_classified = YAML.safe_load(yaml_text, permitted_classes: [Date])
+      rescue Psych::SyntaxError => e
+        abort "PIPELINE ABORT: Classification LLM returned invalid YAML#{chunk_label}\n#{e.message}\n\nResponse:\n#{yaml_text[0..500]}"
+      end
+
+      chunk_segments = chunk_classified['segments'] || []
+      $stderr.puts "  Chunk #{ci + 1}: #{chunk_segments.size} segments classified"
+      all_classified_segments.concat(chunk_segments)
     end
 
-    # Extract YAML from response (may be wrapped in markdown code block)
-    yaml_text = response.gsub(/\A```ya?ml\s*/, '').gsub(/```\s*\z/, '').strip
-
-    begin
-      classified = YAML.safe_load(yaml_text, permitted_classes: [Date])
-    rescue Psych::SyntaxError => e
-      abort "PIPELINE ABORT: Classification LLM returned invalid YAML\n#{e.message}\n\nResponse:\n#{yaml_text[0..500]}"
-    end
-
-    classified['transcript_hash'] = transcript_hash
-    classified['recording'] = File.basename(transcript_path)
-    classified['classified_at'] = Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z')
+    classified = {
+      'transcript_hash' => transcript_hash,
+      'recording' => File.basename(transcript_path),
+      'classified_at' => Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z'),
+      'segments' => all_classified_segments
+    }
 
     File.write(output_path, classified.to_yaml)
-    $stderr.puts "  Classification saved: #{output_path}"
+    $stderr.puts "  Classification saved: #{output_path} (#{all_classified_segments.size} segments)"
   end
 }
