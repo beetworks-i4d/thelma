@@ -125,7 +125,7 @@ module LLMClient
       uri = URI(API_URL)
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = true
-      http.read_timeout = 300
+      http.read_timeout = 600
       http.open_timeout = 30
 
       body = {
