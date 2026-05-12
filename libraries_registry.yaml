@@ -1,4 +1,6 @@
 ---
 libraries:
   every-ai-business-idea:
-    path: /Users/i4d/Desktop/RAW/everyaibusinessidea/.thelma
+    path: "/Users/i4d/Desktop/RAW/everyaibusinessidea/.thelma"
+  Dylan005:
+    path: "/Users/i4d/Desktop/RAW/Dylan005/.thelma"
