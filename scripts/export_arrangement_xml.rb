@@ -207,6 +207,19 @@ if File.exist?(classification_path)
   config['classification'] = classification_path
 end
 
+# Add sync audio (HQ WAV) for dedicated production audio track
+if video_entry['sync_audio'] && video_entry['sync_audio']['path']
+  sync_audio_path = video_entry['sync_audio']['path']
+  if File.exist?(sync_audio_path)
+    config['sync_audio'] = {
+      'path'   => sync_audio_path,
+      'offset' => video_entry['sync_audio']['offset'].to_f
+    }
+  else
+    $stderr.puts "WARNING: sync_audio not found: #{sync_audio_path}"
+  end
+end
+
 # No max_segment_duration — natural boundaries only
 # Pause removal uses profile default (800ms)
 
