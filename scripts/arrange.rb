@@ -464,6 +464,7 @@ result['key_decisions'] ||= []
 result['generated_at'] = Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z')
 result['source'] = library_name
 result['cache_hash'] = cache_hash
+result['time_domain'] = 'wav'  # arrangement timestamps match transcript (WAV) time domain
 result['llm_model'] = profile.dig('llm_routing', 'arrangement') || LLMClient::DEFAULT_MODEL
 
 $stderr.puts "  Parsed: #{chapters.size} chapters, #{all_clips.size} clips (V1: #{v1_clips.size}, V2: #{v2_clips.size})"

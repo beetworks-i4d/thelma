@@ -84,6 +84,24 @@ end
 # First video's transcript as legacy fallback for single-source
 transcript_path = transcript_map[File.expand_path(video_entry['path'])]
 
+# === Determine sync offset for time domain conversion ===
+# Arrangement timestamps come from the transcript, which was generated from
+# the sync_audio WAV (if present). So arrangement times are in WAV time domain.
+# build_structure_cut.rb expects video_start/video_end in video time domain.
+# Convert: video_time = wav_time - sync_offset
+sync_offset_for_conversion = 0.0
+if video_entry['sync_audio'] && video_entry['sync_audio']['offset']
+  arr_time_domain = arrangement['time_domain'] || 'wav'
+  if arr_time_domain == 'wav'
+    sync_offset_for_conversion = video_entry['sync_audio']['offset'].to_f
+    $stderr.puts "  Time domain: arrangement is WAV time, converting to video time (offset: #{sync_offset_for_conversion}s)"
+  elsif arr_time_domain == 'video'
+    $stderr.puts "  Time domain: arrangement is already video time, no conversion needed"
+  else
+    abort "Unknown time_domain '#{arr_time_domain}' in arrangement.yaml (expected 'wav' or 'video')"
+  end
+end
+
 # === Build clips from arrangement chapters ===
 # V1 clips are sequential. V2+ clips get timeline_offset set to the
 # V1 timeline position at the start of their parent chapter.
@@ -112,7 +130,9 @@ arrangement['chapters'].each do |chapter|
       clip_video_path = video_path  # fallback to first video (single-source compat)
     end
 
-    video_end = clip['t_out'].to_f
+    # Convert from arrangement time domain (WAV) to video time domain
+    video_start = clip['t_in'].to_f - sync_offset_for_conversion
+    video_end = clip['t_out'].to_f - sync_offset_for_conversion
 
     # Clamp video_end to source file duration — LLM may produce round-number
     # t_out values that exceed the actual file length, causing black frames
@@ -127,8 +147,11 @@ arrangement['chapters'].each do |chapter|
       video_end = source_dur  # silent micro-clamp for rounding noise
     end
 
+    # Clamp video_start to 0 — WAV may have started before video
+    video_start = 0.0 if video_start < 0
+
     clip_entry = {
-      'video_start' => clip['t_in'].to_f,
+      'video_start' => video_start,
       'video_end'   => video_end,
       'track'       => track,
       'video_path'  => clip_video_path
