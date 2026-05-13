@@ -21,8 +21,7 @@ def seed_parse_response(output_dir, response_json)
 end
 
 def run_parse(script_path, output_dir, extra_args: [])
-  env = {}
-  stdout, stderr, status = Open3.capture3(env, 'ruby', PARSE_SCRIPT, script_path, output_dir, *extra_args)
+  stdout, stderr, status = Open3.capture3('ruby', PARSE_SCRIPT, script_path, output_dir, *extra_args)
   parsed_path = File.join(output_dir, 'script_parsed.yaml')
   parsed = File.exist?(parsed_path) ? YAML.safe_load(File.read(parsed_path)) : nil
   { stdout: stdout.strip, stderr: stderr, exit_code: status.exitstatus, parsed: parsed }
@@ -37,19 +36,20 @@ RSpec.describe 'parse_script.rb' do
         FileUtils.mkdir_p(output_dir)
         FileUtils.mkdir_p(File.join(script_dir, '.thelma', 'pending_llm_calls'))
 
-        script_text = "Opening hook line.\nBB #1 — First idea\nFirst idea details.\nEND CTA\nClosing words."
+        # 6-line script: hook, intro text, BB, BB body, end cta, closing
+        script_text = "Opening hook line.\nIntro before BB.\nBB #1 — First idea\nFirst idea details.\nEND CTA\nClosing words."
         path = write_script(script_dir, 'test.txt', script_text)
 
         response = {
           'beats' => [
             { 'id' => 'hook', 'role' => 'hook', 'label' => 'Hook',
-              'text' => 'Opening hook line.', 'parent' => nil, 'children' => [] },
+              'lines' => [1, 1], 'parent' => nil, 'children' => [] },
             { 'id' => 'intro', 'role' => 'section', 'label' => 'Introduction',
-              'text' => '', 'parent' => nil, 'children' => ['bb_1'] },
+              'lines' => [2, 2], 'parent' => nil, 'children' => ['bb_1'] },
             { 'id' => 'bb_1', 'role' => 'blueprint', 'label' => 'BB #1 — First idea',
-              'text' => 'BB #1 — First idea First idea details.', 'parent' => 'intro', 'children' => [] },
+              'lines' => [3, 4], 'parent' => 'intro', 'children' => [] },
             { 'id' => 'end_cta', 'role' => 'cta', 'label' => 'END CTA',
-              'text' => 'END CTA Closing words.', 'parent' => nil, 'children' => [] }
+              'lines' => [5, 6], 'parent' => nil, 'children' => [] }
           ]
         }
         seed_parse_response(output_dir, response)
@@ -62,6 +62,9 @@ RSpec.describe 'parse_script.rb' do
         bb = result[:parsed]['beats'].find { |b| b['id'] == 'bb_1' }
         expect(bb['role']).to eq('blueprint')
         expect(bb['parent']).to eq('intro')
+        expect(bb['text']).to include('First idea')
+        # Lines field should be removed from output
+        expect(bb).not_to have_key('lines')
       end
     end
 
@@ -76,7 +79,7 @@ RSpec.describe 'parse_script.rb' do
         response = {
           'beats' => [
             { 'id' => 'orphan', 'role' => 'section', 'label' => 'Orphan',
-              'text' => 'Some text.', 'parent' => 'nonexistent', 'children' => [] }
+              'lines' => [1, 1], 'parent' => 'nonexistent', 'children' => [] }
           ]
         }
         seed_parse_response(output_dir, response)
@@ -94,15 +97,15 @@ RSpec.describe 'parse_script.rb' do
         FileUtils.mkdir_p(output_dir)
         FileUtils.mkdir_p(File.join(script_dir, '.thelma', 'pending_llm_calls'))
 
-        path = write_script(script_dir, 'test.txt', 'A B C.')
+        path = write_script(script_dir, 'test.txt', "A\nB\nC.")
         response = {
           'beats' => [
             { 'id' => 'root', 'role' => 'section', 'label' => 'Root',
-              'text' => 'A', 'parent' => nil, 'children' => ['mid'] },
+              'lines' => [1, 1], 'parent' => nil, 'children' => ['mid'] },
             { 'id' => 'mid', 'role' => 'section', 'label' => 'Mid',
-              'text' => 'B', 'parent' => 'root', 'children' => ['deep'] },
+              'lines' => [2, 2], 'parent' => 'root', 'children' => ['deep'] },
             { 'id' => 'deep', 'role' => 'blueprint', 'label' => 'Deep',
-              'text' => 'C.', 'parent' => 'mid', 'children' => [] }
+              'lines' => [3, 3], 'parent' => 'mid', 'children' => [] }
           ]
         }
         seed_parse_response(output_dir, response)
@@ -120,14 +123,13 @@ RSpec.describe 'parse_script.rb' do
         FileUtils.mkdir_p(output_dir)
         FileUtils.mkdir_p(File.join(script_dir, '.thelma', 'pending_llm_calls'))
 
-        # Script has 20 words; response only covers ~10 → <95%
+        # 2-line script, but LLM only covers line 1
         path = write_script(script_dir, 'test.txt',
-          'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty')
+          "one two three four five six seven eight nine ten\neleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty")
         response = {
           'beats' => [
             { 'id' => 'partial', 'role' => 'section', 'label' => 'Partial',
-              'text' => 'one two three four five six seven eight nine ten',
-              'parent' => nil, 'children' => [] }
+              'lines' => [1, 1], 'parent' => nil, 'children' => [] }
           ]
         }
         seed_parse_response(output_dir, response)
@@ -150,7 +152,7 @@ RSpec.describe 'parse_script.rb' do
         response = {
           'beats' => [
             { 'id' => 'hook', 'role' => 'hook', 'label' => 'Hook',
-              'text' => 'Hello world.', 'parent' => nil, 'children' => [] }
+              'lines' => [1, 1], 'parent' => nil, 'children' => [] }
           ]
         }
         # Wrap in markdown fences
@@ -174,13 +176,13 @@ RSpec.describe 'parse_script.rb' do
         FileUtils.mkdir_p(output_dir)
         FileUtils.mkdir_p(File.join(script_dir, '.thelma', 'pending_llm_calls'))
 
-        path = write_script(script_dir, 'test.txt', 'A B.')
+        path = write_script(script_dir, 'test.txt', "A\nB.")
         response = {
           'beats' => [
             { 'id' => 'parent', 'role' => 'section', 'label' => 'Parent',
-              'text' => 'A', 'parent' => nil, 'children' => ['ghost'] },
+              'lines' => [1, 1], 'parent' => nil, 'children' => ['ghost'] },
             { 'id' => 'child', 'role' => 'blueprint', 'label' => 'Child',
-              'text' => 'B.', 'parent' => 'parent', 'children' => [] }
+              'lines' => [2, 2], 'parent' => 'parent', 'children' => [] }
           ]
         }
         seed_parse_response(output_dir, response)
@@ -195,7 +197,6 @@ RSpec.describe 'parse_script.rb' do
   describe 'format single backwards compatibility' do
     it 'multi_short format still works with regex parser' do
       Dir.mktmpdir do |dir|
-        # multi_short scripts have #N "title" lines — parsed by regex, no LLM
         script_text = "#1 \"Test Short\"\nHOOK: This is the hook.\nCLOSE: This is the close."
         path = write_script(dir, 'test.txt', script_text)
 

@@ -143,10 +143,25 @@ else
   # --- Single-video / long-form script: LLM tree parser ---
   result['format'] = 'tree'
 
+  # Number non-empty lines for the LLM to reference by line range.
+  # This keeps output tokens minimal — LLM returns line ranges, we reconstruct text.
+  numbered_lines = []
+  line_texts = {}  # 1-indexed line number → original text
+  lines.each_with_index do |line, idx|
+    ln = idx + 1
+    stripped = line.strip
+    if stripped.empty?
+      numbered_lines << "#{ln}:"
+    else
+      numbered_lines << "#{ln}: #{stripped}"
+      line_texts[ln] = stripped
+    end
+  end
+  numbered_script = numbered_lines.join("\n")
+
   prompt = <<~PROMPT
-  You are a video script structure parser. Parse the following creator script
-  into a hierarchical beat tree. Your job is segmentation and labeling only —
-  preserve ALL text verbatim, do not rewrite, summarize, or skip any words.
+  You are a video script structure parser. Parse the following numbered script
+  into a hierarchical beat tree. Your job is segmentation and labeling only.
 
   ## Beat roles (use exactly these strings)
   - hook: opening hook or cold open
@@ -158,19 +173,19 @@ else
   - unknown: anything that doesn't fit above
 
   ## Rules
-  1. Every word of the script MUST appear in exactly one beat's text field.
-     Concatenating all beats' text in order must reproduce the full script
-     (whitespace normalization is OK, but no dropped or added words).
+  1. Reference text by line numbers. Each beat specifies "lines": [start, end]
+     (inclusive). Every non-empty line must appear in exactly one beat.
+     Line ranges must not overlap and must cover all non-empty lines.
   2. IDs must be short stable slugs: hook, bb_1, bb_2, midroll_cta, end_cta, outro, etc.
   3. Parent/children must be bidirectionally consistent.
   4. Top-level beats have parent: null. Nested beats (e.g. blueprints inside
      a section) have parent set to the section's id.
-  5. Keep nesting shallow — max 2 levels (section → blueprint). Do NOT
-     nest deeper.
-  6. Editorial annotations in brackets like [TEXT: ...], [CLIPS: ...],
-     [Show ...], [VISUAL: ...] stay in the text exactly as written.
-  7. If the script has numbered items (BB #1, BB #2, etc.), each becomes
+  5. Keep nesting shallow — max 2 levels (section → blueprint). Do NOT nest deeper.
+  6. If the script has numbered items (BB #1, BB #2, etc.), each becomes
      its own blueprint beat nested under its parent section.
+  7. A section that contains blueprints may have its OWN lines (intro text before
+     the first BB). Set those lines on the section beat. The blueprint lines
+     are separate. Section lines + children lines should NOT overlap.
 
   ## Output
   Return STRICT JSON (no markdown fences, no prose). Schema:
@@ -180,7 +195,7 @@ else
         "id": "hook",
         "role": "hook",
         "label": "Hook",
-        "text": "exact verbatim text...",
+        "lines": [1, 5],
         "parent": null,
         "children": []
       }
@@ -189,8 +204,8 @@ else
 
   CRITICAL: Return ONLY the JSON object. No commentary before or after.
 
-  ## Script
-  #{text}
+  ## Numbered Script
+  #{numbered_script}
   PROMPT
 
   fmt "Prompt: #{prompt.length} chars (~#{(prompt.length / 4.0).ceil} tokens)"
@@ -237,6 +252,19 @@ else
   abort "LLM response missing 'beats' array" unless llm_beats.is_a?(Array)
   abort "LLM returned empty beats array" if llm_beats.empty?
 
+  # --- Reconstruct text from line ranges ---
+  max_line = line_texts.keys.max || 0
+  llm_beats.each do |b|
+    lr = b['lines']
+    if lr.is_a?(Array) && lr.size == 2
+      start_ln, end_ln = lr[0].to_i, lr[1].to_i
+      beat_lines = (start_ln..end_ln).filter_map { |ln| line_texts[ln] }
+      b['text'] = beat_lines.join(' ')
+    else
+      b['text'] ||= ''
+    end
+  end
+
   # --- Validate schema properties ---
   errors = []
   ids = llm_beats.map { |b| b['id'] }
@@ -252,10 +280,18 @@ else
     errors << "Beat '#{b['id']}': missing id" unless b['id']
     errors << "Beat '#{b['id']}': missing role" unless b['role']
     errors << "Beat '#{b['id']}': invalid role '#{b['role']}'" if b['role'] && !valid_roles.include?(b['role'])
-    errors << "Beat '#{b['id']}': missing text" unless b['text']
 
     # Ensure children is an array
     b['children'] ||= []
+
+    # Validate line ranges
+    lr = b['lines']
+    if lr.is_a?(Array) && lr.size == 2
+      errors << "Beat '#{b['id']}': start line #{lr[0]} > end line #{lr[1]}" if lr[0].to_i > lr[1].to_i
+      errors << "Beat '#{b['id']}': line #{lr[1]} exceeds script (#{max_line} lines)" if lr[1].to_i > max_line
+    else
+      errors << "Beat '#{b['id']}': missing or invalid 'lines' array"
+    end
 
     # Parent resolution
     if b['parent'] && !id_set.include?(b['parent'])
@@ -280,60 +316,46 @@ else
     end
   end
 
+  # Line coverage check: every non-empty line must be covered by exactly one beat
+  covered_lines = {}
+  llm_beats.each do |b|
+    lr = b['lines']
+    next unless lr.is_a?(Array) && lr.size == 2
+    (lr[0].to_i..lr[1].to_i).each do |ln|
+      next unless line_texts[ln]  # skip empty lines
+      if covered_lines[ln]
+        errors << "Line #{ln} covered by both '#{covered_lines[ln]}' and '#{b['id']}'"
+      else
+        covered_lines[ln] = b['id']
+      end
+    end
+  end
+
+  uncovered = line_texts.keys.sort - covered_lines.keys.sort
+  if uncovered.any?
+    fmt "WARNING: #{uncovered.size} uncovered lines: #{uncovered.first(10).join(', ')}#{uncovered.size > 10 ? '...' : ''}"
+  end
+
   unless errors.empty?
     abort "Schema validation errors:\n  #{errors.join("\n  ")}"
   end
 
-  # --- Text reconstruction check ---
-  # Walk tree in order: top-level beats in array order, expanding children inline
-  def walk_tree_order(beats)
-    by_id = beats.each_with_object({}) { |b, h| h[b['id']] = b }
-    top_level = beats.select { |b| b['parent'].nil? }
-    ordered_texts = []
-    top_level.each do |b|
-      if b['children'] && !b['children'].empty?
-        # Split parent text at first child boundary — include pre-children text
-        ordered_texts << b['text'] if b['text'] && !b['text'].strip.empty?
-        b['children'].each do |child_id|
-          child = by_id[child_id]
-          ordered_texts << child['text'] if child && child['text']
-        end
-      else
-        ordered_texts << b['text'] if b['text']
-      end
-    end
-    ordered_texts
-  end
-
-  reconstructed_texts = walk_tree_order(llm_beats)
-  reconstructed = reconstructed_texts.join(' ')
-
-  # Normalize for comparison: collapse whitespace, strip non-word chars
-  def normalize_for_compare(s)
-    s.gsub(/\s+/, ' ').strip
-  end
-
-  source_norm = normalize_for_compare(text)
-  recon_norm = normalize_for_compare(reconstructed)
-
-  # Token-level match: count shared words
-  source_tokens = source_norm.split
-  recon_tokens = recon_norm.split
-
-  # Simple overlap metric: what fraction of source tokens appear in reconstruction
-  # Use ordered subsequence matching for accuracy
-  recon_joined = recon_tokens.join(' ')
-  matched = 0
-  source_tokens.each { |t| matched += 1 if recon_joined.include?(t) }
+  # --- Text reconstruction coverage ---
+  source_tokens = text.gsub(/\s+/, ' ').strip.split
+  recon_tokens = llm_beats.sort_by { |b| b['lines']&.first.to_i }.map { |b| b['text'] }.join(' ').gsub(/\s+/, ' ').strip.split
+  recon_set = recon_tokens.join(' ')
+  matched = source_tokens.count { |t| recon_set.include?(t) }
   coverage = source_tokens.empty? ? 1.0 : matched.to_f / source_tokens.size
 
   if coverage < 0.95
     fmt "WARNING: Text reconstruction coverage is #{(coverage * 100).round(1)}% (threshold: 95%)"
     fmt "  Source tokens: #{source_tokens.size}, Matched: #{matched}"
-    # Don't abort — warn and continue, the LLM output may still be usable
   else
     fmt "Text reconstruction: #{(coverage * 100).round(1)}% coverage (#{source_tokens.size} tokens)"
   end
+
+  # Remove 'lines' from output — downstream consumers use 'text'
+  llm_beats.each { |b| b.delete('lines') }
 
   result['beats'] = llm_beats
 
