@@ -13,7 +13,7 @@ RSpec.describe 'load_profile' do
       expect(profile['name']).to eq('_default')
       expect(profile['auto_remove_pauses_above']).to eq(800)
       expect(profile['min_segment_duration']).to eq(2)
-      expect(profile['snap_end_tolerance_ms']).to eq(100)
+      expect(profile['snap_end_tolerance_ms']).to eq(300)
       expect(profile['content_type']).to eq('auto')
     end
 
@@ -29,7 +29,7 @@ RSpec.describe 'load_profile' do
       profile = load_profile_by_name('dylan')
       expect(profile['auto_remove_pauses_above']).to eq(800)
       expect(profile['min_segment_duration']).to eq(2)
-      expect(profile['snap_end_tolerance_ms']).to eq(100)
+      expect(profile['snap_end_tolerance_ms']).to eq(300)
       expect(profile['closing_durability_preference']).to eq('identity')
       expect(profile['include_ctas']).to be true
     end
