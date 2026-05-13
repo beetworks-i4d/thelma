@@ -419,8 +419,8 @@ end
 # Snap a time to the nearest speech boundary within tolerance.
 # boundary_type: :start snaps to segment starts, :end snaps to segment ends.
 # Returns [snapped_time, adjustment] or [original_time, 0.0] if no match.
-SNAP_TOLERANCE = (profile['snap_end_tolerance_ms'] || 100) / 1000.0
-END_BUFFER = 0.100      # 100ms after speech end for breathing room
+SNAP_TOLERANCE = (profile['snap_end_tolerance_ms'] || 300) / 1000.0
+END_BUFFER = 0.200      # 200ms after speech end for breathing room
 
 def snap_to_boundary(time, segments, boundary_type, tolerance = SNAP_TOLERANCE)
   return [time, 0.0] unless segments
@@ -441,7 +441,11 @@ def snap_to_boundary(time, segments, boundary_type, tolerance = SNAP_TOLERANCE)
     snapped = boundary_type == :end ? best + END_BUFFER : best
     [(snapped * 1000).round / 1000.0, (snapped - time).round(3)]
   else
-    [time, 0.0]
+    if boundary_type == :end
+      [((time + END_BUFFER) * 1000).round / 1000.0, END_BUFFER]
+    else
+      [time, 0.0]
+    end
   end
 end
 

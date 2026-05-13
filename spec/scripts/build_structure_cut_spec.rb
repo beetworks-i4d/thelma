@@ -371,7 +371,7 @@ RSpec.describe 'build_structure_cut.rb' do
   end
 
   describe 'snap-to-boundary tolerance' do
-    it 'snaps clip boundaries within 100ms of speech segments' do
+    it 'snaps clip boundaries within 300ms of speech segments' do
       Dir.mktmpdir do |dir|
         speech_data = {
           'speech_segments' => [
@@ -393,11 +393,13 @@ RSpec.describe 'build_structure_cut.rb' do
       end
     end
 
-    it 'does not snap when boundary is beyond 100ms tolerance' do
+    it 'applies END_BUFFER fallback on :end snap-miss' do
       Dir.mktmpdir do |dir|
+        # Segment end at 2.3 — 0.7s from clip end 3.0, beyond 300ms tolerance
+        # Segment start at 1.0 — exact match with clip start, so adj_s = 0
         speech_data = {
           'speech_segments' => [
-            { 'start' => 1.2, 'end' => 2.7 }
+            { 'start' => 1.0, 'end' => 2.3 }
           ],
           'long_pauses' => []
         }
@@ -411,7 +413,84 @@ RSpec.describe 'build_structure_cut.rb' do
         File.write(yaml_path, config.to_yaml)
         _stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
         expect(status.exitstatus).to eq(0)
-        expect(stderr).not_to include('snapped')
+        # Snap-miss on :end applies END_BUFFER (200ms) unconditionally
+        expect(stderr).to include('snapped')
+        expect(stderr).to include('+0.200s')
+      end
+    end
+
+    it 'does not adjust :start on snap-miss' do
+      Dir.mktmpdir do |dir|
+        # Segment start at 1.5 — 0.5s from clip start 1.0, beyond 300ms tolerance
+        # Segment end at 2.95 — 0.05s from clip end 3.0, within tolerance (snap hit)
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.5, 'end' => 2.95 }
+          ],
+          'long_pauses' => []
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 3.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        _stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        # :start snap-miss returns original time (adj_s = 0), :end snaps normally
+        expect(stderr).to match(/snapped start \+0\.000s/)
+      end
+    end
+
+    it 'snaps at 250ms gap — within new 300ms tolerance, beyond old 100ms' do
+      Dir.mktmpdir do |dir|
+        # Segment start at 1.25 — 0.25s from clip start 1.0
+        # Would miss at old 100ms tolerance, hits at new 300ms
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.25, 'end' => 2.75 }
+          ],
+          'long_pauses' => []
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 3.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        _stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        # Start snaps +0.250s to speech segment start
+        expect(stderr).to match(/snapped start \+0\.250s/)
+      end
+    end
+
+    it 'END_BUFFER is 200ms on snap hit' do
+      Dir.mktmpdir do |dir|
+        # Segment end at 2.90 — 0.1s from clip end 3.0, within tolerance
+        # Snap hit: snapped = 2.90 + 0.200 = 3.100, adj = 3.100 - 3.0 = +0.100
+        speech_data = {
+          'speech_segments' => [
+            { 'start' => 1.0, 'end' => 2.90 }
+          ],
+          'long_pauses' => []
+        }
+        sa_path = File.join(dir, 'speech_analysis.json')
+        File.write(sa_path, speech_data.to_json)
+
+        config = base_config(dir)
+        config['speech_analysis'] = sa_path
+        config['clips'] = [{ 'video_start' => 1.0, 'video_end' => 3.0 }]
+        yaml_path = File.join(dir, 'test.yaml')
+        File.write(yaml_path, config.to_yaml)
+        _stdout, stderr, status = Open3.capture3('ruby', BUILD_SCRIPT, yaml_path)
+        expect(status.exitstatus).to eq(0)
+        # end snapped to 2.90 + 0.200 = 3.100, adjustment = +0.100
+        expect(stderr).to match(/end \+0\.100s/)
       end
     end
   end
