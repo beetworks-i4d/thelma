@@ -87,9 +87,17 @@ if script_parsed['format'] == 'multi_short' && script_parsed['shorts']
     $stderr.puts "Short: ##{target_short['number']} — #{target_short['title']}"
   end
 elsif script_parsed['format'] == 'single' && script_parsed['beats']
-  # Single format: short_id selects a section by label match or index
-  beats = script_parsed['beats']
-  $stderr.puts "Script format: single (all beats)"
+  # Single format: --short selects a section by label (case-insensitive partial match) or "all"
+  if short_id.downcase == 'all'
+    beats = script_parsed['beats']
+    $stderr.puts "Script format: single (all #{beats.size} sections)"
+  else
+    target_beat = script_parsed['beats'].find { |b| b['label']&.downcase&.include?(short_id.downcase) }
+    if target_beat
+      beats = [target_beat]
+      $stderr.puts "Script format: single, section: #{target_beat['label']}"
+    end
+  end
 end
 
 abort "No beats found for short '#{short_id}' in script_parsed.yaml" unless beats && !beats.empty?
@@ -210,6 +218,9 @@ Rules:
 - beat_id = role (hook, talking_point, close) with suffix if duplicates (talking_point_2, etc.)
 - If a beat cannot be matched, include it with empty clips array and notes explaining why
 - Prefer a single clip per beat; only stitch if the speaker genuinely split the line across takes
+
+CRITICAL: Return ONLY the JSON object. No commentary, no re-analysis, no second attempts.
+Output the single best arrangement as one JSON object.
 PROMPT
 
 cached_system = tone_context.empty? ? nil : tone_context
@@ -232,11 +243,30 @@ end
 
 # --- Parse JSON response ---
 
-json_text = response.gsub(/\A```json?\s*/, '').gsub(/```\s*\z/, '').strip
+# Extract last complete JSON object from response (LLM may include prose between attempts)
+json_blocks = response.scan(/```json?\s*\n?(.*?)```/m).flatten
+json_text = if json_blocks.any?
+              json_blocks.last.strip
+            else
+              # No fences — try the raw response
+              response.strip
+            end
+
 begin
   result = JSON.parse(json_text)
 rescue JSON::ParserError => e
-  abort "JSON parse error in LLM response: #{e.message}\nRaw response (first 500 chars):\n#{response[0..500]}"
+  # Last resort: find the last { ... } block that parses
+  last_brace = response.rindex('}')
+  first_brace = response.rindex('{', [last_brace - 50_000, 0].max) if last_brace
+  if first_brace && last_brace
+    begin
+      result = JSON.parse(response[first_brace..last_brace])
+    rescue JSON::ParserError
+      abort "JSON parse error in LLM response: #{e.message}\nRaw response (first 500 chars):\n#{response[0..500]}"
+    end
+  else
+    abort "JSON parse error in LLM response: #{e.message}\nRaw response (first 500 chars):\n#{response[0..500]}"
+  end
 end
 
 result_beats = result['beats']
