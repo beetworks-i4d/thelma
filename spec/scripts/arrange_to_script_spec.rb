@@ -330,7 +330,7 @@ RSpec.describe 'arrange_to_script.rb' do
   describe 'single format script' do
     it 'loads beats from single-format script_parsed' do
       Dir.mktmpdir do |dir|
-        beats = [{ 'role' => 'section', 'text' => 'All content in one section.' }]
+        beats = [{ 'role' => 'section', 'label' => 'Intro', 'text' => 'All content in one section.' }]
         lib_dir = make_arrange_library(dir, short_beats: beats, script_format: 'single')
         response = {
           'beats' => [
@@ -339,8 +339,8 @@ RSpec.describe 'arrange_to_script.rb' do
                             'transcript_match' => 'test', 'take_id' => nil, 'notes' => nil }] }
           ]
         }
-        seed_llm_response(lib_dir, 'short_01', response)
-        result = run_arrange(dir)
+        seed_llm_response(lib_dir, 'Intro', response)
+        result = run_arrange(dir, short_id: 'Intro')
 
         expect(result[:exit_code]).to eq(0)
         expect(result[:arrangement]['beats'].size).to eq(1)
