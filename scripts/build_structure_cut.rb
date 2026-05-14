@@ -1565,21 +1565,43 @@ if has_sync
   wav_file_id = "file-wav-production"
   first_clip = true
 
-  # Compute timeline positions
-  timeline_pos = []
-  cumulative = 0.0
-  clips.each do |c|
-    timeline_pos << cumulative
-    cumulative += c[:duration]
-  end
+  # Single source of truth for seconds->frames: replicate fcp7.rb's
+  # frames_for_fraction(seconds_to_fraction(seconds), "1/fps s") exactly so
+  # video, in-camera audio, and WAV clipitems all produce identical integer
+  # frame counts for the same float seconds. Direct (seconds * fps).round
+  # diverges from the rational path on boundary cases (15/303 clips for
+  # Dylan005, accumulating 16 frames of A/V drift over 38 minutes).
+  fcp7_seconds_to_frames = ->(seconds) {
+    return 0 if seconds.nil? || seconds <= 0
+    numerator = (seconds * 10000).round
+    ((numerator * fps).to_f / 10000.0).round
+  }
+
+  # WAV gets a CONSTANT frame shift applied to the video-domain source position.
+  # This decouples the wav vs video gap from per-clip float rounding (which is
+  # what caused the cumulative drift previously).
+  sync_offset_frames = has_sync ? fcp7_seconds_to_frames.call(sync_offset) : 0
+
+  # Cumulative timeline position must sum *rounded* per-clip durations, not
+  # float seconds rounded at the end — otherwise the WAV timeline drifts away
+  # from the video timeline by the same fractional accumulation.
+  wav_cumulative_tl_frames = 0
 
   wav_clip_info.each_with_index do |wi, i|
-    tl_start_frames = (timeline_pos[i] * fps).round
-    tl_duration_frames = (wi[:wav_duration] * fps).round
-    tl_end_frames = tl_start_frames + tl_duration_frames
-    src_in_frames = (wi[:wav_start] * fps).round
-    src_in_frames = 0 if src_in_frames < 0
-    src_out_frames = src_in_frames + tl_duration_frames
+    tl_duration_frames = fcp7_seconds_to_frames.call(wi[:wav_duration])
+    tl_start_frames    = wav_cumulative_tl_frames
+    tl_end_frames      = tl_start_frames + tl_duration_frames
+
+    # Recover the un-shifted buffered_start in video time (= wav_start - sync_offset).
+    # This is the same input the video clipitem uses for its source_in.
+    # Apply the SAME math, then add the constant sync_offset_frames.
+    buffered_start_video = wi[:wav_start] - (has_sync ? sync_offset : 0.0)
+    buffered_start_video = 0.0 if buffered_start_video < 0
+    src_in_frames        = fcp7_seconds_to_frames.call(buffered_start_video) + sync_offset_frames
+    src_in_frames        = 0 if src_in_frames < 0
+    src_out_frames       = src_in_frames + tl_duration_frames
+
+    wav_cumulative_tl_frames += tl_duration_frames
 
     clip_node = Nokogiri::XML::Node.new('clipitem', doc)
     clip_node['id'] = "clipitem-wav-#{i + 1}"
