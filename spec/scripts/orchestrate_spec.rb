@@ -91,6 +91,56 @@ RSpec.describe 'orchestrate.rb' do
       )
       expect(stdout.strip).to eq('A')
     end
+
+    it 'auto-detects Branch A when script_parsed.yaml exists in transcripts_dir (canonical location)' do
+      Dir.mktmpdir do |dir|
+        transcripts_dir = File.join(dir, 'transcripts')
+        FileUtils.mkdir_p(transcripts_dir)
+        File.write(File.join(transcripts_dir, 'script_parsed.yaml'), "format: tree\nbeats: []\n")
+
+        stdout, _, _ = Open3.capture3('ruby', '-e', <<~RUBY)
+          transcripts_dir = '#{transcripts_dir}'
+          library = {}  # legacy field absent
+          branch = nil
+          unless branch
+            script_parsed_at_transcripts = File.join(transcripts_dir, 'script_parsed.yaml')
+            if library['script_parsed'] || File.exist?(script_parsed_at_transcripts)
+              branch = 'A'
+            else
+              branch = 'B'
+            end
+          end
+          puts branch
+        RUBY
+        expect(stdout.strip).to eq('A')
+      end
+    end
+
+    it 'does NOT detect Branch A when script_parsed.yaml is at library_dir/ but missing from transcripts_dir' do
+      # Regression: prior orchestrate.rb auto-detect looked at library_dir, not transcripts_dir.
+      # The file at the wrong location should not trigger Branch A.
+      Dir.mktmpdir do |dir|
+        transcripts_dir = File.join(dir, 'transcripts')
+        FileUtils.mkdir_p(transcripts_dir)
+        File.write(File.join(dir, 'script_parsed.yaml'), 'stale: true')  # wrong location
+
+        stdout, _, _ = Open3.capture3('ruby', '-e', <<~RUBY)
+          transcripts_dir = '#{transcripts_dir}'
+          library = {}
+          branch = nil
+          unless branch
+            script_parsed_at_transcripts = File.join(transcripts_dir, 'script_parsed.yaml')
+            if library['script_parsed'] || File.exist?(script_parsed_at_transcripts)
+              branch = 'A'
+            else
+              branch = 'B'
+            end
+          end
+          puts branch
+        RUBY
+        expect(stdout.strip).to eq('B')
+      end
+    end
   end
 
   describe 'profile loading' do

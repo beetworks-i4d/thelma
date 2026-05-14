@@ -493,9 +493,12 @@ end
 branch = branch_override
 
 unless branch
-  # Auto-detect: Branch A if script_parsed exists, else Branch B
-  script_parsed_path = File.join(library_dir, 'script_parsed.yaml')
-  if library['script_parsed'] || File.exist?(script_parsed_path)
+  # Auto-detect: Branch A if script_parsed.yaml exists in transcripts_dir
+  # (canonical location — parse_script.rb writes it there and
+  # arrange_to_script.rb reads it from there). Fall back to library['script_parsed']
+  # for legacy library.yaml entries.
+  script_parsed_at_transcripts = File.join(transcripts_dir, 'script_parsed.yaml')
+  if library['script_parsed'] || File.exist?(script_parsed_at_transcripts)
     branch = 'A'
   else
     branch = 'B'
