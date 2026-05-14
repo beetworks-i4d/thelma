@@ -578,6 +578,20 @@ total_removed_ms = 0
 v1_timeline_duration = 0.0
 # Tier 0: collect narrative role marker data during clip processing
 tier0_role_markers = []
+# State for source-window overlap clamp. Phrase-snap extends clip[N].end_time
+# forward (END_BUFFER + snap-forward tolerance) without pulling clip[N+1].start
+# forward, so adjacent same-source clips end up sharing 0.3-0.5s of source audio
+# even when the timeline butt-joins cleanly. The clamp resolves that.
+prev_clamp_end     = nil
+prev_clamp_source  = nil
+prev_clamp_track   = nil
+prev_clamp_chapter = nil
+prev_clamp_beat_id = nil
+# Containment cases: clip N+1's source window is fully inside clip N's. Clamping
+# would zero-out the clip — instead we leave the overlap intact and surface it.
+overlap_clamp_count   = 0
+overlap_clamp_total_s = 0.0
+containment_overlaps  = []  # [{ chapter, beat_id, clip_idx, overlap_s, prev_chapter, prev_beat_id }]
 
 # === Per-clip time domain detection ===
 # Field names are self-describing:
@@ -651,6 +665,64 @@ config['clips'].each_with_index do |c, idx|
       $stderr.puts "Clip #{idx + 1}: snapped start #{'%+.3f' % adj_s}s, end #{'%+.3f' % adj_e}s"
     end
   end
+
+  # === Overlap clamp ===
+  # Two buffer mechanisms can each create source-window overlap between
+  # consecutive same-source clips even when the timeline butt-joins cleanly:
+  #
+  #   (1) Phrase-snap extends end_time forward by SNAP_TOLERANCE + END_BUFFER
+  #       without pulling the next clip's start_time forward.
+  #   (2) Breathing-room buffer (line 196: buffer = breathing_room_frames / fps)
+  #       is applied SYMMETRICALLY when each clipitem is emitted — the clip
+  #       renders [start_time - buffer, end_time + buffer]. So even with snap
+  #       fully resolved, every adjacent pair overlaps by 2*buffer at render time.
+  #
+  # Clamp must require a 2*buffer gap so the buffered renderings butt-join
+  # exactly: next.start - buffer >= prev.end + buffer  <=>  next.start >= prev.end + 2*buffer.
+  #
+  # Full-containment case (the clamped start would land past this clip's end):
+  # do NOT zero-clamp or drop. That would silently delete an LLM-arranged beat.
+  # Leave the clip unchanged and log loud — visible duplicated phrase in QA
+  # (fixable by re-arranging the specific beat), not a silently missing beat.
+  required_gap         = 2.0 * buffer
+  clip_track_for_clamp = (c['track'] || 'V1').to_s.upcase.sub(/^V/, '').to_i
+  clip_track_for_clamp = 1 if clip_track_for_clamp < 1
+  clamp_target         = prev_clamp_end && (prev_clamp_end + required_gap)
+  if prev_clamp_end && prev_clamp_source == clip_source_path \
+       && prev_clamp_track == 1 && clip_track_for_clamp == 1 \
+       && start_time < clamp_target
+    overlap_s  = clamp_target - start_time
+    chapter_id = c['chapter_id'] || '?'
+    beat_id    = c['beat_id']    || '?'
+    if clamp_target >= end_time
+      $stderr.puts "Clip #{idx + 1}: OVERLAP-CONTAINMENT (chapter=#{chapter_id} beat=#{beat_id}) " \
+                   "clip span [#{'%.3f' % start_time}-#{'%.3f' % end_time}] (#{'%.3f' % (end_time - start_time)}s) " \
+                   "would be consumed by buffered clamp (target #{'%.3f' % clamp_target}). LEAVING INTACT — needs re-arrange."
+      containment_overlaps << {
+        clip_idx:    idx + 1,
+        chapter:     chapter_id,
+        beat_id:     beat_id,
+        overlap_s:   overlap_s,
+        clip_span:   [start_time, end_time],
+        prev_end:    prev_clamp_end,
+        prev_chapter: prev_clamp_chapter,
+        prev_beat_id: prev_clamp_beat_id
+      }
+      # Do NOT touch start_time/end_time. Do NOT update prev_clamp_end here —
+      # the previous clip's end is still the binding constraint for clip N+2.
+    else
+      $stderr.puts "Clip #{idx + 1}: OVERLAP-CLAMP (chapter=#{chapter_id} beat=#{beat_id}) " \
+                   "start #{'%.3f' % start_time} -> #{'%.3f' % clamp_target} (#{'%.3f' % overlap_s}s dropped; required_gap=#{'%.3f' % required_gap}s)"
+      start_time = clamp_target
+      overlap_clamp_count   += 1
+      overlap_clamp_total_s += overlap_s
+    end
+  end
+  prev_clamp_end     = end_time
+  prev_clamp_source  = clip_source_path
+  prev_clamp_track   = clip_track_for_clamp
+  prev_clamp_chapter = c['chapter_id']
+  prev_clamp_beat_id = c['beat_id']
 
   # === Trim in-point restart false-starts ===
   # Use per-source transcript when available (multi-source), fall back to global
@@ -1616,4 +1688,31 @@ $stderr.puts summary
 if has_sync
   $stderr.puts "Sync audio: #{File.basename(sync_path)} (offset: #{sync_offset}s)"
   $stderr.puts "Track 1: scratch audio (mute) | Track 2: production audio"
+end
+
+# === Overlap clamp summary ===
+if overlap_clamp_count > 0
+  $stderr.puts ""
+  $stderr.puts "OVERLAP-CLAMP summary: #{overlap_clamp_count} clip(s) clamped, " \
+               "#{'%.3f' % overlap_clamp_total_s}s of source-window overlap removed " \
+               "(phrase-snap END_BUFFER artifact)."
+end
+if containment_overlaps.any?
+  $stderr.puts ""
+  $stderr.puts "=" * 60
+  $stderr.puts "BEATS WITH GENUINE OVERLAP REQUIRING RE-ARRANGE"
+  $stderr.puts "=" * 60
+  $stderr.puts "These clips have source windows fully inside the previous clip's"
+  $stderr.puts "source window. The clamp left them intact (dropping would silently"
+  $stderr.puts "delete an LLM-arranged beat). The doubled audio is audible in QA."
+  $stderr.puts "Re-arrange the listed beats with a corrected prompt to fix."
+  $stderr.puts ""
+  containment_overlaps.each do |co|
+    $stderr.puts "  clip ##{co[:clip_idx]} chapter=#{co[:chapter]} beat=#{co[:beat_id]}: " \
+                 "span [#{'%.3f' % co[:clip_span][0]}-#{'%.3f' % co[:clip_span][1]}] " \
+                 "fully inside prev (ends #{'%.3f' % co[:prev_end]}, " \
+                 "chapter=#{co[:prev_chapter] || '?'} beat=#{co[:prev_beat_id] || '?'}) " \
+                 "— overlap #{'%.3f' % co[:overlap_s]}s"
+  end
+  $stderr.puts "=" * 60
 end

@@ -109,7 +109,7 @@ RSpec.describe ArrangementAdapter do
       expect(result['chapters'].map { |c| c['id'] }).to eq(['bb_1'])
     end
 
-    it 'drops beats-side metadata (type, script_text, transcript_match, take_id, notes)' do
+    it 'drops beats-side metadata (type, script_text, transcript_match, take_id, notes); preserves beat_id passthrough' do
       arr = {
         'short_id' => 'bb_1',
         'beats' => [
@@ -122,7 +122,21 @@ RSpec.describe ArrangementAdapter do
       chapter = result['chapters'][0]
       clip    = chapter['clips'][0]
       expect(chapter.keys).to contain_exactly('id', 'label', 'clips')
-      expect(clip.keys).to contain_exactly('source', 't_in', 't_out')
+      # beat_id is carried through for diagnostic logs (overlap-clamp / overlap-containment)
+      # but export ignores it. type/script_text/transcript_match/take_id/notes are dropped.
+      expect(clip.keys).to contain_exactly('source', 't_in', 't_out', 'beat_id')
+      expect(clip['beat_id']).to eq('hook')
+    end
+
+    it 'omits beat_id from output when the inner beat has none' do
+      arr = {
+        'short_id' => 'bb_1',
+        'beats' => [
+          { 'clips' => [{ 'source' => 'v.mp4', 't_in' => 0.0, 't_out' => 1.0 }] }
+        ]
+      }
+      result = ArrangementAdapter.beats_to_chapters(arr, script_parsed)
+      expect(result['chapters'][0]['clips'][0]).not_to have_key('beat_id')
     end
 
     it 'leaves clip track/trim_in/mid_cuts/narrative_role unset' do

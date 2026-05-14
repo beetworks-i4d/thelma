@@ -181,6 +181,11 @@ arrangement['chapters'].each do |chapter|
     # Pass through narrative role for clip color coding
     clip_entry['narrative_role'] = clip['narrative_role'] if clip['narrative_role']
 
+    # Pass through chapter/beat identity for diagnostic logs in build_structure_cut
+    # (overlap clamp / overlap containment messages name the source beat).
+    clip_entry['chapter_id'] = chapter['id'] if chapter['id']
+    clip_entry['beat_id']    = clip['beat_id'] if clip['beat_id']
+
     if track == 'V1'
       v1_clips << clip_entry
     else

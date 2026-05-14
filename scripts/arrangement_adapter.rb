@@ -41,18 +41,23 @@ module ArrangementAdapter
     label = short_id if label.to_s.empty?
 
     clips = (arrangement['beats'] || []).flat_map do |b|
-      (b['clips'] || []).map { |c| clip_to_chapter_clip(c) }
+      (b['clips'] || []).map { |c| clip_to_chapter_clip(c, b['beat_id']) }
     end
 
     { 'id' => short_id, 'label' => label, 'clips' => clips }
   end
 
-  def clip_to_chapter_clip(clip)
-    {
+  # Passthrough fields: t_in/t_out/source for export, beat_id for diagnostic
+  # logs only (overlap-clamp / overlap-containment messages name the source
+  # beat). Export ignores beat_id; it's not part of the export contract.
+  def clip_to_chapter_clip(clip, beat_id)
+    out = {
       'source' => clip['source'],
       't_in'   => clip['t_in'].to_f,
       't_out'  => clip['t_out'].to_f
     }
+    out['beat_id'] = beat_id if beat_id
+    out
   end
 
   def convert_file!(arrangement_path, script_parsed_path, output_path)
