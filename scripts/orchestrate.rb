@@ -20,6 +20,7 @@ require_relative 'load_profile'
 require_relative 'llm_client'
 require_relative 'pool_index'
 require_relative 'library_resolver'
+require_relative 'arrangement_adapter'
 
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
@@ -711,7 +712,17 @@ if branch == 'A'
     $stderr.puts "\n--- [#{i + 1}/#{beat_ids.size}] Beat: #{beat_id} ---"
 
     arrangement_path = File.join(library_dir, "arrangement_#{beat_id}.yaml")
-    xml_name = "#{library_name}_#{beat_id}"
+
+    # Naming: whole-script (no filter, beat_id == 'all') gets library-named outputs;
+    # per-beat runs get beat-named outputs.
+    is_whole_script = filter_expr.nil? && beat_id == 'all'
+    if is_whole_script
+      chapters_path = File.join(library_dir, "#{library_name}_chapters.yaml")
+      xml_name      = library_name
+    else
+      chapters_path = File.join(library_dir, "#{beat_id}_chapters.yaml")
+      xml_name      = "#{library_name}_#{beat_id}"
+    end
     xml_path = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
 
     # ── Arrange
@@ -731,6 +742,23 @@ if branch == 'A'
       end
     end
 
+    # ── Adapter (beats schema -> chapters schema)
+    adapter_current = file_cached?(chapters_path) &&
+                      File.exist?(arrangement_path) &&
+                      File.mtime(chapters_path) >= File.mtime(arrangement_path)
+    if adapter_current && !force
+      skip "arrangement_adapter (#{beat_id})", "chapters yaml newer than arrangement"
+    else
+      step "arrangement_adapter (#{beat_id})"
+      begin
+        ArrangementAdapter.convert_file!(arrangement_path, script_parsed_path, chapters_path)
+      rescue => e
+        $stderr.puts "  FAILED: arrangement_adapter for '#{beat_id}': #{e.message}"
+        failed_beats << beat_id
+        next
+      end
+    end
+
     # ── Export
     if file_cached?(xml_path) && !force
       skip "export_arrangement_xml (#{beat_id})", "#{xml_name}.xml exists"
@@ -740,7 +768,7 @@ if branch == 'A'
 
     step "export_arrangement_xml (#{beat_id})"
     exp_flags = ['--library', library_name,
-                 '--arrangement', arrangement_path,
+                 '--arrangement', chapters_path,
                  '--output-name', xml_name]
     exp_flags += ['--profile', profile_name] if profile_name
     _, ok, code = try_run_script('export_arrangement_xml.rb', *exp_flags)

@@ -892,6 +892,76 @@ RSpec.describe 'orchestrate.rb' do
       expect(status.exitstatus).to eq(1)
       expect(stderr).not_to include('Unknown argument')
     end
+
+    it 'whole-script run (no filter, beat_id=all) names chapters as <library>_chapters.yaml and XML as <library>.xml' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        library_name = 'mylib'
+        library_dir  = '/tmp/lib'
+        video_path   = '/tmp/lib/v.mp4'
+        filter_expr  = nil
+        beat_id      = 'all'
+        is_whole_script = filter_expr.nil? && beat_id == 'all'
+        if is_whole_script
+          chapters_path = File.join(library_dir, "#{library_name}_chapters.yaml")
+          xml_name      = library_name
+        else
+          chapters_path = File.join(library_dir, "#{beat_id}_chapters.yaml")
+          xml_name      = "#{library_name}_#{beat_id}"
+        end
+        xml_path = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
+        puts chapters_path
+        puts xml_path
+      RUBY
+      lines = stdout.strip.split("\n")
+      expect(lines[0]).to eq('/tmp/lib/mylib_chapters.yaml')
+      expect(lines[1]).to eq('/tmp/lib/output/mylib.xml')
+    end
+
+    it 'per-beat run names chapters as <beat_id>_chapters.yaml and XML as <library>_<beat_id>.xml' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        library_name = 'mylib'
+        library_dir  = '/tmp/lib'
+        video_path   = '/tmp/lib/v.mp4'
+        filter_expr  = 'id=bb_3'
+        beat_id      = 'bb_3'
+        is_whole_script = filter_expr.nil? && beat_id == 'all'
+        if is_whole_script
+          chapters_path = File.join(library_dir, "#{library_name}_chapters.yaml")
+          xml_name      = library_name
+        else
+          chapters_path = File.join(library_dir, "#{beat_id}_chapters.yaml")
+          xml_name      = "#{library_name}_#{beat_id}"
+        end
+        xml_path = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
+        puts chapters_path
+        puts xml_path
+      RUBY
+      lines = stdout.strip.split("\n")
+      expect(lines[0]).to eq('/tmp/lib/bb_3_chapters.yaml')
+      expect(lines[1]).to eq('/tmp/lib/output/mylib_bb_3.xml')
+    end
+
+    it 'lean Branch A block invokes ArrangementAdapter between arrange and export' do
+      source = File.read(ORCHESTRATE_SCRIPT)
+      lean_block = source[/# BRANCH A: LEAN SCRIPT-DRIVEN FLOW.*?BRANCH A LEAN PIPELINE COMPLETE/m]
+      expect(lean_block).not_to be_nil
+      expect(lean_block).to include('ArrangementAdapter')
+      # Anchor on actual invocations, not the comment-block mention of script names.
+      arrange_pos = lean_block.index("try_run_script('arrange_to_script.rb'")
+      adapter_pos = lean_block.index('ArrangementAdapter.convert_file!')
+      export_pos  = lean_block.index("try_run_script('export_arrangement_xml.rb'")
+      expect(arrange_pos).not_to be_nil
+      expect(adapter_pos).not_to be_nil
+      expect(export_pos).not_to be_nil
+      expect(arrange_pos).to be < adapter_pos
+      expect(adapter_pos).to be < export_pos
+    end
+
+    it 'export is pointed at the chapters yaml, not the beats arrangement yaml' do
+      source = File.read(ORCHESTRATE_SCRIPT)
+      lean_block = source[/# BRANCH A: LEAN SCRIPT-DRIVEN FLOW.*?BRANCH A LEAN PIPELINE COMPLETE/m]
+      expect(lean_block).to include("'--arrangement', chapters_path")
+    end
   end
 
   describe 'report schema from generate_report' do
