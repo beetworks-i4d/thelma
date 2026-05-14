@@ -694,102 +694,158 @@ if branch == 'A'
   script_parsed = YAML.safe_load(File.read(script_parsed_path), permitted_classes: [Date])
   all_beats = script_parsed['beats'] || []
 
+  # Whole-script run: loop over every top-level script tree node (parent == nil).
+  # Each is a bb_3-sized arrange call, then the adapter combines them into one
+  # multi-chapter YAML for a single export. This avoids the 16K max_tokens cliff
+  # of a single whole-transcript call and degrades gracefully on per-beat failure.
+  is_whole_script_mode = filter_expr.nil?
   beat_ids = if filter_expr
     filter_key, filter_value = parse_filter_expr(filter_expr)
     matched = select_beats_for_filter(all_beats, filter_key, filter_value)
     abort "No beats matched filter '#{filter_expr}'" if matched.empty?
     matched.map { |b| b['id'] }
   else
-    ['all']  # arrange_to_script handles 'all' as the whole-tree case
+    top_level = all_beats.select { |b| b['parent'].nil? }
+    abort "Whole-script run: script_parsed.yaml has no top-level beats (parent==nil)" if top_level.empty?
+    top_level.map { |b| b['id'] }
   end
-  $stderr.puts "Filter: #{filter_expr || '(none — whole tree)'} -> #{beat_ids.size} beat(s): #{beat_ids.join(', ')}"
+  mode_label = is_whole_script_mode ? '(whole-script — top-level nodes)' : "(#{filter_expr})"
+  $stderr.puts "Filter: #{mode_label} -> #{beat_ids.size} beat(s): #{beat_ids.join(', ')}"
 
-  phase 'A — Arrange + Export'
-  failed_beats = []
-  succeeded_beats = []
+  # ── Phase A.1: Arrange per beat (uniform for whole-script and filter modes)
+  phase 'A — Arrange (per beat)'
+  arrange_failed = []
+  arrange_succeeded_paths = []  # in beat_ids order, only the successful ones
 
   beat_ids.each_with_index do |beat_id, i|
-    $stderr.puts "\n--- [#{i + 1}/#{beat_ids.size}] Beat: #{beat_id} ---"
-
+    $stderr.puts "\n--- [#{i + 1}/#{beat_ids.size}] Arrange: #{beat_id} ---"
     arrangement_path = File.join(library_dir, "arrangement_#{beat_id}.yaml")
 
-    # Naming: whole-script (no filter, beat_id == 'all') gets library-named outputs;
-    # per-beat runs get beat-named outputs.
-    is_whole_script = filter_expr.nil? && beat_id == 'all'
-    if is_whole_script
-      chapters_path = File.join(library_dir, "#{library_name}_chapters.yaml")
-      xml_name      = library_name
-    else
-      chapters_path = File.join(library_dir, "#{beat_id}_chapters.yaml")
-      xml_name      = "#{library_name}_#{beat_id}"
-    end
-    xml_path = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
-
-    # ── Arrange
     if file_cached?(arrangement_path) && !force
       skip "arrange_to_script (#{beat_id})", "arrangement_#{beat_id}.yaml exists"
-    else
-      step "arrange_to_script (#{beat_id})"
-      ats_flags = ['--library', library_name, '--short', beat_id]
-      ats_flags += ['--profile', profile_name] if profile_name
-      ats_flags += ['--llm-mode', llm_mode] if llm_mode
-      ats_flags << '--no-review' if no_review
-      _, ok, code = try_run_script('arrange_to_script.rb', *ats_flags)
-      unless ok
-        $stderr.puts "  FAILED: arrange_to_script for '#{beat_id}' (exit #{code})"
-        failed_beats << beat_id
-        next
-      end
-    end
-
-    # ── Adapter (beats schema -> chapters schema)
-    adapter_current = file_cached?(chapters_path) &&
-                      File.exist?(arrangement_path) &&
-                      File.mtime(chapters_path) >= File.mtime(arrangement_path)
-    if adapter_current && !force
-      skip "arrangement_adapter (#{beat_id})", "chapters yaml newer than arrangement"
-    else
-      step "arrangement_adapter (#{beat_id})"
-      begin
-        ArrangementAdapter.convert_file!(arrangement_path, script_parsed_path, chapters_path)
-      rescue => e
-        $stderr.puts "  FAILED: arrangement_adapter for '#{beat_id}': #{e.message}"
-        failed_beats << beat_id
-        next
-      end
-    end
-
-    # ── Export
-    if file_cached?(xml_path) && !force
-      skip "export_arrangement_xml (#{beat_id})", "#{xml_name}.xml exists"
-      succeeded_beats << beat_id
+      arrange_succeeded_paths << arrangement_path
       next
     end
 
-    step "export_arrangement_xml (#{beat_id})"
-    exp_flags = ['--library', library_name,
-                 '--arrangement', chapters_path,
-                 '--output-name', xml_name]
-    exp_flags += ['--profile', profile_name] if profile_name
-    _, ok, code = try_run_script('export_arrangement_xml.rb', *exp_flags)
-    unless ok
-      $stderr.puts "  FAILED: export_arrangement_xml for '#{beat_id}' (exit #{code})"
-      failed_beats << beat_id
-      next
+    step "arrange_to_script (#{beat_id})"
+    ats_flags = ['--library', library_name, '--short', beat_id]
+    ats_flags += ['--profile', profile_name] if profile_name
+    ats_flags += ['--llm-mode', llm_mode] if llm_mode
+    ats_flags << '--no-review' if no_review
+    _, ok, code = try_run_script('arrange_to_script.rb', *ats_flags)
+    if ok && File.exist?(arrangement_path)
+      arrange_succeeded_paths << arrangement_path
+    else
+      $stderr.puts "  FAILED: arrange_to_script for '#{beat_id}' (exit #{code})"
+      arrange_failed << beat_id
     end
-    succeeded_beats << beat_id
+  end
+
+  # ── Phase A.2: Adapt + Export
+  # Whole-script: one combined chapters yaml -> one XML.
+  # Per-beat: per-arrangement chapters yaml -> per-arrangement XML (existing).
+  phase 'A — Adapt + Export'
+  export_failed = []
+  exported_xml_names = []
+
+  if is_whole_script_mode
+    if arrange_succeeded_paths.empty?
+      $stderr.puts "  All beats failed arrangement — nothing to export."
+    else
+      chapters_path = File.join(library_dir, "#{library_name}_chapters.yaml")
+      xml_name      = library_name
+      xml_path      = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
+
+      # Adapter cache: chapters newer than every input arrangement?
+      sources_max_mtime = arrange_succeeded_paths.map { |p| File.mtime(p) }.max
+      adapter_current   = file_cached?(chapters_path) && File.mtime(chapters_path) >= sources_max_mtime
+      if adapter_current && !force
+        skip 'arrangement_adapter (whole-script combine)', 'chapters yaml newer than all arrangements'
+      else
+        step "arrangement_adapter (combine #{arrange_succeeded_paths.size} arrangements)"
+        begin
+          ArrangementAdapter.convert_files!(arrange_succeeded_paths, script_parsed_path, chapters_path)
+        rescue => e
+          $stderr.puts "  FAILED: arrangement_adapter combine: #{e.message}"
+          export_failed << '(combined)'
+        end
+      end
+
+      if !export_failed.include?('(combined)')
+        if file_cached?(xml_path) && !force
+          skip "export_arrangement_xml (#{xml_name})", "#{xml_name}.xml exists"
+          exported_xml_names << xml_name
+        else
+          step "export_arrangement_xml (#{xml_name})"
+          exp_flags = ['--library', library_name,
+                       '--arrangement', chapters_path,
+                       '--output-name', xml_name]
+          exp_flags += ['--profile', profile_name] if profile_name
+          _, ok, code = try_run_script('export_arrangement_xml.rb', *exp_flags)
+          if ok
+            exported_xml_names << xml_name
+          else
+            $stderr.puts "  FAILED: export_arrangement_xml for '#{xml_name}' (exit #{code})"
+            export_failed << xml_name
+          end
+        end
+      end
+    end
+  else
+    # Per-beat mode: one chapters + one XML per arrangement.
+    arrange_succeeded_paths.each do |arrangement_path|
+      beat_id       = File.basename(arrangement_path, '.yaml').sub(/^arrangement_/, '')
+      chapters_path = File.join(library_dir, "#{beat_id}_chapters.yaml")
+      xml_name      = "#{library_name}_#{beat_id}"
+      xml_path      = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
+
+      adapter_current = file_cached?(chapters_path) && File.mtime(chapters_path) >= File.mtime(arrangement_path)
+      if adapter_current && !force
+        skip "arrangement_adapter (#{beat_id})", 'chapters yaml newer than arrangement'
+      else
+        step "arrangement_adapter (#{beat_id})"
+        begin
+          ArrangementAdapter.convert_file!(arrangement_path, script_parsed_path, chapters_path)
+        rescue => e
+          $stderr.puts "  FAILED: arrangement_adapter for '#{beat_id}': #{e.message}"
+          export_failed << beat_id
+          next
+        end
+      end
+
+      if file_cached?(xml_path) && !force
+        skip "export_arrangement_xml (#{beat_id})", "#{xml_name}.xml exists"
+        exported_xml_names << xml_name
+        next
+      end
+
+      step "export_arrangement_xml (#{beat_id})"
+      exp_flags = ['--library', library_name,
+                   '--arrangement', chapters_path,
+                   '--output-name', xml_name]
+      exp_flags += ['--profile', profile_name] if profile_name
+      _, ok, code = try_run_script('export_arrangement_xml.rb', *exp_flags)
+      if ok
+        exported_xml_names << xml_name
+      else
+        $stderr.puts "  FAILED: export_arrangement_xml for '#{beat_id}' (exit #{code})"
+        export_failed << beat_id
+      end
+    end
   end
 
   $stderr.puts "\n#{'=' * 60}"
-  $stderr.puts "BRANCH A LEAN PIPELINE COMPLETE"
-  $stderr.puts "  Succeeded: #{succeeded_beats.size}/#{beat_ids.size} (#{succeeded_beats.join(', ')})"
-  if failed_beats.any?
-    $stderr.puts "  Failed:    #{failed_beats.size} (#{failed_beats.join(', ')})"
-    $stderr.puts '=' * 60
-    exit 1
+  $stderr.puts 'BRANCH A LEAN PIPELINE COMPLETE'
+  $stderr.puts "  Arranged: #{arrange_succeeded_paths.size}/#{beat_ids.size}"
+  $stderr.puts "  Exported: #{exported_xml_names.size} XML(s): #{exported_xml_names.join(', ')}" unless exported_xml_names.empty?
+  if arrange_failed.any?
+    $stderr.puts "  Arrange failed: #{arrange_failed.size} (#{arrange_failed.join(', ')})"
+  end
+  if export_failed.any?
+    $stderr.puts "  Export failed: #{export_failed.size} (#{export_failed.join(', ')})"
   end
   $stderr.puts '=' * 60
-  exit 0
+  exit((arrange_failed.any? || export_failed.any?) ? 1 : 0)
 end
 
 # ============================================================

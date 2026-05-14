@@ -72,4 +72,20 @@ module ArrangementAdapter
     File.write(output_path, chapters_data.to_yaml)
     output_path
   end
+
+  # Combine N per-beat arrangements (in the given order) into one chapters
+  # schema. Used by the whole-script run: loop per top-level node produces N
+  # arrangement YAMLs; this folds them into one multi-chapter YAML for export.
+  def combined_beats_to_chapters(arrangements, script_parsed)
+    combined = { 'beats' => arrangements.flat_map { |a| a['beats'] || [] } }
+    beats_to_chapters(combined, script_parsed)
+  end
+
+  def convert_files!(arrangement_paths, script_parsed_path, output_path)
+    script_parsed = YAML.safe_load(File.read(script_parsed_path), permitted_classes: [Date])
+    arrangements  = arrangement_paths.map { |p| YAML.safe_load(File.read(p), permitted_classes: [Date]) }
+    chapters_data = combined_beats_to_chapters(arrangements, script_parsed)
+    File.write(output_path, chapters_data.to_yaml)
+    output_path
+  end
 end

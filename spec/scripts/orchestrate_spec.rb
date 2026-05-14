@@ -704,8 +704,9 @@ RSpec.describe 'orchestrate.rb' do
       expect(lean_pos).not_to be_nil, 'Lean Branch A block not found'
       expect(phase0_pos).not_to be_nil, 'Phase 0 anchor not found'
       expect(lean_pos).to be < phase0_pos
+      # Block must terminate the process so Phase 0 below is unreachable when branch==A.
       lean_to_phase0 = source[lean_pos...phase0_pos]
-      expect(lean_to_phase0).to include('exit 0')
+      expect(lean_to_phase0).to match(/\bexit\(/)
     end
 
     it '--filter role=X selects all beats with matching role' do
@@ -750,17 +751,24 @@ RSpec.describe 'orchestrate.rb' do
       expect(stdout.strip).to eq('role=blueprint')
     end
 
-    it "no --filter yields the whole-tree single-cut list ['all']" do
+    it 'no --filter enumerates all top-level script tree nodes (parent==nil)' do
       stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
         filter_expr = nil
+        all_beats = [
+          { 'id' => 'hook',  'parent' => nil },
+          { 'id' => 'intro', 'parent' => nil },
+          { 'id' => 'bb_1',  'parent' => 'intro' },
+          { 'id' => 'bb_2',  'parent' => 'intro' },
+          { 'id' => 'cta',   'parent' => nil }
+        ]
         beat_ids = if filter_expr
           ['placeholder']
         else
-          ['all']
+          all_beats.select { |b| b['parent'].nil? }.map { |b| b['id'] }
         end
-        puts beat_ids.inspect
+        puts beat_ids.join(',')
       RUBY
-      expect(stdout.strip).to eq('["all"]')
+      expect(stdout.strip).to eq('hook,intro,cta')
     end
 
     it '--filter id=X selects single beat by id' do
@@ -893,22 +901,17 @@ RSpec.describe 'orchestrate.rb' do
       expect(stderr).not_to include('Unknown argument')
     end
 
-    it 'whole-script run (no filter, beat_id=all) names chapters as <library>_chapters.yaml and XML as <library>.xml' do
+    it 'whole-script mode combines per-beat arrangements into <library>_chapters.yaml and one <library>.xml' do
       stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
         library_name = 'mylib'
         library_dir  = '/tmp/lib'
         video_path   = '/tmp/lib/v.mp4'
-        filter_expr  = nil
-        beat_id      = 'all'
-        is_whole_script = filter_expr.nil? && beat_id == 'all'
-        if is_whole_script
+        is_whole_script_mode = true
+        if is_whole_script_mode
           chapters_path = File.join(library_dir, "#{library_name}_chapters.yaml")
           xml_name      = library_name
-        else
-          chapters_path = File.join(library_dir, "#{beat_id}_chapters.yaml")
-          xml_name      = "#{library_name}_#{beat_id}"
+          xml_path      = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
         end
-        xml_path = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
         puts chapters_path
         puts xml_path
       RUBY
@@ -917,22 +920,17 @@ RSpec.describe 'orchestrate.rb' do
       expect(lines[1]).to eq('/tmp/lib/output/mylib.xml')
     end
 
-    it 'per-beat run names chapters as <beat_id>_chapters.yaml and XML as <library>_<beat_id>.xml' do
+    it 'per-beat mode names chapters as <beat_id>_chapters.yaml and XML as <library>_<beat_id>.xml' do
       stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
         library_name = 'mylib'
         library_dir  = '/tmp/lib'
         video_path   = '/tmp/lib/v.mp4'
-        filter_expr  = 'id=bb_3'
-        beat_id      = 'bb_3'
-        is_whole_script = filter_expr.nil? && beat_id == 'all'
-        if is_whole_script
-          chapters_path = File.join(library_dir, "#{library_name}_chapters.yaml")
-          xml_name      = library_name
-        else
-          chapters_path = File.join(library_dir, "#{beat_id}_chapters.yaml")
-          xml_name      = "#{library_name}_#{beat_id}"
-        end
-        xml_path = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
+        arrangement_path = File.join(library_dir, 'arrangement_bb_3.yaml')
+
+        beat_id       = File.basename(arrangement_path, '.yaml').sub(/^arrangement_/, '')
+        chapters_path = File.join(library_dir, "#{beat_id}_chapters.yaml")
+        xml_name      = "#{library_name}_#{beat_id}"
+        xml_path      = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
         puts chapters_path
         puts xml_path
       RUBY
@@ -941,17 +939,55 @@ RSpec.describe 'orchestrate.rb' do
       expect(lines[1]).to eq('/tmp/lib/output/mylib_bb_3.xml')
     end
 
+    it 'whole-script mode tolerates per-beat arrangement failures and exports the rest' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        def try_run_script(_script, *args)
+          # bb_2 fails; everything else succeeds
+          ok = !args.include?('bb_2')
+          ['', ok, ok ? 0 : 1]
+        end
+        beat_ids = ['hook', 'bb_1', 'bb_2', 'bb_3', 'cta']
+        arrange_failed = []
+        arrange_succeeded_paths = []
+        beat_ids.each do |id|
+          _, ok, _ = try_run_script('arrange_to_script.rb', '--short', id)
+          if ok
+            arrange_succeeded_paths << "/tmp/lib/arrangement_#{id}.yaml"
+          else
+            arrange_failed << id
+          end
+        end
+        puts "succeeded=#{arrange_succeeded_paths.size}"
+        puts "failed=#{arrange_failed.join(',')}"
+      RUBY
+      expect(stdout).to include('succeeded=4')
+      expect(stdout).to include('failed=bb_2')
+    end
+
+    it 'lean Branch A block calls ArrangementAdapter.convert_files! (combined) somewhere' do
+      source = File.read(ORCHESTRATE_SCRIPT)
+      lean_block = source[/# BRANCH A: LEAN SCRIPT-DRIVEN FLOW.*?BRANCH A LEAN PIPELINE COMPLETE/m]
+      expect(lean_block).to include('ArrangementAdapter.convert_files!')
+    end
+
+    it 'lean Branch A block branches on is_whole_script_mode for adapt/export' do
+      source = File.read(ORCHESTRATE_SCRIPT)
+      lean_block = source[/# BRANCH A: LEAN SCRIPT-DRIVEN FLOW.*?BRANCH A LEAN PIPELINE COMPLETE/m]
+      expect(lean_block).to include('is_whole_script_mode')
+    end
+
     it 'lean Branch A block invokes ArrangementAdapter between arrange and export' do
       source = File.read(ORCHESTRATE_SCRIPT)
       lean_block = source[/# BRANCH A: LEAN SCRIPT-DRIVEN FLOW.*?BRANCH A LEAN PIPELINE COMPLETE/m]
       expect(lean_block).not_to be_nil
       expect(lean_block).to include('ArrangementAdapter')
-      # Anchor on actual invocations, not the comment-block mention of script names.
-      arrange_pos = lean_block.index("try_run_script('arrange_to_script.rb'")
-      adapter_pos = lean_block.index('ArrangementAdapter.convert_file!')
-      export_pos  = lean_block.index("try_run_script('export_arrangement_xml.rb'")
+      # Anchor on actual invocations. The first adapter call in the whole-script
+      # branch uses convert_files!; the per-beat branch later uses convert_file!.
+      arrange_pos      = lean_block.index("try_run_script('arrange_to_script.rb'")
+      adapter_pos      = lean_block.index('ArrangementAdapter.convert_files!')
+      export_pos       = lean_block.index("try_run_script('export_arrangement_xml.rb'")
       expect(arrange_pos).not_to be_nil
-      expect(adapter_pos).not_to be_nil
+      expect(adapter_pos).not_to be_nil, 'convert_files! (whole-script combine) not found'
       expect(export_pos).not_to be_nil
       expect(arrange_pos).to be < adapter_pos
       expect(adapter_pos).to be < export_pos

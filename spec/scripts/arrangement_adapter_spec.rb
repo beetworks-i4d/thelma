@@ -186,6 +186,85 @@ RSpec.describe ArrangementAdapter do
     end
   end
 
+  describe '.combined_beats_to_chapters' do
+    it 'folds N per-beat arrangements into one multi-chapter result, in input order' do
+      a_hook = { 'beats' => [
+        { 'beat_id' => 'hook',
+          'clips' => [{ 'source' => 'v.mp4', 't_in' => 0.0, 't_out' => 2.0 }] }
+      ] }
+      a_intro_bb1 = { 'beats' => [
+        { 'beat_id' => 'bb_1',
+          'clips' => [{ 'source' => 'v.mp4', 't_in' => 3.0, 't_out' => 4.0 }] }
+      ] }
+      a_intro_bb2 = { 'beats' => [
+        { 'beat_id' => 'bb_2',
+          'clips' => [{ 'source' => 'v.mp4', 't_in' => 5.0, 't_out' => 6.0 }] }
+      ] }
+      a_cta = { 'beats' => [
+        { 'beat_id' => 'cta',
+          'clips' => [{ 'source' => 'v.mp4', 't_in' => 10.0, 't_out' => 11.0 }] }
+      ] }
+      result = ArrangementAdapter.combined_beats_to_chapters(
+        [a_hook, a_intro_bb1, a_intro_bb2, a_cta], script_parsed)
+      # bb_1 + bb_2 collapse into intro chapter
+      expect(result['chapters'].map { |c| c['id'] }).to eq(['hook', 'intro', 'cta'])
+      intro = result['chapters'].find { |c| c['id'] == 'intro' }
+      expect(intro['clips'].size).to eq(2)
+      expect(intro['clips'].map { |c| c['t_in'] }).to eq([3.0, 5.0])
+    end
+
+    it 'skips empty arrangements (failed beats produced no input) without losing the rest' do
+      a_hook = { 'beats' => [
+        { 'beat_id' => 'hook',
+          'clips' => [{ 'source' => 'v.mp4', 't_in' => 0.0, 't_out' => 2.0 }] }
+      ] }
+      a_empty = { 'beats' => [] }
+      a_cta = { 'beats' => [
+        { 'beat_id' => 'cta',
+          'clips' => [{ 'source' => 'v.mp4', 't_in' => 10.0, 't_out' => 11.0 }] }
+      ] }
+      result = ArrangementAdapter.combined_beats_to_chapters([a_hook, a_empty, a_cta], script_parsed)
+      expect(result['chapters'].map { |c| c['id'] }).to eq(['hook', 'cta'])
+    end
+
+    it 'injects time_domain: wav in combined output' do
+      result = ArrangementAdapter.combined_beats_to_chapters(
+        [{ 'beats' => [{ 'beat_id' => 'hook',
+                         'clips' => [{ 'source' => 'v.mp4', 't_in' => 0.0, 't_out' => 1.0 }] }] }],
+        script_parsed)
+      expect(result['time_domain']).to eq('wav')
+    end
+  end
+
+  describe '.convert_files!' do
+    it 'reads multiple arrangement paths and writes one combined chapters yaml' do
+      Dir.mktmpdir do |dir|
+        sp_path = File.join(dir, 'script_parsed.yaml')
+        File.write(sp_path, script_parsed.to_yaml)
+        paths = [
+          ['arrangement_hook.yaml', { 'beats' => [
+            { 'beat_id' => 'hook',
+              'clips' => [{ 'source' => 'v.mp4', 't_in' => 0.0, 't_out' => 1.0 }] }
+          ] }],
+          ['arrangement_cta.yaml', { 'beats' => [
+            { 'beat_id' => 'cta',
+              'clips' => [{ 'source' => 'v.mp4', 't_in' => 10.0, 't_out' => 11.0 }] }
+          ] }]
+        ].map do |fname, data|
+          p = File.join(dir, fname)
+          File.write(p, data.to_yaml)
+          p
+        end
+        out = File.join(dir, 'mylib_chapters.yaml')
+        ArrangementAdapter.convert_files!(paths, sp_path, out)
+        loaded = YAML.safe_load(File.read(out))
+        expect(loaded['chapters'].size).to eq(2)
+        expect(loaded['chapters'].map { |c| c['id'] }).to eq(['hook', 'cta'])
+        expect(loaded['time_domain']).to eq('wav')
+      end
+    end
+  end
+
   describe '.convert_file!' do
     it 'reads input files and writes a chapters yaml' do
       Dir.mktmpdir do |dir|
