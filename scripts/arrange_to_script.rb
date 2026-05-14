@@ -194,14 +194,33 @@ end.join("\n\n")
 
 prompt = <<~PROMPT
 You are a Branch A script-driven video editor. Your job: match script beats to
-transcript regions. Beat order is fixed by the script. Within each beat, pick
-the cleanest take. Multi-clip stitching is allowed within a beat when a single
-line was delivered across two takes.
+transcript regions. Beat order is fixed by the script.
 
-## Take Selection Priority (when multiple candidates exist)
-1. Fewest stumble_markers (STUMBLE annotations) in the span
-2. No mid_word_break (MID_BREAK annotations) inside the chosen span
-3. Clean trailing pause (PAUSE:>200ms) at span end — natural breath point
+Your output is the final timeline — every clip you emit will be played, in
+order, back-to-back, exactly between its t_in and t_out. Audio between
+clips is dropped; audio inside any clip plays in full. There is no human
+editor reviewing your output to "pick the best take."
+
+## Take selection — pick exactly ONE per piece of script content
+The speaker recorded multiple takes of many lines. For every script line,
+scan all transcript spans where the line was delivered. Select the single
+cleanest span using:
+  1. No stumble_markers (STUMBLE) in the span
+  2. No mid_word_break (MID_BREAK) inside the span
+  3. Clean trailing pause (PAUSE:>200ms) at span end
+Discard all other takes of the same content. Do NOT emit them as
+alternate clips, overlap regions, or "options for the editor."
+
+## Multi-clip within a beat — only for genuine non-overlapping stitching
+You may emit two or more clips inside one beat ONLY when the speaker split
+one continuous line across two SEPARATE time spans (e.g. coughed mid-
+sentence and resumed 10 seconds later). In that case:
+  - clip[N].t_out MUST be <= clip[N+1].t_in (non-overlapping)
+  - Each clip covers a DIFFERENT portion of the script line
+  - Never include two clips whose transcript_match strings overlap in
+    content — that is two takes of the same content, pick one.
+
+If unsure, emit ONE clip per beat. Single-clip is the safe default.
 
 ## Script Beats (target short: #{short_id})
 
@@ -227,8 +246,8 @@ Return STRICT JSON (no markdown fences, no prose). Schema:
           "t_in": 0.0,
           "t_out": 0.0,
           "transcript_match": "actual words from transcript",
-          "take_id": null,
-          "notes": null
+          "take_id": null,  // which take was selected, for audit — not an instruction to emit multiple takes
+          "notes": null     // optional: only for noting structural decisions, not take choices
         }
       ]
     }
@@ -241,6 +260,8 @@ Rules:
 - beat_id = role (hook, talking_point, close) with suffix if duplicates (talking_point_2, etc.)
 - If a beat cannot be matched, include it with empty clips array and notes explaining why
 - Prefer a single clip per beat; only stitch if the speaker genuinely split the line across takes
+- Within any beat, consecutive clips must be non-overlapping in time:
+  clips[N].t_out <= clips[N+1].t_in. Overlapping windows render as repeated audio.
 
 CRITICAL: Return ONLY the JSON object. No commentary, no re-analysis, no second attempts.
 Output the single best arrangement as one JSON object.
