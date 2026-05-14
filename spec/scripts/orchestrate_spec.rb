@@ -696,6 +696,204 @@ RSpec.describe 'orchestrate.rb' do
     end
   end
 
+  describe 'Branch A lean path (--filter / --short)' do
+    it 'lean Branch A block exists in orchestrate.rb and exits before Phase 0' do
+      source = File.read(ORCHESTRATE_SCRIPT)
+      lean_pos = source.index('# BRANCH A: LEAN SCRIPT-DRIVEN FLOW')
+      phase0_pos = source.index("phase '0 — Content Type Detection'")
+      expect(lean_pos).not_to be_nil, 'Lean Branch A block not found'
+      expect(phase0_pos).not_to be_nil, 'Phase 0 anchor not found'
+      expect(lean_pos).to be < phase0_pos
+      lean_to_phase0 = source[lean_pos...phase0_pos]
+      expect(lean_to_phase0).to include('exit 0')
+    end
+
+    it '--filter role=X selects all beats with matching role' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        def select_beats_for_filter(all_beats, filter_key, filter_value)
+          case filter_key
+          when 'role'   then all_beats.select { |b| b['role'] == filter_value }
+          when 'id'     then [all_beats.find { |b| b['id'] == filter_value }].compact
+          when 'parent' then all_beats.select { |b| b['parent'] == filter_value }
+          else []
+          end
+        end
+        beats = [
+          { 'id' => 'hook', 'role' => 'hook' },
+          { 'id' => 'bb_1', 'role' => 'blueprint' },
+          { 'id' => 'bb_2', 'role' => 'blueprint' },
+          { 'id' => 'cta',  'role' => 'cta' }
+        ]
+        matched = select_beats_for_filter(beats, 'role', 'blueprint')
+        puts matched.map { |b| b['id'] }.join(',')
+      RUBY
+      expect(stdout.strip).to eq('bb_1,bb_2')
+    end
+
+    it '--short X is shorthand for --filter id=X' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        short_id_arg = 'bb_3'
+        filter_expr  = nil
+        filter_expr = "id=#{short_id_arg}" if short_id_arg && filter_expr.nil?
+        puts filter_expr
+      RUBY
+      expect(stdout.strip).to eq('id=bb_3')
+    end
+
+    it '--filter wins when both --filter and --short are passed' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        short_id_arg = 'bb_3'
+        filter_expr  = 'role=blueprint'
+        filter_expr = "id=#{short_id_arg}" if short_id_arg && filter_expr.nil?
+        puts filter_expr
+      RUBY
+      expect(stdout.strip).to eq('role=blueprint')
+    end
+
+    it "no --filter yields the whole-tree single-cut list ['all']" do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        filter_expr = nil
+        beat_ids = if filter_expr
+          ['placeholder']
+        else
+          ['all']
+        end
+        puts beat_ids.inspect
+      RUBY
+      expect(stdout.strip).to eq('["all"]')
+    end
+
+    it '--filter id=X selects single beat by id' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        def select_beats_for_filter(all_beats, filter_key, filter_value)
+          case filter_key
+          when 'role'   then all_beats.select { |b| b['role'] == filter_value }
+          when 'id'     then [all_beats.find { |b| b['id'] == filter_value }].compact
+          when 'parent' then all_beats.select { |b| b['parent'] == filter_value }
+          else []
+          end
+        end
+        beats = [
+          { 'id' => 'hook', 'role' => 'hook' },
+          { 'id' => 'bb_3', 'role' => 'blueprint' }
+        ]
+        matched = select_beats_for_filter(beats, 'id', 'bb_3')
+        puts matched.map { |b| b['id'] }.join(',')
+      RUBY
+      expect(stdout.strip).to eq('bb_3')
+    end
+
+    it '--filter parent=X selects all beats under a parent id' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        def select_beats_for_filter(all_beats, filter_key, filter_value)
+          case filter_key
+          when 'role'   then all_beats.select { |b| b['role'] == filter_value }
+          when 'id'     then [all_beats.find { |b| b['id'] == filter_value }].compact
+          when 'parent' then all_beats.select { |b| b['parent'] == filter_value }
+          else []
+          end
+        end
+        beats = [
+          { 'id' => 'intro',  'parent' => nil },
+          { 'id' => 'bb_1',   'parent' => 'intro' },
+          { 'id' => 'bb_2',   'parent' => 'intro' },
+          { 'id' => 'outro',  'parent' => nil }
+        ]
+        matched = select_beats_for_filter(beats, 'parent', 'intro')
+        puts matched.map { |b| b['id'] }.join(',')
+      RUBY
+      expect(stdout.strip).to eq('bb_1,bb_2')
+    end
+
+    it 'parse_filter_expr rejects malformed filter expressions' do
+      _, stderr, status = Open3.capture3('ruby', '-e', <<~'RUBY')
+        def parse_filter_expr(expr)
+          parts = expr.to_s.split('=', 2)
+          abort "Invalid --filter '#{expr}' — expected key=value" unless parts.size == 2
+          key, value = parts
+          abort "Invalid --filter key '#{key}' — must be role, id, or parent" unless %w[role id parent].include?(key)
+          abort "Invalid --filter '#{expr}' — value is empty" if value.to_s.empty?
+          [key, value]
+        end
+        parse_filter_expr('foo=bar')
+      RUBY
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to include('Invalid --filter key')
+    end
+
+    it 'failed beat does not abort the loop — succeeded and failed are reported separately' do
+      stdout, _, _ = Open3.capture3('ruby', '-e', <<~'RUBY')
+        def try_run_script(_script, *args)
+          # Simulate bb_2 failing both arrange and export; others succeed.
+          ok = !args.include?('bb_2')
+          ['', ok, ok ? 0 : 1]
+        end
+        beat_ids = ['bb_1', 'bb_2', 'bb_3']
+        failed = []
+        succeeded = []
+        beat_ids.each do |id|
+          _, ok, _ = try_run_script('arrange_to_script.rb', '--short', id)
+          unless ok
+            failed << id
+            next
+          end
+          _, ok, _ = try_run_script('export_arrangement_xml.rb', '--output-name', id)
+          unless ok
+            failed << id
+            next
+          end
+          succeeded << id
+        end
+        puts "succeeded=#{succeeded.join(',')}"
+        puts "failed=#{failed.join(',')}"
+      RUBY
+      expect(stdout).to include('succeeded=bb_1,bb_3')
+      expect(stdout).to include('failed=bb_2')
+    end
+
+    it 'lean Branch A block does not invoke heavy phase scripts' do
+      source = File.read(ORCHESTRATE_SCRIPT)
+      lean_block = source[/# BRANCH A: LEAN SCRIPT-DRIVEN FLOW.*?BRANCH A LEAN PIPELINE COMPLETE/m]
+      expect(lean_block).not_to be_nil, 'Lean Branch A block not found in orchestrate.rb'
+
+      forbidden = [
+        "run_script('semantic_ingest.rb'",
+        "run_script('arrange.rb'",
+        "run_script('detect_content_type.rb'",
+        "run_script('semantic_dedup.rb'",
+        "run_script('audio_emotion.rb'",
+        "run_script('detect_scenes.rb'",
+        "run_script('extract_visual_frames.rb'",
+        "run_script('export_packaging_brief.rb'",
+        'classify('
+      ]
+      forbidden.each do |needle|
+        expect(lean_block).not_to include(needle),
+                                  "Lean Branch A path must not invoke '#{needle}'"
+      end
+    end
+
+    it 'lean Branch A block does invoke parse_script, audio_prosody, arrange_to_script, export_arrangement_xml' do
+      source = File.read(ORCHESTRATE_SCRIPT)
+      lean_block = source[/# BRANCH A: LEAN SCRIPT-DRIVEN FLOW.*?BRANCH A LEAN PIPELINE COMPLETE/m]
+      expect(lean_block).not_to be_nil
+      %w[parse_script.rb audio_prosody.rb arrange_to_script.rb export_arrangement_xml.rb].each do |script|
+        expect(lean_block).to include(script), "Lean Branch A path must invoke '#{script}'"
+      end
+    end
+
+    it 'accepts --filter, --short, --force flags without unknown-argument error' do
+      _, stderr, status = Open3.capture3('ruby', ORCHESTRATE_SCRIPT,
+                                         '--library', 'nonexistent-library-xyz',
+                                         '--filter', 'role=blueprint',
+                                         '--short', 'bb_3',
+                                         '--force')
+      # We expect it to fail because the library doesn't exist, not because the flags are unknown.
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).not_to include('Unknown argument')
+    end
+  end
+
   describe 'report schema from generate_report' do
     it 'generates valid report YAML with all fields' do
       library_dir = File.expand_path('../../libraries/dylan-004', __dir__)

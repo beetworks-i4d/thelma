@@ -1,10 +1,14 @@
 #!/usr/bin/env ruby
 # Exports an arrangement.yaml to a Premiere Pro XML via build_structure_cut.rb
 #
-# Usage: ruby scripts/export_arrangement_xml.rb --library <name>
+# Usage: ruby scripts/export_arrangement_xml.rb --library <name> [--profile <name>]
+#        [--arrangement <path>] [--output-name <base>]
 #
-# Reads: libraries/<name>/arrangement.yaml
-# Produces: libraries/<name>/output/<name>_arrangement_<timestamp>.xml
+# --arrangement defaults to libraries/<name>/arrangement.yaml.
+# --output-name overrides the XML base name (default: <library>_arrangement).
+#
+# Reads: arrangement YAML (chapters schema)
+# Produces: <project>/output/<output-name>_<timestamp>.xml
 #
 # Maps arrangement clips → structure cut YAML with:
 #   - V1 clips sequential (no timeline_offset)
@@ -26,19 +30,27 @@ require_relative 'library_resolver'
 # === Parse CLI ===
 library_name = nil
 profile_name = nil
+arrangement_override = nil
+output_name_override = nil
 if (idx = ARGV.index('--library'))
   library_name = ARGV[idx + 1]
 end
 if (idx = ARGV.index('--profile'))
   profile_name = ARGV[idx + 1]
 end
-abort "Usage: ruby scripts/export_arrangement_xml.rb --library <name> [--profile <name>]" unless library_name
+if (idx = ARGV.index('--arrangement'))
+  arrangement_override = ARGV[idx + 1]
+end
+if (idx = ARGV.index('--output-name'))
+  output_name_override = ARGV[idx + 1]
+end
+abort "Usage: ruby scripts/export_arrangement_xml.rb --library <name> [--profile <name>] [--arrangement <path>] [--output-name <name>]" unless library_name
 
 lib_dir = LibraryResolver.resolve(library_name)
 abort "Library not found: #{lib_dir}" unless File.directory?(lib_dir)
 
-arrangement_path = File.join(lib_dir, 'arrangement.yaml')
-abort "arrangement.yaml not found in #{lib_dir}" unless File.exist?(arrangement_path)
+arrangement_path = arrangement_override || File.join(lib_dir, 'arrangement.yaml')
+abort "arrangement YAML not found: #{arrangement_path}" unless File.exist?(arrangement_path)
 
 library_yaml = YAML.safe_load(File.read(File.join(lib_dir, 'library.yaml')), permitted_classes: [Date])
 arrangement = YAML.safe_load(File.read(arrangement_path), permitted_classes: [Date])
@@ -199,7 +211,7 @@ config = {
   'video_path' => video_path,  # fallback for single-source; per-clip video_path takes priority
   'output_dir' => output_dir,
   'editor' => 'fcp7',
-  'name' => "#{library_name}_arrangement",
+  'name' => output_name_override || "#{library_name}_arrangement",
   'clips' => all_clips,
   'chapters' => chapter_meta
 }

@@ -41,6 +41,9 @@ force_cascade      = false
 force_revisualize  = false
 pool_dir_arg       = nil
 language_override  = nil
+filter_expr        = nil
+short_id_arg       = nil
+force              = false
 
 args = ARGV.dup
 while args.any?
@@ -90,13 +93,25 @@ while args.any?
   when '--language'
     args.shift
     language_override = args.shift
+  when '--filter'
+    args.shift
+    filter_expr = args.shift
+  when '--short'
+    args.shift
+    short_id_arg = args.shift
+  when '--force'
+    args.shift
+    force = true
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>] [--filter <expr>] [--short <id>] [--force]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>] [--filter <expr>] [--short <id>] [--force]" unless library_name
+
+# --short is shorthand for --filter id=<id>. --filter wins if both are set.
+filter_expr = "id=#{short_id_arg}" if short_id_arg && filter_expr.nil?
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
@@ -141,6 +156,34 @@ def run_command(cmd_str)
     abort "\nPIPELINE ABORT: command failed (exit #{status.exitstatus})\n  #{cmd_str}\n#{stderr}"
   end
   stdout.strip
+end
+
+# Like run_script but never aborts on failure — returns [stdout, ok, exitstatus].
+# Used by the lean Branch A loop so one bad beat doesn't kill the whole run.
+def try_run_script(script, *args)
+  cmd = ['ruby', File.join(SCRIPTS_DIR, script)] + args.map(&:to_s)
+  $stderr.puts "  $ #{cmd.join(' ')}"
+  stdout, stderr, status = Open3.capture3(*cmd)
+  $stderr.puts stderr unless stderr.strip.empty?
+  [stdout.strip, status.success?, status.exitstatus]
+end
+
+def parse_filter_expr(expr)
+  parts = expr.to_s.split('=', 2)
+  abort "Invalid --filter '#{expr}' — expected key=value" unless parts.size == 2
+  key, value = parts
+  abort "Invalid --filter key '#{key}' — must be role, id, or parent" unless %w[role id parent].include?(key)
+  abort "Invalid --filter '#{expr}' — value is empty" if value.to_s.empty?
+  [key, value]
+end
+
+def select_beats_for_filter(all_beats, filter_key, filter_value)
+  case filter_key
+  when 'role'   then all_beats.select { |b| b['role'] == filter_value }
+  when 'id'     then [all_beats.find { |b| b['id'] == filter_value }].compact
+  when 'parent' then all_beats.select { |b| b['parent'] == filter_value }
+  else []
+  end
 end
 
 def file_cached?(path)
@@ -601,25 +644,124 @@ has_sync = first_output&.dig(:has_sync) || false
 
 $stderr.puts "\nPhase 1 complete: #{per_video_outputs.size}/#{videos.size} videos processed"
 
-# 1f. Parse script (Branch A only)
+# ============================================================
+# BRANCH A: LEAN SCRIPT-DRIVEN FLOW
+# ============================================================
+# After Phase 1 ingest, Branch A runs its own short pipeline:
+#   parse_script.rb  -> script_parsed.yaml  (LLM, hash-cached)
+#   audio_prosody.rb -> prosody.yaml        (algorithmic, mtime-cached)
+#   per beat (driven by --filter / --short):
+#     arrange_to_script.rb  -> arrangement_<beat_id>.yaml
+#     export_arrangement_xml.rb -> <library>_<beat_id>.xml
+#
+# Branch A does NOT call: detect_content_type, classification,
+# semantic_dedup, audio_emotion, detect_scenes, extract_visual_frames,
+# semantic_ingest, arrange.rb, export_packaging_brief.
+
 if branch == 'A'
-  script_parsed_path = File.join(library_dir, 'script_parsed.yaml')
-  if file_cached?(script_parsed_path)
-    skip 'parse_script', 'script_parsed.yaml exists'
+  phase 'A — Script Parse'
+  script_parsed_path = File.join(transcripts_dir, 'script_parsed.yaml')
+
+  project_dir = File.dirname(video_path)
+  script_files = Dir.glob(File.join(project_dir, '*.{txt,md,pdf,docx}'))
+                    .reject { |f| f.include?('output/') || f.include?('_treated') || f.include?('_cleaned') }
+  abort "Branch A but no script file found in #{project_dir}. Add a .txt/.md/.pdf/.docx script or pass --branch B." if script_files.empty?
+
+  # parse_script.rb does its own source_hash check and exits fast on cache hit
+  step 'parse_script (hash-checked)'
+  ps_args = [script_files.first, transcripts_dir]
+  ps_args += ['--llm-mode', llm_mode] if llm_mode
+  run_script('parse_script.rb', *ps_args)
+  abort "parse_script did not produce #{script_parsed_path}" unless File.exist?(script_parsed_path)
+
+  phase 'A — Prosody'
+  prosody_path = File.join(library_dir, 'prosody.yaml')
+  sa_mtimes = videos.map { |v|
+    sa_name = v['speech_analysis']
+    sa_path = sa_name ? File.join(transcripts_dir, sa_name) : nil
+    sa_path && File.exist?(sa_path) ? File.mtime(sa_path) : nil
+  }.compact
+  prosody_current = file_cached?(prosody_path) && sa_mtimes.any? && File.mtime(prosody_path) >= sa_mtimes.max
+  if prosody_current
+    skip 'audio_prosody', 'prosody.yaml newer than speech analysis'
   else
-    step 'parse_script'
-    # Look for script files in project folder
-    project_dir = File.dirname(video_path)
-    script_files = Dir.glob(File.join(project_dir, '*.{txt,md,pdf,docx}'))
-                      .reject { |f| f.include?('output/') || f.include?('_treated') || f.include?('_cleaned') }
-    if script_files.any?
-      run_script('parse_script.rb', script_files.first, transcripts_dir)
-    else
-      $stderr.puts "  WARNING: Branch A but no script file found in #{project_dir}"
-      $stderr.puts "  Falling back to Branch B"
-      branch = 'B'
-    end
+    step 'audio_prosody'
+    run_script('audio_prosody.rb', '--library', library_name)
   end
+
+  phase 'A — Beat Selection'
+  script_parsed = YAML.safe_load(File.read(script_parsed_path), permitted_classes: [Date])
+  all_beats = script_parsed['beats'] || []
+
+  beat_ids = if filter_expr
+    filter_key, filter_value = parse_filter_expr(filter_expr)
+    matched = select_beats_for_filter(all_beats, filter_key, filter_value)
+    abort "No beats matched filter '#{filter_expr}'" if matched.empty?
+    matched.map { |b| b['id'] }
+  else
+    ['all']  # arrange_to_script handles 'all' as the whole-tree case
+  end
+  $stderr.puts "Filter: #{filter_expr || '(none — whole tree)'} -> #{beat_ids.size} beat(s): #{beat_ids.join(', ')}"
+
+  phase 'A — Arrange + Export'
+  failed_beats = []
+  succeeded_beats = []
+
+  beat_ids.each_with_index do |beat_id, i|
+    $stderr.puts "\n--- [#{i + 1}/#{beat_ids.size}] Beat: #{beat_id} ---"
+
+    arrangement_path = File.join(library_dir, "arrangement_#{beat_id}.yaml")
+    xml_name = "#{library_name}_#{beat_id}"
+    xml_path = File.join(File.dirname(video_path), 'output', "#{xml_name}.xml")
+
+    # ── Arrange
+    if file_cached?(arrangement_path) && !force
+      skip "arrange_to_script (#{beat_id})", "arrangement_#{beat_id}.yaml exists"
+    else
+      step "arrange_to_script (#{beat_id})"
+      ats_flags = ['--library', library_name, '--short', beat_id]
+      ats_flags += ['--profile', profile_name] if profile_name
+      ats_flags += ['--llm-mode', llm_mode] if llm_mode
+      ats_flags << '--no-review' if no_review
+      _, ok, code = try_run_script('arrange_to_script.rb', *ats_flags)
+      unless ok
+        $stderr.puts "  FAILED: arrange_to_script for '#{beat_id}' (exit #{code})"
+        failed_beats << beat_id
+        next
+      end
+    end
+
+    # ── Export
+    if file_cached?(xml_path) && !force
+      skip "export_arrangement_xml (#{beat_id})", "#{xml_name}.xml exists"
+      succeeded_beats << beat_id
+      next
+    end
+
+    step "export_arrangement_xml (#{beat_id})"
+    exp_flags = ['--library', library_name,
+                 '--arrangement', arrangement_path,
+                 '--output-name', xml_name]
+    exp_flags += ['--profile', profile_name] if profile_name
+    _, ok, code = try_run_script('export_arrangement_xml.rb', *exp_flags)
+    unless ok
+      $stderr.puts "  FAILED: export_arrangement_xml for '#{beat_id}' (exit #{code})"
+      failed_beats << beat_id
+      next
+    end
+    succeeded_beats << beat_id
+  end
+
+  $stderr.puts "\n#{'=' * 60}"
+  $stderr.puts "BRANCH A LEAN PIPELINE COMPLETE"
+  $stderr.puts "  Succeeded: #{succeeded_beats.size}/#{beat_ids.size} (#{succeeded_beats.join(', ')})"
+  if failed_beats.any?
+    $stderr.puts "  Failed:    #{failed_beats.size} (#{failed_beats.join(', ')})"
+    $stderr.puts '=' * 60
+    exit 1
+  end
+  $stderr.puts '=' * 60
+  exit 0
 end
 
 # ============================================================
