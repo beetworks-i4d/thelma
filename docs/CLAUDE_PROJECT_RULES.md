@@ -11,6 +11,24 @@
   invocation before doing anything.
 - Do not invent flags or features. If unclear, read CLI.md or ask.
 
+### Dev sessions vs. run sessions
+
+Thelma sessions are one of two kinds. They are not mixed.
+
+**Dev sessions** — building or fixing Thelma. Allowed: editing code, patching bugs, running debug commands, committing changes, manual file edits to test fixes, env-var workarounds for one-off debugging.
+
+**Run sessions** — using Thelma to produce a cut. Allowed: invoking orchestrate.rb with documented flags, reading output files, reading logs. Not allowed: editing code, manually editing library.yaml, env-var workarounds, ad hoc scripts to bridge a broken phase, re-implementing pipeline steps outside orchestrate.
+
+If a defect surfaces during a run session:
+1. Stop the run session.
+2. Note the defect (what failed, at what phase, what flags were used).
+3. Open a separate dev session to fix it.
+4. After the fix, open a fresh run session to validate.
+
+The run session is the integrity test. If a run session cannot produce a cut without dev-session intervention, the tool is not yet shippable for that branch/mode.
+
+Track clean-run dates per branch per LLM mode in STATE.md.
+
 ### Auth separation
 
 - ANTHROPIC_API_KEY env var = Thelma content runs (`--llm-mode api`)
