@@ -621,6 +621,19 @@ videos.each_with_index do |video, vi|
     run_script('transcript_cleanup.rb', transcript_path, *sa_flag)
   end
 
+  # Persist transcript / cleaned_transcript filenames back to library.yaml
+  # (audio_analysis.rb already persists speech_analysis, but whisperx and cleanup don't)
+  if transcript_name || cleaned_path
+    lib_snap = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+    v_entry = lib_snap['videos'][vi]
+    v_entry['transcript'] ||= transcript_name if transcript_name
+    cleaned_basename = cleaned_path ? File.basename(cleaned_path) : nil
+    if cleaned_basename && File.exist?(File.join(transcripts_dir, cleaned_basename))
+      v_entry['cleaned_transcript'] ||= cleaned_basename
+    end
+    File.write(library_yaml_path, lib_snap.to_yaml)
+  end
+
   per_video_outputs << {
     video_path: video_path,
     treated_wav: treated_wav,
