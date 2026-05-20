@@ -31,6 +31,7 @@ ruby scripts/orchestrate.rb --library <name> [options]
 | `--force-revisualize` | boolean | `false` | Regenerate visual analysis even if cached |
 | `--pool-dir` | string | `nil` | Pool folder path for auto-creating new library |
 | `--language` | string | from `library.yaml` | Language code override (e.g. `en`, `es`) |
+| `--diarize` | boolean | `false` | Enable speaker diarization in WhisperX. Requires `HF_TOKEN` env var |
 
 **Positional args:** none.
 
@@ -39,7 +40,7 @@ ruby scripts/orchestrate.rb --library <name> [options]
 | Phase | Script called | Flags forwarded |
 |-------|--------------|-----------------|
 | 1 — Ingest | `audio_cleanup.rb` | positional: `<input> <output_dir>` |
-| 1 — Ingest | WhisperX (external) | `--model turbo --language <code>` |
+| 1 — Ingest | WhisperX (external) | `--model turbo --language <code>` (`--diarize` if `--diarize` set) |
 | 1 — Ingest | `audio_sync_offset.rb` | positional: `<video> <audio> <library.yaml>` |
 | 1 — Ingest | `audio_analysis.rb` | positional: `<input> <library.yaml>` |
 | 1 — Ingest | `transcript_cleanup.rb` | positional: `<transcript.json>`, `--speech-analysis`, `--protect-rhetorical` |
@@ -70,7 +71,7 @@ ruby scripts/orchestrate.rb --library <name> [options]
 | Phase | Script called | Flags forwarded |
 |-------|--------------|-----------------|
 | Pool Indexing | `audio_cleanup.rb` | positional: `<input> <transcripts_dir>` |
-| Pool Indexing | WhisperX (external) | `--model turbo --language <code>` |
+| Pool Indexing | WhisperX (external) | `--model turbo --language <code>` (`--diarize` if `--diarize` set) |
 | Pool Indexing | `detect_scenes.rb` | positional: `<video>`, `--output` |
 | Pool Indexing | `extract_visual_frames.rb` | `--library`, `--video`, `--scene-file`, `--force` |
 | HQ Audio | `match_hq_audio.rb` | `--library` |

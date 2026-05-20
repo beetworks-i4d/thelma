@@ -45,6 +45,7 @@ language_override  = nil
 filter_expr        = nil
 short_id_arg       = nil
 force              = false
+diarize            = false
 
 args = ARGV.dup
 while args.any?
@@ -103,13 +104,21 @@ while args.any?
   when '--force'
     args.shift
     force = true
+  when '--diarize'
+    args.shift
+    diarize = true
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>] [--filter <expr>] [--short <id>] [--force]"
+          "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>] [--filter <expr>] [--short <id>] [--force] [--diarize]"
   end
 end
 
-abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>] [--filter <expr>] [--short <id>] [--force]" unless library_name
+abort "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>] [--filter <expr>] [--short <id>] [--force] [--diarize]" unless library_name
+
+if diarize && (!ENV['HF_TOKEN'] || ENV['HF_TOKEN'].strip.empty?)
+  abort "PIPELINE ABORT: --diarize requires HF_TOKEN environment variable.\n" \
+        "Get a token at https://huggingface.co/settings/tokens and export HF_TOKEN=<your_token>"
+end
 
 # --short is shorthand for --filter id=<id>. --filter wins if both are set.
 filter_expr = "id=#{short_id_arg}" if short_id_arg && filter_expr.nil?
@@ -311,11 +320,7 @@ if mode == 'mine'
                        "--model turbo --language #{lang_code} " \
                        "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} " \
                        "--compute_type int8"
-        if ENV['HF_TOKEN'] && !ENV['HF_TOKEN'].strip.empty?
-          whisperx_cmd += " --diarize"
-        else
-          $stderr.puts "  NOTE: HF_TOKEN not set — skipping diarization. Set HF_TOKEN for speaker labels."
-        end
+        whisperx_cmd += " --diarize" if diarize
         run_command(whisperx_cmd)
         abort "PIPELINE ABORT: WhisperX did not produce: #{expected_transcript}" unless File.exist?(expected_transcript)
       end
@@ -325,7 +330,7 @@ if mode == 'mine'
       if File.exist?(expected_transcript)
         t_data = JSON.parse(File.read(expected_transcript)) rescue {}
         speakers = (t_data['segments'] || []).map { |s| s['speaker'] }.compact.uniq.sort
-        attrs[:diarization_enabled] = ENV['HF_TOKEN'] && !ENV['HF_TOKEN'].strip.empty? ? true : false
+        attrs[:diarization_enabled] = diarize
         attrs[:speakers_detected] = speakers.empty? ? nil : speakers
         attrs[:speaker_count] = speakers.empty? ? 1 : speakers.size
       end
@@ -562,11 +567,7 @@ videos.each_with_index do |video, vi|
 
     whisperx_cmd = "#{Shellwords.shellescape(whisperx_bin)} #{Shellwords.shellescape(treated_wav)} --model #{whisper_model} --language #{lang_code} " \
                    "--output_format json --output_dir #{Shellwords.shellescape(transcripts_dir)} --compute_type int8"
-    if ENV['HF_TOKEN'] && !ENV['HF_TOKEN'].strip.empty?
-      whisperx_cmd += " --diarize"
-    else
-      $stderr.puts "  NOTE: HF_TOKEN not set — skipping diarization. Set HF_TOKEN for speaker labels."
-    end
+    whisperx_cmd += " --diarize" if diarize
     run_command(whisperx_cmd)
 
     # Find the generated transcript
