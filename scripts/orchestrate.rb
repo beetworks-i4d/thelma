@@ -476,6 +476,29 @@ if mode == 'mine'
   exit 0
 end
 
+# --- Auto-register top-level videos from --pool-dir (Branch A/B/C) ---
+# Mine mode has its own index.yaml registry and exited above. For non-mine
+# flows, if the user passed --pool-dir and library.yaml has no videos yet,
+# enumerate top-level video files (non-recursive) and register them.
+# Subfolders (e.g. 'b roll/', 'assets/') are ignored by design.
+if (videos.nil? || videos.empty?) && pool_dir_arg && mode != 'mine'
+  pool_scan_dir = File.expand_path(pool_dir_arg)
+  if File.directory?(pool_scan_dir)
+    video_exts = %w[.mp4 .mov .mkv].freeze
+    found = Dir.glob(File.join(pool_scan_dir, '*'))
+                .select { |f| File.file?(f) && video_exts.include?(File.extname(f).downcase) }
+                .sort_by { |f| File.basename(f) }
+
+    if found.any?
+      library['videos'] = found.map { |path| { 'path' => path } }
+      File.write(library_yaml_path, library.to_yaml)
+      videos = library['videos']
+      $stderr.puts "Registered #{found.size} video(s) from --pool-dir:"
+      found.each { |f| $stderr.puts "  - #{File.basename(f)}" }
+    end
+  end
+end
+
 abort "No videos in library.yaml" unless videos && videos.any?
 
 $stderr.puts "Thelma Pipeline — #{library_name}"

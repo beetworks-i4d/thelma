@@ -29,7 +29,7 @@ ruby scripts/orchestrate.rb --library <name> [options]
 | `--candidate` | string | `nil` | Pre-select candidate ID, skip interactive selection (mine mode) |
 | `--force-cascade` | boolean | `false` | Force regeneration of downstream outputs (mine mode) |
 | `--force-revisualize` | boolean | `false` | Regenerate visual analysis even if cached |
-| `--pool-dir` | string | `nil` | Pool folder path for auto-creating new library |
+| `--pool-dir` | string | `nil` | Pool folder path. Auto-creates library if missing. For Branch A/B/C, also auto-registers top-level `.mp4`/`.mov`/`.mkv` files into `library.yaml['videos']` when empty (subfolders ignored). For mine mode, triggers pool indexing via `index.yaml`. |
 | `--language` | string | from `library.yaml` | Language code override (e.g. `en`, `es`) |
 | `--diarize` | boolean | `false` | Enable speaker diarization in WhisperX. Requires `HF_TOKEN` env var |
 
