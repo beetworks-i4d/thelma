@@ -156,10 +156,6 @@ def build_valid_arrangement(lib_dir, cache_hash: 'test_hash')
         ]
       }
     ],
-    'broll_placements' => [],
-    'broll_suggestions' => [
-      { 'at_chapter' => 'ch_01', 'after_t' => 5.36, 'type' => 'image', 'concept' => 'ai_art_montage' }
-    ],
     'key_decisions' => [
       'Used primary take at t=5.36 for clearer delivery over alternate at t=21.30'
     ]
@@ -342,8 +338,7 @@ RSpec.describe 'arrange.rb' do
         _, arrangement = build_valid_arrangement(lib_dir)
 
         %w[generated_at source cache_hash llm_model cut_summary target_format
-           estimated_duration branch chapters broll_placements broll_suggestions
-           key_decisions].each do |field|
+           estimated_duration branch chapters key_decisions].each do |field|
           expect(arrangement).to have_key(field), "Missing field: #{field}"
         end
       end
@@ -376,29 +371,6 @@ RSpec.describe 'arrange.rb' do
           expect(clip['t_out'].to_f).to be > clip['t_in'].to_f
           expect(%w[V1 V2]).to include(clip['track'])
         end
-      end
-    end
-
-    it 'defaults missing optional fields' do
-      Dir.mktmpdir do |dir|
-        lib_dir = build_arrange_test_library(dir)
-
-        # Build arrangement without optional fields
-        minimal = {
-          'cut_summary' => 'Test', 'target_format' => 'longform',
-          'estimated_duration' => '5:00', 'branch' => 'B',
-          'chapters' => [{ 'id' => 'ch_01', 'label' => 'Test', 'clips' => [
-            { 't_in' => 5.36, 't_out' => 17.79, 'source' => 'test.mp4', 'track' => 'V1', 'narrative_role' => 'hook' }
-          ] }]
-        }
-        # Simulate the defaulting logic
-        minimal['broll_placements'] ||= []
-        minimal['broll_suggestions'] ||= []
-        minimal['key_decisions'] ||= []
-
-        expect(minimal['broll_placements']).to eq([])
-        expect(minimal['broll_suggestions']).to eq([])
-        expect(minimal['key_decisions']).to eq([])
       end
     end
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env ruby
 # Phase 2 — Arrangement Script (R3)
 # Converts semantic understanding into a proposed cut. One LLM call that produces
-# arrangement.yaml with chapter ordering, clip selection, take decisions, B-roll
-# matching, and editorial reasoning.
+# arrangement.yaml with chapter ordering, clip selection, take decisions, and
+# editorial reasoning.
 #
 # Usage:
 #   ruby scripts/arrange.rb --library <name> [--profile <name>] [--format longform|shorts]
@@ -11,7 +11,6 @@
 # Input:
 #   - semantic_ingest.yaml (REQUIRED) — clip groups, open loops, best-take hints
 #   - segments_classified.yaml (OPTIONAL) — enrichment: end times, roles, durations
-#   - asset_pool.yaml (OPTIONAL) — B-roll assets with semantic tags
 #   - Script/outline if library['script_parsed'] is set
 #
 # Output: libraries/<name>/arrangement.yaml
@@ -164,18 +163,7 @@ else
   $stderr.puts "  Classification: not available (using transcript end times)"
 end
 
-# --- 3. Asset pool (OPTIONAL) ---
-
-asset_pool_path = File.join(library_dir, 'asset_pool.yaml')
-asset_pool = nil
-if File.exist?(asset_pool_path)
-  asset_pool = YAML.safe_load(File.read(asset_pool_path), permitted_classes: [Date])
-  $stderr.puts "  Asset pool: #{(asset_pool['assets'] || []).size} assets"
-else
-  $stderr.puts "  Asset pool: not available"
-end
-
-# --- 4. Script/outline (determines branch) ---
+# --- 3. Script/outline (determines branch) ---
 
 script_block = ""
 branch = 'B'  # default: semantic judgment
@@ -285,7 +273,6 @@ prompt = <<~PROMPT
 
   #{source_durations_block}
   #{script_block}
-  #{asset_pool ? "## Asset Pool\n#{asset_pool.to_yaml}\n" : ''}
   ## Constraints
   target_format: #{target_format}
   target_duration_range: #{target_duration_range} seconds
@@ -298,15 +285,14 @@ prompt = <<~PROMPT
   1. **Chapter ordering**: Group clips into narrative chapters (ch_01, ch_02, ...). Order for maximum engagement — hook first, then build tension, resolve, conclude.
   2. **Usability filtering**: Exclude all clips marked `unusable`. Prefer `fine` clips. Use `marginal` clips only when no `fine` alternative exists in the same cluster.
   3. **Cluster take selection**: When clips share a `cluster` name, pick the best `fine` clip for V1. Put a second `fine` take on V2 only when it adds genuine value. Never use `marginal` if a `fine` exists in the same cluster.
-  4. **V2 stacking**: Only use track V2 for: (a) alternate cluster takes worth preserving, (b) cutaway/reaction shots, (c) B-roll overlays. Never put primary narrative on V2.
+  4. **V2 stacking**: Only use track V2 for: (a) alternate cluster takes worth preserving, (b) cutaway/reaction shots. Never put primary narrative on V2.
   5. **Keep logic**: Every `fine` clip should appear unless explicitly dropped with reasoning in key_decisions.
-  6. **B-roll matching**: If asset_pool is available, match assets to clips by semantic relevance. If no pool, suggest B-roll in broll_suggestions with type (image|video|graphic|screen_recording) and a short concept tag.
-  7. **Chapter assignment**: Every clip must belong to exactly one chapter.
-  8. **t_in / t_out**: Use the `t` value as t_in (or `trim_in` if set — it overrides the in-point). Use the `e` value (if available) as t_out. If `e` is not available, estimate from content. IMPORTANT: t_out must never exceed the source file's duration (listed in Source File Durations above). Clip boundaries must fit within the source they reference.
-  9. **trim_in**: If a clip has `trim_in`, use that as the effective t_in instead of `t`. Pass `trim_in` through to the output clip.
-  10. **mid_cuts**: If a clip has `mid_cuts`, pass them through to the output clip unchanged. They represent internal ranges to excise.
-  11. **Duration**: Estimate total duration from sum of (t_out - t_in) for all V1 clips. Warn if outside target range.
-  12. **Narrative roles**: Assign a narrative_role to each clip from: hook, setup, continuation, payoff, transition. Use `continuation` for anything developing the thought (arguments, evidence, examples, anecdotes, body). Use `transition` for bridges between sections.
+  6. **Chapter assignment**: Every clip must belong to exactly one chapter.
+  7. **t_in / t_out**: Use the `t` value as t_in (or `trim_in` if set — it overrides the in-point). Use the `e` value (if available) as t_out. If `e` is not available, estimate from content. IMPORTANT: t_out must never exceed the source file's duration (listed in Source File Durations above). Clip boundaries must fit within the source they reference.
+  8. **trim_in**: If a clip has `trim_in`, use that as the effective t_in instead of `t`. Pass `trim_in` through to the output clip.
+  9. **mid_cuts**: If a clip has `mid_cuts`, pass them through to the output clip unchanged. They represent internal ranges to excise.
+  10. **Duration**: Estimate total duration from sum of (t_out - t_in) for all V1 clips. Warn if outside target range.
+  11. **Narrative roles**: Assign a narrative_role to each clip from: hook, setup, continuation, payoff, transition. Use `continuation` for anything developing the thought (arguments, evidence, examples, anecdotes, body). Use `transition` for bridges between sections.
 
   ## Output Schema
 
@@ -337,13 +323,6 @@ prompt = <<~PROMPT
           trim_in: <seconds>
           mid_cuts:
             - [<cut_start>, <cut_end>]
-
-  broll_placements: []
-  broll_suggestions:
-    - at_chapter: ch_01
-      after_t: <seconds>
-      type: image
-      concept: "short_tag"
 
   key_decisions:
     - "Dropped group_003 (false start, content repeated better in group_005)"
@@ -456,8 +435,6 @@ if target_duration_range =~ /(\d+)-(\d+)/
 end
 
 # Default missing optional fields
-result['broll_placements'] ||= []
-result['broll_suggestions'] ||= []
 result['key_decisions'] ||= []
 
 # Enrich with metadata
@@ -492,10 +469,7 @@ unless skip_review
     $stderr.puts "\nKey decisions:"
     result['key_decisions'].each { |d| $stderr.puts "  - #{d}" }
   end
-  broll_matched = result['broll_placements'].size
-  broll_suggested = result['broll_suggestions'].size
-  $stderr.puts "\nB-roll: #{broll_matched} matched, #{broll_suggested} suggestions for missing"
-  $stderr.puts "Chapters: #{chapters.size} | Clips: #{all_clips.size} (V1: #{v1_clips.size}, V2: #{v2_clips.size})"
+  $stderr.puts "\nChapters: #{chapters.size} | Clips: #{all_clips.size} (V1: #{v1_clips.size}, V2: #{v2_clips.size})"
   $stderr.puts "\n(y) Continue  (r) Show full output  (n) Abort"
   $stderr.print "> "
 
