@@ -48,7 +48,7 @@ abort "Library not found: #{library_yaml_path}" unless File.exist?(library_yaml_
 
 require_relative 'load_profile'
 
-library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date], aliases: true)
 library_name = library['library_name'] || File.basename(File.dirname(library_yaml_path))
 profile = profile_name ? load_profile_by_name(profile_name) : load_profile(library_name)
 
@@ -172,7 +172,7 @@ audio_features_name = video['audio_features']
 if audio_features_name
   audio_features_path = File.join(transcripts_dir, audio_features_name)
   if File.exist?(audio_features_path)
-    af_data = YAML.safe_load(File.read(audio_features_path), permitted_classes: [Date])
+    af_data = YAML.safe_load(File.read(audio_features_path), permitted_classes: [Date], aliases: true)
     if af_data && af_data['segments']
       energies = af_data['segments'].map { |s| s['energy'].to_f }.compact
       if energies.any?
@@ -252,7 +252,7 @@ end
 
 scene_changes_path = File.join(library_dir, 'scene_changes.yaml')
 if File.exist?(scene_changes_path)
-  scene_data = YAML.safe_load(File.read(scene_changes_path), permitted_classes: [Date])
+  scene_data = YAML.safe_load(File.read(scene_changes_path), permitted_classes: [Date], aliases: true)
   total_scenes = scene_data['total_scenes'] || 0
   signals['scene_changes'] = total_scenes
 
