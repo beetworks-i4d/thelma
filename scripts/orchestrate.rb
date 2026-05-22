@@ -4,10 +4,12 @@
 # Checks cache at each step, skips completed phases, aborts loud on failure.
 #
 # Usage:
-#   ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only]
+#   ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B]
+#                               [--duration mm:ss] [--no-review] [--llm-mode api|claude_code]
 #
-# --analyze-only is shorthand for --branch C.
-# Branch C runs Phases 1-1.8, generates report, exits without arrangement or XML.
+# Session 3 pipeline: Phase 1 → 1.4 (extract_segments) → 1.5c (audio_emotion) →
+# 1.5d (scene/visual) → Phase 2 (discovery_pass) → Phase 3 (arrange) → Phase 4 (export)
+# Branch C deprecated as of v4.1 (will be redesigned in P5).
 
 require 'yaml'
 require 'date'
@@ -46,6 +48,7 @@ filter_expr        = nil
 short_id_arg       = nil
 force              = false
 diarize            = false
+duration_target    = nil
 
 args = ARGV.dup
 while args.any?
@@ -107,6 +110,9 @@ while args.any?
   when '--diarize'
     args.shift
     diarize = true
+  when '--duration'
+    args.shift
+    duration_target = args.shift
   else
     abort "Unknown argument: #{args.first}\n" \
           "Usage: ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B|C] [--analyze-only] [--no-review] [--llm-mode api|claude_code] [--mode mine] [--force-reindex] [--force-rediscover] [--discover-only] [--candidate <id>] [--force-cascade] [--force-revisualize] [--pool-dir <path>] [--language <code>] [--filter <expr>] [--short <id>] [--force] [--diarize]"
@@ -125,7 +131,15 @@ filter_expr = "id=#{short_id_arg}" if short_id_arg && filter_expr.nil?
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
-branch_override = 'C' if analyze_only
+if analyze_only
+  abort "PIPELINE ABORT: --analyze-only (Branch C) deprecated as of v4.1; will be redesigned in P5.\n" \
+        "Branch C scripts (discover_storylines, match_templates, score_coherence, etc.) are no longer in active routing."
+end
+
+if branch_override == 'C'
+  abort "PIPELINE ABORT: --branch C deprecated as of v4.1; will be redesigned in P5.\n" \
+        "Branch C scripts (discover_storylines, match_templates, score_coherence, etc.) are no longer in active routing."
+end
 
 # --- Helpers ---
 
@@ -408,73 +422,46 @@ if mode == 'mine'
   phase 'MINE — HQ Audio Matching'
   run_script('match_hq_audio.rb', '--library', library_name)
 
-  # Arc discovery — discover_arcs.rb handles its own cache check internally
-  phase 'MINE — Arc Discovery'
-  discover_flags = ['--library', library_name]
-  discover_flags += ['--profile', profile_name] if profile_name
-  discover_flags += ['--llm-mode', llm_mode]    if llm_mode
-  discover_flags << '--force-rediscover'         if force_rediscover
-  arc_candidates_path = run_script('discover_arcs.rb', *discover_flags)
-  # run_script propagates exit 2 (Claude Code pending) automatically
-
   # ── Discover-only exit ────────────────────────────────────────────────────
   if discover_only
     $stderr.puts "\n#{'=' * 60}"
-    $stderr.puts "ARC DISCOVERY COMPLETE (--discover-only)"
-    $stderr.puts "  Index:      #{PoolIndex.index_path(library_dir)}"
-    $stderr.puts "  Candidates: #{arc_candidates_path}"
+    $stderr.puts "POOL INDEXING COMPLETE (--discover-only)"
+    $stderr.puts "  Index: #{PoolIndex.index_path(library_dir)}"
     $stderr.puts '=' * 60
-    puts arc_candidates_path
     exit 0
   end
 
-  arc_data   = YAML.safe_load(File.read(arc_candidates_path), permitted_classes: [Date])
-  mine_candidates = arc_data['candidates'] || []
-  abort "No arc candidates found — re-run arc discovery" if mine_candidates.empty?
+  # Bridge: populate library.yaml['videos'] from index.yaml so shared pipeline
+  # (extract_segments, audio_emotion, etc.) can find the sources.
+  phase 'MINE — Register Sources in library.yaml'
+  index = PoolIndex.load(library_dir)
+  pool_videos = []
+  (index['sources'] || {}).each do |filename, entry|
+    next unless entry['ingested_at']  # skip un-ingested sources
+    full_path = Dir.glob(File.join(pool_dir, '**', filename)).first
+    next unless full_path && File.exist?(full_path)
 
-  selected_candidate_id = candidate_id
-
-  # ── Interactive candidate selection ───────────────────────────────────────
-  unless selected_candidate_id
-    phase 'MINE — Candidate Selection'
-    system('ruby', File.join(SCRIPTS_DIR, 'present_candidates.rb'), '--library', library_name)
-    abort "Failed to display candidates" unless $?.success?
-    print "\nSelect [1-#{mine_candidates.size}] or (q)uit: "
-    $stdout.flush
-    input = $stdin.gets&.strip
-    if input.nil? || input.downcase == 'q'
-      $stderr.puts "No candidate selected — pipeline paused."
-      exit 0
-    end
-    idx = input.to_i - 1
-    abort "Invalid selection: #{input}" if idx < 0 || idx >= mine_candidates.size
-    selected_candidate_id = mine_candidates[idx]['id']
+    v_entry = { 'path' => full_path }
+    v_entry['transcript'] = entry['transcript_file'] if entry['transcript_file']
+    v_entry['duration'] = entry['duration'].to_s if entry['duration']
+    # Check for cleaned transcript by convention
+    src_base = File.basename(filename, File.extname(filename))
+    cleaned_candidates = Dir.glob(File.join(transcripts_dir, "*#{src_base}*cleaned*"))
+    v_entry['cleaned_transcript'] = File.basename(cleaned_candidates.first) if cleaned_candidates.any?
+    v_entry['audio_features'] = entry['audio_features'] if entry['audio_features']
+    v_entry['speech_analysis'] = entry['speech_analysis'] if entry['speech_analysis']
+    pool_videos << v_entry
   end
 
-  $stderr.puts "  Candidate: #{selected_candidate_id}"
+  if pool_videos.any?
+    library['videos'] = pool_videos
+    File.write(library_yaml_path, library.to_yaml)
+    videos = library['videos']
+    $stderr.puts "  Registered #{pool_videos.size} source(s) in library.yaml from pool index"
+  end
 
-  # ── Convert candidate → arrangement.yaml ──────────────────────────────────
-  phase 'MINE — Candidate Conversion'
-  convert_flags = ['--library', library_name, '--candidate', selected_candidate_id]
-  convert_flags += ['--profile', profile_name] if profile_name
-  convert_flags << '--force' if force_cascade
-  run_script('convert_candidate.rb', *convert_flags)
-
-  # ── Export XML ────────────────────────────────────────────────────────────
-  phase 'MINE — Export XML'
-  export_flags = ['--library', library_name]
-  export_flags += ['--profile', profile_name] if profile_name
-  mine_xml_path = run_script('export_arrangement_xml.rb', *export_flags)
-
-  $stderr.puts "\n#{'=' * 60}"
-  $stderr.puts "MINE PIPELINE COMPLETE"
-  $stderr.puts "  Candidate: #{selected_candidate_id}"
-  $stderr.puts "  XML:       #{mine_xml_path}"
-  pickup_md = File.join(library_dir, 'pickup_recording_suggestions.md')
-  $stderr.puts "  Pickups:   #{pickup_md}" if File.exist?(pickup_md)
-  $stderr.puts '=' * 60
-  puts mine_xml_path
-  exit 0
+  # Mine mode continues into shared pipeline below (Phase 1.4 → 2 → D.2.5 → 3 → 4)
+  $stderr.puts "\n  Mine mode ingestion complete — continuing to shared pipeline..."
 end
 
 # --- Auto-register top-level videos from --pool-dir (Branch A/B/C) ---
@@ -928,50 +915,15 @@ else
 end
 
 # ============================================================
-# PHASE 1.5: CLASSIFICATION
+# PHASE 1.4: EXTRACT SEGMENTS (deterministic, no LLM)
 # ============================================================
 
-phase '1.5 — Classification'
+phase '1.4 — Extract Segments'
 
 classified_path = File.join(library_dir, 'segments_classified.yaml')
 
-if file_cached?(classified_path)
-  # Verify hash matches current transcript
-  existing = YAML.safe_load(File.read(classified_path), permitted_classes: [Date])
-  current_transcript = cleaned_path && file_cached?(cleaned_path) ? cleaned_path : transcript_path
-  current_hash = Digest::MD5.hexdigest(File.read(current_transcript)) if current_transcript
-  cached_hash = existing['transcript_hash']
-
-  if cached_hash && current_hash && cached_hash == current_hash
-    skip 'classification', 'segments_classified.yaml matches transcript hash'
-  else
-    step 'classification (hash mismatch — re-running)'
-    classify(current_transcript, classified_path, profile)
-  end
-else
-  step 'classification (LLM call)'
-  current_transcript = cleaned_path && file_cached?(cleaned_path) ? cleaned_path : transcript_path
-  classify(current_transcript, classified_path, profile)
-end
-
-# Validate classification
-step 'validate_classification'
-run_script('validate_classification.rb', classified_path)
-
-# Semantic dedup (Branch B only)
-if branch == 'B'
-  deduped_path = File.join(library_dir, 'segments_deduped.yaml')
-  if file_cached?(deduped_path)
-    skip 'semantic_dedup', 'segments_deduped.yaml exists'
-  else
-    step 'semantic_dedup'
-    run_script('semantic_dedup.rb', classified_path)
-  end
-  # Use deduped for downstream if available
-  segments_path = file_cached?(deduped_path) ? deduped_path : classified_path
-else
-  segments_path = classified_path
-end
+step 'extract_segments'
+run_script('extract_segments.rb', '--library', library_name)
 
 # ============================================================
 # PHASE 1.5c: AUDIO EMOTION (per-video)
@@ -979,23 +931,69 @@ end
 
 phase '1.5c — Audio Emotion'
 
+# Multi-video strategy: audio_emotion.rb matches segments by time proximity.
+# When multiple sources exist, we must split segments_classified.yaml per-source
+# to avoid cross-source time collisions, run audio_emotion against each source's
+# slice, then merge results back.
+
+all_seg_data = YAML.safe_load(File.read(classified_path), permitted_classes: [Date])
+all_segments = all_seg_data['segments'] || []
+multi_source = videos.size > 1
+
 videos.each_with_index do |v, vi|
   v_basename = File.basename(v['path'], File.extname(v['path']))
+  source_filename = File.basename(v['path'])
+
   if v['audio_features']
     skip "audio_emotion (#{v_basename})", 'cached in library.yaml'
-  else
-    pvo = per_video_outputs[vi]
-    tw = pvo&.dig(:treated_wav)
-    if tw && file_cached?(tw)
-      step "audio_emotion (#{v_basename})"
-      run_script('audio_emotion.rb', tw, classified_path, library_yaml_path)
-      # Reload library.yaml after audio_emotion caches its output
-      library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
-      videos = library['videos']
-    else
-      skip "audio_emotion (#{v_basename})", 'no treated WAV available'
-    end
+    next
   end
+
+  pvo = per_video_outputs[vi]
+  tw = pvo&.dig(:treated_wav)
+  unless tw && file_cached?(tw)
+    skip "audio_emotion (#{v_basename})", 'no treated WAV available'
+    next
+  end
+
+  step "audio_emotion (#{v_basename})"
+
+  if multi_source
+    # Split: write temp YAML with only this source's segments
+    source_segs = all_segments.select { |s| s['source'] == source_filename }
+    tmp_yaml = File.join(library_dir, ".tmp_audio_emotion_#{v_basename}.yaml")
+    tmp_data = all_seg_data.merge('segments' => source_segs)
+    File.write(tmp_yaml, YAML.dump(tmp_data))
+
+    run_script('audio_emotion.rb', tw, tmp_yaml, library_yaml_path)
+
+    # Merge: read enriched segments from tmp, update main data
+    enriched = YAML.safe_load(File.read(tmp_yaml), permitted_classes: [Date])
+    enriched_by_id = {}
+    (enriched['segments'] || []).each { |s| enriched_by_id[s['id']] = s }
+    all_segments.each do |s|
+      next unless enriched_by_id[s['id']]
+      es = enriched_by_id[s['id']]
+      %w[audio_profile audio_energy audio_energy_variance audio_pitch_mean
+         audio_pitch_range audio_pitch_trend audio_speaking_rate
+         audio_spectral_centroid acoustic_pattern].each do |field|
+        s[field] = es[field] if es[field]
+      end
+    end
+    File.delete(tmp_yaml) if File.exist?(tmp_yaml)
+  else
+    run_script('audio_emotion.rb', tw, classified_path, library_yaml_path)
+  end
+
+  # Reload library.yaml after audio_emotion caches its output
+  library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+  videos = library['videos']
+end
+
+# Write merged results back for multi-source case
+if multi_source
+  all_seg_data['segments'] = all_segments
+  File.write(classified_path, YAML.dump(all_seg_data))
 end
 
 # Merge per-segment prosody summaries (if prosody.yaml exists)
@@ -1049,87 +1047,46 @@ else
   $stderr.puts "  Continuing without visual transcript."
 end
 
+# Branch C is deprecated — caught earlier in CLI validation.
+# (Branch C scripts remain in tree but are removed from active routing.)
+
 # ============================================================
-# BRANCH C: GENERATE REPORT AND EXIT
+# PHASE 2: DISCOVERY PASS (LLM — replaces classify + semantic_ingest)
 # ============================================================
 
-if branch == 'C'
-  # Continue through storyline scoring before generating report
+phase '2 — Discovery Pass'
 
-  phase '1.6 — Storyline Discovery'
-  storylines_path = File.join(library_dir, 'storylines.yaml')
-  if file_cached?(storylines_path)
-    skip 'discover_storylines', 'storylines.yaml exists'
-  else
-    step 'discover_storylines'
-    profile_flag = profile_name ? ['--profile', profile_name] : []
-    run_script('discover_storylines.rb', segments_path, '--library', library_yaml_path, *profile_flag)
-  end
+discovery_pass_path = File.join(library_dir, 'discovery_pass.yaml')
 
-  phase '1.7 — Template Matching'
-  matched_path = File.join(library_dir, 'storylines_matched.yaml')
-  storylines_file = file_cached?(storylines_path) ? storylines_path : File.join(library_dir, 'storylines.yaml')
-  step 'match_templates'
-  profile_flag = profile_name ? ['--profile', profile_name] : []
-  run_script('match_templates.rb', storylines_file, classified_path, *profile_flag)
+step 'discovery_pass'
+flags = ['--library', library_name]
+flags += ['--profile', profile_name] if profile_name
+flags += ['--llm-mode', llm_mode] if llm_mode
+flags += ['--duration', duration_target] if duration_target
+flags << '--no-review' if no_review
+run_script('discovery_pass.rb', *flags)
 
-  phase '1.7.5 — Adaptive Structure Detection'
-  matched_data_c = YAML.safe_load(File.read(File.join(library_dir, 'storylines_matched.yaml')), permitted_classes: [Date])
-  matched_storylines_c = matched_data_c['storylines'] || []
-  best_fit_c = matched_storylines_c.map { |s| s.dig('template_match', 'fit_score').to_i }.max || 0
-  has_longform_c = matched_storylines_c.any? { |s| s['profile'] == 'best_single_longform' }
-
-  if best_fit_c < 70 || !has_longform_c
-    step 'detect_structure (prompts only — Branch C)'
-    $stderr.puts "  Trigger: best_fit=#{best_fit_c}% (threshold: 70%), longform=#{has_longform_c}"
-    structure_path_c = File.join(library_dir, 'structure_detected.yaml')
-    unless file_cached?(structure_path_c)
-      run_script('detect_structure.rb', segments_path, '--best-fit-score', best_fit_c.to_s)
-    end
-    $stderr.puts "  Prompts generated. LLM synthesis deferred (Branch C is analyze-only)."
-  else
-    skip 'detect_structure', "best_fit=#{best_fit_c}% >= 70% and longform exists"
-  end
-
-  phase '1.8 — Coherence Scoring'
-  matched_file = File.join(library_dir, 'storylines_matched.yaml')
-  step 'score_coherence (algorithmic only)'
-  profile_flag = profile_name ? ['--profile', profile_name] : []
-  run_script('score_coherence.rb', '--no-llm', *profile_flag, matched_file, classified_path)
-
-  phase 'C — Generate Report'
-  step 'generate_report'
-  profile_flag = profile_name ? ['--profile', profile_name] : []
-  report_path = run_script('generate_report.rb', library_dir, *profile_flag)
-
-  $stderr.puts "\n#{'=' * 60}"
-  $stderr.puts "PIPELINE COMPLETE (Branch C — analyze-only)"
-  $stderr.puts "Report: #{report_path}"
-  $stderr.puts '=' * 60
-  puts report_path
-  exit 0
+# Verify selected_thesis exists (review gate sets it)
+dp_data = YAML.safe_load(File.read(discovery_pass_path), permitted_classes: [Date])
+unless dp_data['selected_thesis']
+  abort "PIPELINE ABORT: No thesis selected in discovery_pass.yaml — review gate did not complete"
 end
 
 # ============================================================
-# PHASE 2: SEMANTIC INGEST
+# PHASE D.2.5: REGISTER POOL SOURCES (Branch D only)
 # ============================================================
 
-phase '2 — Semantic Ingest'
-
-semantic_ingest_path = File.join(library_dir, 'semantic_ingest.yaml')
-if file_cached?(semantic_ingest_path)
-  skip 'semantic_ingest', 'semantic_ingest.yaml exists'
-else
-  step 'semantic_ingest'
-  flags = ['--library', library_name]
-  flags += ['--profile', profile_name] if profile_name
-  flags += ['--llm-mode', llm_mode] if llm_mode
-  flags << '--no-review' if no_review
-  run_script('semantic_ingest.rb', *flags)
+if mode == 'mine'
+  phase 'D.2.5 — Register Pool Sources'
+  step 'register_pool_sources'
+  run_script('register_pool_sources.rb', '--library', library_name)
+  # Reload library.yaml after source registration
+  library = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+  videos = library['videos']
 end
 
 # ============================================================
-# PHASE 3: ARRANGEMENT
+# PHASE 3: ARRANGEMENT (thesis-driven)
 # ============================================================
 
 phase '3 — Arrangement'
@@ -1180,395 +1137,5 @@ $stderr.puts '=' * 60
 puts xml_path
 exit 0
 
-# ============================================================
-# LEGACY PHASES (1.6-4): Storyline-based arrangement flow
-# Kept for reference. Unreachable in default pipeline.
-# Use --branch C for analyze-only, or invoke scripts directly.
-# ============================================================
-
-# ============================================================
-# PHASE 1.6: STORYLINE DISCOVERY
-# ============================================================
-
-phase '1.6 — Storyline Discovery'
-
-storylines_path = File.join(library_dir, 'storylines.yaml')
-if file_cached?(storylines_path)
-  skip 'discover_storylines', 'storylines.yaml exists'
-else
-  step 'discover_storylines'
-  profile_flag = profile_name ? ['--profile', profile_name] : []
-  run_script('discover_storylines.rb', segments_path, '--library', library_yaml_path, *profile_flag)
-end
-
-# ============================================================
-# PHASE 1.7: TEMPLATE MATCHING
-# ============================================================
-
-phase '1.7 — Template Matching'
-
-step 'match_templates'
-profile_flag = profile_name ? ['--profile', profile_name] : []
-run_script('match_templates.rb', storylines_path, classified_path, *profile_flag)
-
-# ============================================================
-# PHASE 1.7.5: ADAPTIVE STRUCTURE DETECTION (conditional)
-# ============================================================
-
-phase '1.7.5 — Adaptive Structure Detection'
-
-matched_data = YAML.safe_load(File.read(File.join(library_dir, 'storylines_matched.yaml')), permitted_classes: [Date])
-matched_storylines = matched_data['storylines'] || []
-
-best_fit = matched_storylines.map { |s| s.dig('template_match', 'fit_score').to_i }.max || 0
-has_longform = matched_storylines.any? { |s| s['profile'] == 'best_single_longform' }
-
-if best_fit < 70 || !has_longform
-  step 'detect_structure'
-  $stderr.puts "  Trigger: best_fit=#{best_fit}% (threshold: 70%), longform=#{has_longform}"
-
-  structure_path = File.join(library_dir, 'structure_detected.yaml')
-  unless file_cached?(structure_path)
-    run_script('detect_structure.rb', segments_path, '--best-fit-score', best_fit.to_s)
-  end
-
-  # Agent fills viability + synthesis via LLM, then saves template
-  detected = YAML.safe_load(File.read(structure_path), permitted_classes: [Date])
-
-  if detected['viability'].nil?
-    # Run viability check
-    pending_dir = File.join(library_dir, 'pending_llm_calls')
-    begin
-      viability_response = LLMClient.call(detected['viability_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 200,
-                                          pending_dir: pending_dir, call_name: 'structure_viability')
-    rescue LLMClient::Pending => e
-      $stderr.puts e.message
-      exit 2
-    end
-    viability_line = viability_response.strip.lines.first&.strip || ''
-    detected['viability'] = viability_line.split(' — ').first&.strip
-    detected['viability_reason'] = viability_response.strip.lines[1]&.strip
-    File.write(structure_path, detected.to_yaml)
-  end
-
-  if %w[YES PARTIAL].include?(detected['viability']) && detected['synthesized_template'].nil?
-    # Run synthesis
-    pending_dir = File.join(library_dir, 'pending_llm_calls')
-    begin
-      synthesis_response = LLMClient.call(detected['synthesis_prompt'], call_type: 'structure_detection', profile: profile, max_tokens: 1000,
-                                          pending_dir: pending_dir, call_name: 'structure_synthesis')
-    rescue LLMClient::Pending => e
-      $stderr.puts e.message
-      exit 2
-    end
-    # Parse YAML from response
-    yaml_match = synthesis_response.match(/```yaml\n(.*?)```/m)
-    if yaml_match
-      detected['synthesized_template'] = YAML.safe_load(yaml_match[1])
-      File.write(structure_path, detected.to_yaml)
-
-      # Save template and re-match
-      run_script('detect_structure.rb', segments_path, '--save-template', structure_path)
-      step 're-match templates with synthesized template'
-      run_script('match_templates.rb', storylines_path, classified_path, *profile_flag)
-    end
-  end
-else
-  skip 'detect_structure', "best_fit=#{best_fit}% >= 70% and longform exists"
-end
-
-# ============================================================
-# PHASE 1.8: COHERENCE SCORING
-# ============================================================
-
-phase '1.8 — Coherence Scoring'
-
-matched_path = File.join(library_dir, 'storylines_matched.yaml')
-step 'score_coherence'
-profile_flag = profile_name ? ['--profile', profile_name] : []
-run_script('score_coherence.rb', *profile_flag, matched_path, classified_path)
-
-# ============================================================
-# PHASE 1.9: SANITY CHECK
-# ============================================================
-
-phase '1.9 — Sanity Check'
-
-scored_path = File.join(library_dir, 'storylines_scored.yaml')
-step 'sanity_check'
-profile_flag = profile_name ? ['--profile', profile_name] : []
-run_script('sanity_check.rb', *profile_flag, scored_path, segments_path)
-
-# ============================================================
-# PHASE 2: USER SELECTION (Interactive)
-# ============================================================
-
-phase '2 — Storyline Selection'
-
-scored_data = YAML.safe_load(File.read(scored_path), permitted_classes: [Date])
-storylines = scored_data['storylines'] || []
-passing = storylines.select { |s| s['passed_floor'] }
-
-if passing.empty?
-  $stderr.puts "  No candidates passed quality floor (combined >= 60)."
-  $stderr.puts "  Showing all candidates:"
-  passing = storylines.sort_by { |s| -(s['combined_score'] || 0) }
-end
-
-$stderr.puts "\n  Available storyline candidates:"
-passing.each_with_index do |s, i|
-  tm = s['template_match'] || {}
-  $stderr.puts "    #{i + 1}. #{s['id']} — score #{s['combined_score']}"
-  $stderr.puts "       Template: #{tm['template']} (#{tm['completeness']}% complete)"
-  $stderr.puts "       Duration: ~#{(s['duration_estimate'].to_f / 60).round(1)} min"
-end
-
-$stderr.puts "\n  Select candidates (comma-separated numbers, or 'all'):"
-$stderr.print "  > "
-selection = $stdin.gets&.strip
-
-selected = if selection == 'all' || selection.nil? || selection.empty?
-  passing
-else
-  indices = selection.split(',').map { |s| s.strip.to_i - 1 }
-  indices.map { |i| passing[i] }.compact
-end
-
-if selected.empty?
-  abort "PIPELINE ABORT: No candidates selected."
-end
-
-$stderr.puts "  Selected: #{selected.map { |s| s['id'] }.join(', ')}"
-
-# ============================================================
-# PHASE 3: ARRANGEMENT + BUILD
-# ============================================================
-
-phase '3 — Arrangement & Build'
-
-project_dir = File.dirname(video_path)
-output_dir = File.join(project_dir, 'output')
-FileUtils.mkdir_p(output_dir)
-
-editor = library['editor'] || 'fcp7'
-editor = 'fcp7' if editor == 'premiere'
-
-selected.each do |storyline|
-  step "arranging #{storyline['id']}"
-
-  # Reconstruct segment list from classification
-  classified_data = YAML.safe_load(File.read(classified_path), permitted_classes: [Date])
-  all_segments = classified_data['segments'] || []
-  seg_by_t = {}
-  all_segments.each { |s| seg_by_t[s['t'].to_f] = s }
-
-  hook_t = storyline['hook_segment'].to_f
-  close_t = storyline['close_segment']&.to_f
-
-  hook_seg = seg_by_t[hook_t]
-  close_seg = close_t ? seg_by_t[close_t] : nil
-
-  body_segs = if close_t
-    all_segments.select { |s| s['t'].to_f > hook_t && s['t'].to_f < close_t }
-  else
-    all_segments.select { |s| s['t'].to_f > hook_t }
-  end.sort_by { |s| s['t'].to_f }
-
-  # Build clips in chronological order
-  clips = []
-  ordered = []
-  ordered << hook_seg if hook_seg
-  ordered += body_segs
-  ordered << close_seg if close_seg
-
-  # Filter: cut signposts, low-confidence tertiary-only segments
-  ordered = ordered.select do |seg|
-    next true if seg == hook_seg || seg == close_seg # always keep hook/close
-    next true if (seg['distillation'] || '').downcase.match?(/next video|free training|check out|link in|subscribe|comment below|sign up|download|click|follow me/) # CTA preservation
-    next false if seg['signpost'] # cut signposts
-    next false if seg['confidence'] == 'low' && seg['roles'] == ['tertiary']
-    true
-  end
-
-  # Determine time domain
-  time_key_start = has_sync ? 'audio_start' : 'video_start'
-  time_key_end = has_sync ? 'audio_end' : 'video_end'
-
-  ordered.each do |seg|
-    clips << { time_key_start => seg['t'].to_f, time_key_end => seg['e'].to_f }
-  end
-
-  # Determine output format
-  output_format = storyline['id'].include?('short') ? 'vertical_short' : 'match_source'
-
-  # Build structure cut YAML
-  yaml_name = "#{library_name}_#{storyline['id']}"
-  yaml_path = File.join(output_dir, "#{yaml_name}.yaml")
-
-  structure_cut = {
-    'video_path' => video_path,
-    'output_dir' => output_dir,
-    'editor' => editor,
-    'name' => yaml_name,
-    'output_format' => output_format,
-    'clips' => clips,
-    'markers' => [],
-    'classification' => classified_path
-  }
-
-  # Add sync audio if dual-system
-  if has_sync
-    structure_cut['sync_audio'] = {
-      'path' => video.dig('sync_audio', 'path'),
-      'offset' => video.dig('sync_audio', 'offset')
-    }
-  end
-
-  # Add speech analysis if available
-  if speech_analysis_path && file_cached?(speech_analysis_path)
-    structure_cut['speech_analysis'] = speech_analysis_path
-  end
-
-  # Add edit patterns if available
-  edit_patterns_path = File.join(library_dir, 'edit_patterns.yaml')
-  if file_cached?(edit_patterns_path)
-    structure_cut['edit_patterns'] = edit_patterns_path
-  end
-
-  File.write(yaml_path, structure_cut.to_yaml)
-  $stderr.puts "  YAML: #{yaml_path}"
-
-  # Build XML
-  step "build_structure_cut #{yaml_name}"
-  profile_flag = profile_name ? ['--profile', profile_name] : []
-  run_script('build_structure_cut.rb', yaml_path, *profile_flag)
-end
-
-# ============================================================
-# PHASE 4: PRESENT
-# ============================================================
-
-phase '4 — Output'
-
-xml_files = Dir.glob(File.join(output_dir, '*.xml')).sort_by { |f| File.mtime(f) }.last(selected.size)
-
-$stderr.puts "\n  Built #{selected.size} structure cut(s):"
-xml_files.each do |xml|
-  $stderr.puts "    #{xml}"
-end
-
-# Export packaging briefs
-if profile.fetch('generate_packaging_brief', true)
-  xml_files.each do |xml_path|
-    step "export_packaging_brief #{File.basename(xml_path)}"
-    profile_flag = profile_name ? ['--profile', profile_name] : []
-    run_script('export_packaging_brief.rb',
-      '--library-dir', library_dir,
-      '--output', xml_path,
-      *profile_flag)
-  end
-end
-
-$stderr.puts "\n  Import into #{library['editor'] || 'Premiere'} via File > Import"
-
-$stderr.puts "\n#{'=' * 60}"
-$stderr.puts "PIPELINE COMPLETE (Branch #{branch})"
-$stderr.puts '=' * 60
-
-puts xml_files.join("\n")
-
-# --- Classification helper ---
-BEGIN {
-  def classify(transcript_path, output_path, profile)
-    abort "PIPELINE ABORT: No transcript found for classification\n" \
-          "RUN SESSION INTEGRITY: If running inside Claude Code, do not attempt to patch this defect. End the session. Open a dev session to investigate and fix." unless transcript_path && File.exist?(transcript_path)
-
-    transcript_data = JSON.parse(File.read(transcript_path))
-    segments = transcript_data['segments'] || []
-    abort "PIPELINE ABORT: No segments in transcript" if segments.empty?
-
-    transcript_hash = Digest::MD5.hexdigest(File.read(transcript_path))
-
-    states_list = %w[vindication outrage awe competence fear schadenfreude amusement
-                     catharsis nostalgia belonging escape calm aspiration sensual curiosity]
-
-    # Chunk segments to avoid hitting output token limits.
-    # ~100 segments per chunk keeps output well under 16k tokens.
-    chunk_size = 100
-    chunks = segments.each_slice(chunk_size).to_a
-    all_classified_segments = []
-
-    $stderr.puts "  Classification: #{segments.size} segments in #{chunks.size} chunk(s)"
-
-    chunks.each_with_index do |chunk, ci|
-      chunk_lines = chunk.map { |s|
-        "[#{s['start']&.round(2)}-#{s['end']&.round(2)}] #{s['text']&.strip}"
-      }.join("\n")
-
-      chunk_label = chunks.size > 1 ? " (chunk #{ci + 1}/#{chunks.size})" : ""
-
-      prompt = <<~PROMPT
-        You are classifying video transcript segments using the Content Psychopharmacology framework.
-
-        For each segment below, produce a JSON object with a "segments" array. Each entry has:
-        - "t": start time (seconds, number)
-        - "e": end time (seconds, number)
-        - "states": array of 1-3 strings from: #{states_list.join(', ')}
-        - "distillation": 5-word max summary of WHAT the segment says (the idea, not delivery)
-        - "signal": short description of the visible/verbal element triggering the state
-        - "dur": "spike" (momentary), "mood" (emotional tone), or "identity" (lasting impact)
-        - "roles": array from ["primary", "secondary", "tertiary"] — content importance
-        - "notes": 10-word max editorial note
-        - "rationale": 5-15 word explanation of why these states
-        - "confidence": "high", "medium", or "low"
-        - "signpost": true if meta-commentary announcing content without delivering it, false otherwise
-
-        Rules:
-        - Skip segments under 3 seconds or obvious filler (um, uh, false starts)
-        - Primary state is FIRST in the states array
-        - distillation must be 5 words or fewer
-        - Keep numbers literal in distillation
-
-        Transcript segments#{chunk_label}:
-        #{chunk_lines}
-
-        Respond with ONLY valid JSON. No markdown fences. Start directly with {"segments": [
-      PROMPT
-
-      pending_dir = File.join(File.dirname(output_path), 'pending_llm_calls')
-      call_name = chunks.size > 1 ? "classification_chunk_#{ci + 1}" : 'classification'
-      begin
-        response = LLMClient.call(prompt, call_type: 'classification', profile: profile,
-                                  pending_dir: pending_dir, call_name: call_name,
-                                  max_tokens: 16_384)
-      rescue LLMClient::Pending => e
-        $stderr.puts e.message
-        exit 2
-      end
-
-      # Extract JSON from response (strip markdown fences if present)
-      json_text = response.gsub(/\A```(?:json)?\s*/, '').gsub(/```\s*\z/, '').strip
-
-      begin
-        chunk_classified = JSON.parse(json_text)
-      rescue JSON::ParserError => e
-        abort "PIPELINE ABORT: Classification LLM returned invalid JSON#{chunk_label}\n#{e.message}\n\nResponse:\n#{json_text[0..500]}\n" \
-              "RUN SESSION INTEGRITY: If running inside Claude Code, do not attempt to patch this defect. End the session. Open a dev session to investigate and fix."
-      end
-
-      chunk_segments = chunk_classified['segments'] || []
-      $stderr.puts "  Chunk #{ci + 1}: #{chunk_segments.size} segments classified"
-      all_classified_segments.concat(chunk_segments)
-    end
-
-    classified = {
-      'transcript_hash' => transcript_hash,
-      'recording' => File.basename(transcript_path),
-      'classified_at' => Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z'),
-      'segments' => all_classified_segments
-    }
-
-    File.write(output_path, classified.to_yaml)
-    $stderr.puts "  Classification saved: #{output_path} (#{all_classified_segments.size} segments)"
-  end
-}
+# Legacy phases (1.6-4 storyline flow, Branch C, old classify()) removed in Session 3.
+# See docs/SESSION_3_SPEC.md §9 for deprecation details.
