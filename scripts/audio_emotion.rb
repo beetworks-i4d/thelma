@@ -71,8 +71,13 @@ if features_data['segments'] && classified_data['segments']
     next unless seg
     seg['audio_profile'] = feat['audio_profile']
     seg['audio_energy'] = feat['energy']
+    seg['audio_energy_variance'] = feat['energy_variance']
+    seg['audio_pitch_mean'] = feat['pitch_mean']
     seg['audio_pitch_trend'] = feat['pitch_trend']
+    seg['audio_pitch_range'] = feat['pitch_range']
     seg['audio_speaking_rate'] = feat['speaking_rate']
+    seg['audio_spectral_centroid'] = feat['spectral_centroid']
+    seg['acoustic_pattern'] = feat['acoustic_pattern']
     merged_count += 1
   end
   File.write(segments_yaml, YAML.dump(classified_data))

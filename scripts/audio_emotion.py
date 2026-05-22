@@ -149,6 +149,9 @@ def compute_segment_features(y, sr, seg, baseline):
                                     pitch_mean, pitch_range, pitch_trend,
                                     speaking_rate)
 
+    # Derive acoustic_pattern from temporal shape
+    acoustic_pattern = compute_acoustic_pattern(rms, energy, pitch_trend)
+
     return {
         't': t,
         'e': e,
@@ -159,8 +162,109 @@ def compute_segment_features(y, sr, seg, baseline):
         'pitch_range': round(pitch_range, 1),
         'speaking_rate': round(speaking_rate, 3),
         'spectral_centroid': round(spectral_centroid, 3),
-        'audio_profile': audio_profile
+        'audio_profile': audio_profile,
+        'acoustic_pattern': acoustic_pattern
     }
+
+def _classify_contour(rms_frames):
+    """Classify the energy contour shape from RMS frames into 3 time windows."""
+    if len(rms_frames) < 3:
+        return 'steady'
+
+    n = len(rms_frames)
+    third = n // 3
+    w1 = float(np.mean(rms_frames[:third]))
+    w2 = float(np.mean(rms_frames[third:2*third]))
+    w3 = float(np.mean(rms_frames[2*third:]))
+
+    mx = max(w1, w2, w3, 1e-10)
+    r1, r2, r3 = w1 / mx, w2 / mx, w3 / mx
+
+    thresh = 0.15
+
+    if abs(r1 - r3) < thresh and r2 > r1 + thresh:
+        return 'peaks-mid'
+    if abs(r1 - r3) < thresh and r2 < r1 - thresh:
+        return 'dips-mid'
+    if r3 > r1 + thresh:
+        if r2 > r1 + thresh:
+            return 'rising'
+        return 'builds-late'
+    if r1 > r3 + thresh:
+        if r2 < r1 - thresh:
+            return 'falling'
+        return 'fades-late'
+    return 'steady'
+
+
+def compute_acoustic_pattern(rms_frames, energy_relative, pitch_trend):
+    """Compute a short acoustic pattern descriptor for a segment.
+
+    Returns one of ~20 fixed vocabulary labels describing the temporal
+    shape of the segment's delivery.
+    """
+    # Energy level relative to baseline
+    if energy_relative < 0.75:
+        level = 'low'
+    elif energy_relative > 1.25:
+        level = 'high'
+    else:
+        level = 'mid'
+
+    contour = _classify_contour(rms_frames)
+
+    if contour == 'steady':
+        if level == 'low':
+            return 'monotone low-energy' if pitch_trend == 'flat' else 'low-energy steady'
+        elif level == 'high':
+            return 'high-energy steady'
+        else:
+            if pitch_trend == 'flat':
+                return 'even and measured'
+            elif pitch_trend == 'rising':
+                return 'measured rising pitch'
+            else:
+                return 'measured falling pitch'
+
+    elif contour == 'rising':
+        if level == 'high':
+            return 'rising emphasis throughout'
+        elif level == 'low':
+            return 'low-energy rising'
+        else:
+            return 'building emphasis'
+
+    elif contour == 'falling':
+        if level == 'high':
+            return 'opens strong fades out'
+        elif level == 'low':
+            return 'winding down'
+        else:
+            return 'trailing off'
+
+    elif contour == 'peaks-mid':
+        if level == 'high':
+            return 'emphatic mid-peak'
+        else:
+            return 'opens flat peaks mid ends flat'
+
+    elif contour == 'dips-mid':
+        return 'dips mid then recovers'
+
+    elif contour == 'builds-late':
+        if level == 'high':
+            return 'flat-then-emphatic'
+        else:
+            return 'builds to emphasis late'
+
+    elif contour == 'fades-late':
+        if level == 'high':
+            return 'emphatic-then-flat'
+        else:
+            return 'fades out late'
+
+    return 'even and measured'
+
 
 def derive_profile(energy, energy_variance, energy_trend,
                    pitch_mean, pitch_range, pitch_trend, speaking_rate):

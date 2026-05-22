@@ -906,6 +906,25 @@ else
 end
 
 # ============================================================
+# PHASE 1.25: PROSODY (Branch B/C)
+# ============================================================
+
+phase '1.25 — Prosody'
+prosody_path = File.join(library_dir, 'prosody.yaml')
+sa_mtimes = videos.map { |v|
+  sa_name = v['speech_analysis']
+  sa_path = sa_name ? File.join(transcripts_dir, sa_name) : nil
+  sa_path && File.exist?(sa_path) ? File.mtime(sa_path) : nil
+}.compact
+prosody_current = file_cached?(prosody_path) && sa_mtimes.any? && File.mtime(prosody_path) >= sa_mtimes.max
+if prosody_current
+  skip 'audio_prosody', 'prosody.yaml newer than speech analysis'
+else
+  step 'audio_prosody'
+  run_script('audio_prosody.rb', '--library', library_name)
+end
+
+# ============================================================
 # PHASE 1.5: CLASSIFICATION
 # ============================================================
 
@@ -974,6 +993,15 @@ videos.each_with_index do |v, vi|
       skip "audio_emotion (#{v_basename})", 'no treated WAV available'
     end
   end
+end
+
+# Merge per-segment prosody summaries (if prosody.yaml exists)
+prosody_merge_path = File.join(library_dir, 'prosody.yaml')
+if file_cached?(prosody_merge_path) && file_cached?(classified_path)
+  step 'merge_prosody_segments'
+  run_script('merge_prosody_segments.rb', classified_path, prosody_merge_path)
+else
+  skip 'merge_prosody_segments', 'prosody.yaml or segments_classified.yaml missing'
 end
 
 # ============================================================
