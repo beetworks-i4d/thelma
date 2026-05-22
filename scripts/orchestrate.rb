@@ -153,7 +153,8 @@ def run_script(script, *args)
     exit 2
   end
   unless status.success?
-    abort "\nPIPELINE ABORT: #{script} failed (exit #{status.exitstatus})\n#{stderr}"
+    abort "\nPIPELINE ABORT: #{script} failed (exit #{status.exitstatus})\n#{stderr}\n" \
+          "RUN SESSION INTEGRITY: If running inside Claude Code, do not attempt to patch this defect. End the session. Open a dev session to investigate and fix."
   end
   stdout.strip
 end
@@ -499,7 +500,8 @@ if (videos.nil? || videos.empty?) && pool_dir_arg && mode != 'mine'
   end
 end
 
-abort "No videos in library.yaml" unless videos && videos.any?
+abort "No videos in library.yaml\n" \
+      "RUN SESSION INTEGRITY: If running inside Claude Code, do not attempt to patch this defect. End the session. Open a dev session to investigate and fix." unless videos && videos.any?
 
 $stderr.puts "Thelma Pipeline — #{library_name}"
 $stderr.puts "Videos: #{videos.size} source file(s)"
@@ -600,7 +602,8 @@ videos.each_with_index do |video, vi|
       transcript_name = File.basename(expected)
       $stderr.puts "  Transcript: #{transcript_name}"
     else
-      abort "PIPELINE ABORT: WhisperX did not produce expected output: #{expected}"
+      abort "PIPELINE ABORT: WhisperX did not produce expected output: #{expected}\n" \
+            "RUN SESSION INTEGRITY: If running inside Claude Code, do not attempt to patch this defect. End the session. Open a dev session to investigate and fix."
     end
   end
 
@@ -1477,7 +1480,8 @@ puts xml_files.join("\n")
 # --- Classification helper ---
 BEGIN {
   def classify(transcript_path, output_path, profile)
-    abort "PIPELINE ABORT: No transcript found for classification" unless transcript_path && File.exist?(transcript_path)
+    abort "PIPELINE ABORT: No transcript found for classification\n" \
+          "RUN SESSION INTEGRITY: If running inside Claude Code, do not attempt to patch this defect. End the session. Open a dev session to investigate and fix." unless transcript_path && File.exist?(transcript_path)
 
     transcript_data = JSON.parse(File.read(transcript_path))
     segments = transcript_data['segments'] || []
@@ -1548,7 +1552,8 @@ BEGIN {
       begin
         chunk_classified = JSON.parse(json_text)
       rescue JSON::ParserError => e
-        abort "PIPELINE ABORT: Classification LLM returned invalid JSON#{chunk_label}\n#{e.message}\n\nResponse:\n#{json_text[0..500]}"
+        abort "PIPELINE ABORT: Classification LLM returned invalid JSON#{chunk_label}\n#{e.message}\n\nResponse:\n#{json_text[0..500]}\n" \
+              "RUN SESSION INTEGRITY: If running inside Claude Code, do not attempt to patch this defect. End the session. Open a dev session to investigate and fix."
       end
 
       chunk_segments = chunk_classified['segments'] || []

@@ -29,6 +29,40 @@ The run session is the integrity test. If a run session cannot produce a cut wit
 
 Track clean-run dates per branch per LLM mode in STATE.md.
 
+### Run session protocol
+
+A run session has strict boundaries. Claude Code must enforce them without being asked.
+
+**At session start**, Claude Code declares at the top of its first response:
+
+> RUN SESSION — I will invoke orchestrate.rb and observe. I will not edit code, edit YAML, set env vars, or run scripts outside orchestrate.rb.
+
+**Allowed actions in a run session:**
+- Invoke `orchestrate.rb` with documented flags
+- Invoke `thelmaedit` if Ivan explicitly requests it
+- Read output files for reporting back to Ivan
+- Read logs
+
+**Not allowed — ever — in a run session:**
+- Editing any source file (Ruby, Python, YAML, JSON, Markdown)
+- Setting environment variables as workarounds
+- Running any script other than orchestrate.rb (or thelmaedit if requested)
+- Proposing patches, hotfixes, or workarounds
+- Re-implementing broken pipeline steps outside orchestrate
+- Manually editing library.yaml to unblock a stuck phase
+
+**When a defect surfaces mid-run**, Claude Code's required response is:
+
+> RUN SESSION INTEGRITY VIOLATION — defect at [phase]. Ending run session. To fix this, open a dev session: `claude` (interactive mode), cd ~/thelma. Then we can investigate and patch.
+
+Claude Code does not propose fixes. It does not suggest "we could just..." It stops.
+
+**If Ivan asks for a patch mid-run-session**, Claude Code's response is:
+
+> This requires a dev session. End this run session first.
+
+No exceptions. The run session is an integrity test. If it can't complete without intervention, that's signal — not a problem to solve in-band.
+
 ### Auth separation
 
 - ANTHROPIC_API_KEY env var = Thelma content runs (`--llm-mode api`)
