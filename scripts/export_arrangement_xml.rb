@@ -7,13 +7,18 @@
 # --arrangement defaults to libraries/<name>/arrangement.yaml.
 # --output-name overrides the XML base name (default: <library>_arrangement).
 #
-# Reads: arrangement YAML (chapters schema)
+# Reads: arrangement YAML (chapters schema — v1 or v2)
 # Produces: <project>/output/<output-name>_<timestamp>.xml
 #
-# Maps arrangement clips → structure cut YAML with:
+# Supports two arrangement schemas:
+#   v1 (Branch A/D): chapter['clips'] with t_in/t_out, track, narrative_role
+#   v2 (Session 3):  chapter['segments'] with seg_id, clip_in/clip_out, source
+#
+# Maps arrangement → structure cut YAML with:
 #   - V1 clips sequential (no timeline_offset)
 #   - V2+ clips positioned at the V1 timeline offset where their chapter starts
 #   - Speech analysis for pause removal at natural boundaries
+#   - Per-chapter markers from arrangement (v2) wired to Premiere markers
 
 require 'yaml'
 require 'json'
@@ -114,12 +119,33 @@ if video_entry['sync_audio'] && video_entry['sync_audio']['offset']
   end
 end
 
+# === Detect arrangement schema version ===
+# v2 (Session 3): chapters have 'segments' array with seg_id, clip_in, clip_out
+# v1 (Branch A/D): chapters have 'clips' array with t_in, t_out, track
+first_chapter = (arrangement['chapters'] || []).first
+is_v2 = first_chapter && first_chapter.key?('segments')
+$stderr.puts "  Arrangement schema: #{is_v2 ? 'v2 (Session 3)' : 'v1 (legacy)'}"
+
+# === Marker category → Premiere color mapping (CLAUDE.md spec) ===
+MARKER_CATEGORY_COLOR = {
+  'TITLE'      => 'blue',
+  'B-ROLL'     => 'green',
+  'TRANSITION' => 'orange',
+  'SFX'        => 'purple',
+  'MUSIC'      => 'red',
+  'NOTE'       => 'yellow'
+}.freeze
+
 # === Build clips from arrangement chapters ===
 # V1 clips are sequential. V2+ clips get timeline_offset set to the
 # V1 timeline position at the start of their parent chapter.
 v1_clips = []
 v2_clips = []
 chapter_meta = []
+# Track seg_id → V1 clip index for resolving marker at_seg references
+seg_id_to_clip_idx = {}
+# Collect arrangement markers (v2) for post-processing once all clips are built
+arrangement_markers_raw = []
 
 arrangement['chapters'].each do |chapter|
   # Record V1 timeline position at chapter start (with breathing room buffers)
@@ -130,7 +156,22 @@ arrangement['chapters'].each do |chapter|
   chapter_v1_start = v1_raw_duration + v1_buffer_total
   v1_clip_start_idx = v1_clips.size
 
-  chapter['clips'].each do |clip|
+  # Normalize: v2 'segments' → unified clip list; v1 'clips' passed through
+  raw_clips = if is_v2
+    (chapter['segments'] || []).map do |seg|
+      {
+        'source' => seg['source'],
+        't_in'   => seg['clip_in'],
+        't_out'  => seg['clip_out'],
+        'track'  => 'V1',  # Session 3: all segments default to V1
+        'seg_id' => seg['seg_id']
+      }
+    end
+  else
+    chapter['clips'] || []
+  end
+
+  raw_clips.each do |clip|
     track = (clip['track'] || 'V1').upcase
 
     # Resolve per-clip source path from arrangement's source filename
@@ -174,19 +215,20 @@ arrangement['chapters'].each do |chapter|
       clip_entry['media_type'] = 'audio_only'
     end
 
-    # Pass through ingest trim fields
-    clip_entry['trim_in'] = clip['trim_in'].to_f if clip['trim_in']
-    clip_entry['mid_cuts'] = clip['mid_cuts'] if clip['mid_cuts']
+    # v1 pass-through fields (not present in v2 — known limitation for Session 3)
+    unless is_v2
+      clip_entry['trim_in'] = clip['trim_in'].to_f if clip['trim_in']
+      clip_entry['mid_cuts'] = clip['mid_cuts'] if clip['mid_cuts']
+      clip_entry['narrative_role'] = clip['narrative_role'] if clip['narrative_role']
+      clip_entry['beat_id'] = clip['beat_id'] if clip['beat_id']
+    end
 
-    # Pass through narrative role for clip color coding
-    clip_entry['narrative_role'] = clip['narrative_role'] if clip['narrative_role']
-
-    # Pass through chapter/beat identity for diagnostic logs in build_structure_cut
-    # (overlap clamp / overlap containment messages name the source beat).
+    # Pass through chapter identity for diagnostic logs in build_structure_cut
     clip_entry['chapter_id'] = chapter['id'] if chapter['id']
-    clip_entry['beat_id']    = clip['beat_id'] if clip['beat_id']
 
     if track == 'V1'
+      # Track seg_id → clip index for marker resolution
+      seg_id_to_clip_idx[clip['seg_id']] = v1_clips.size if clip['seg_id']
       v1_clips << clip_entry
     else
       # V2+ clips: position at chapter start on V1 timeline
@@ -198,14 +240,57 @@ arrangement['chapters'].each do |chapter|
   # Track V1 clip index range for this chapter (for SECTION markers)
   chapter_meta << {
     'id' => chapter['id'],
-    'label' => chapter['label'],
+    'label' => chapter['title'] || chapter['label'],
     'v1_clip_start' => v1_clip_start_idx,
     'v1_clip_end' => v1_clips.size - 1
   }
+
+  # Collect v2 arrangement markers for post-processing
+  if is_v2 && chapter['markers']
+    chapter['markers'].each do |m|
+      arrangement_markers_raw << m.merge('_chapter_id' => chapter['id'])
+    end
+  end
 end
 
 # Interleave: V1 clips first (sequential), then V2 clips (each with explicit offset)
 all_clips = v1_clips + v2_clips
+
+# === Resolve arrangement markers (v2) to timeline positions ===
+# Each marker has at_seg → resolve to the V1 clip's timeline start position.
+# Timeline position = sum of preceding V1 clip durations + breathing room buffers.
+arrangement_markers = []
+if arrangement_markers_raw.any?
+  # Pre-compute V1 timeline positions (same logic as chapter_v1_start above)
+  v1_timeline_positions = []
+  cumulative_dur = 0.0
+  v1_clips.each_with_index do |c, i|
+    v1_timeline_positions << cumulative_dur
+    clip_dur = c['video_end'] - c['video_start']
+    buffer = i > 0 ? (6.0 / 24.0) : 0.0
+    cumulative_dur += clip_dur + buffer
+  end
+
+  arrangement_markers_raw.each do |m|
+    seg_id = m['at_seg']
+    clip_idx = seg_id_to_clip_idx[seg_id] if seg_id
+    unless clip_idx
+      $stderr.puts "  WARN: marker at_seg '#{seg_id}' not found in arrangement clips — skipping"
+      next
+    end
+
+    tl_time = v1_timeline_positions[clip_idx] || 0.0
+    color = MARKER_CATEGORY_COLOR[m['type']] || 'yellow'
+
+    arrangement_markers << {
+      'name'    => m['type'] || 'NOTE',
+      'comment' => m['comment'] || '',
+      'time'    => tl_time.round(3),
+      'color'   => color
+    }
+  end
+  $stderr.puts "  Arrangement markers: #{arrangement_markers.size} (from #{arrangement_markers_raw.size} raw)"
+end
 
 # === Determine output directory (RAW project folder, not library) ===
 video_dir = File.dirname(video_path)
@@ -220,6 +305,11 @@ config = {
   'clips' => all_clips,
   'chapters' => chapter_meta
 }
+
+# Wire arrangement markers (v2) into config for build_structure_cut.rb
+if arrangement_markers.any?
+  config['markers'] = arrangement_markers
+end
 
 # Add speech analysis for natural boundary pause removal
 if speech_analysis_path
