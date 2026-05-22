@@ -1,19 +1,20 @@
 #!/usr/bin/env ruby
-# Phase 2 — Arrangement Script (R3)
-# Converts semantic understanding into a proposed cut. One LLM call that produces
-# arrangement.yaml with chapter ordering, clip selection, take decisions, and
-# editorial reasoning.
+# Phase 3 — Thesis-Driven Arrangement (Session 3 rework)
+# Reads discovery_pass.yaml (chosen thesis + clip_groups + throughlines) and
+# enriched segments_classified.yaml. Produces arrangement.yaml v2 with chapters,
+# throughline_honoring, and unused_segment_audit.
 #
 # Usage:
-#   ruby scripts/arrange.rb --library <name> [--profile <name>] [--format longform|shorts]
+#   ruby scripts/arrange.rb --library <name> [--profile <name>]
 #                           [--no-review] [--llm-mode api|claude_code]
 #
 # Input:
-#   - semantic_ingest.yaml (REQUIRED) — clip groups, open loops, best-take hints
-#   - segments_classified.yaml (OPTIONAL) — enrichment: end times, roles, durations
-#   - Script/outline if library['script_parsed'] is set
+#   - discovery_pass.yaml (REQUIRED) — must contain selected_thesis
+#   - segments_classified.yaml (REQUIRED) — enriched segments
+#   - library.yaml
+#   - Profile YAML
 #
-# Output: libraries/<name>/arrangement.yaml
+# Output: libraries/<name>/arrangement.yaml (v2)
 
 require 'yaml'
 require 'date'
@@ -26,49 +27,31 @@ require_relative 'library_resolver'
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
 
-VALID_NARRATIVE_ROLES = %w[hook setup continuation payoff transition].freeze
-
-# --- CLI parsing ---
+# ─── CLI ─────────────────────────────────────────────────────────────────────
 
 library_name = nil
 profile_name = nil
-target_format = 'longform'
-skip_review = false
-llm_mode = nil
+skip_review  = false
+llm_mode     = nil
 
 args = ARGV.dup
 while args.any?
   case args.first
-  when '--library'
-    args.shift
-    library_name = args.shift
-  when '--profile'
-    args.shift
-    profile_name = args.shift
-  when '--format'
-    args.shift
-    target_format = args.shift
-  when '--no-review'
-    args.shift
-    skip_review = true
-  when '--llm-mode'
-    args.shift
-    llm_mode = args.shift
+  when '--library'   then args.shift; library_name = args.shift
+  when '--profile'   then args.shift; profile_name = args.shift
+  when '--no-review' then args.shift; skip_review  = true
+  when '--llm-mode'  then args.shift; llm_mode     = args.shift
   else
     abort "Unknown argument: #{args.first}\n" \
-          "Usage: ruby scripts/arrange.rb --library <name> [--profile <name>] [--format longform|shorts] [--no-review] [--llm-mode api|claude_code]"
+          "Usage: ruby scripts/arrange.rb --library <name> [--profile <name>] " \
+          "[--no-review] [--llm-mode api|claude_code]"
   end
 end
-
 abort "Usage: ruby scripts/arrange.rb --library <name>" unless library_name
-
-unless %w[longform shorts].include?(target_format)
-  abort "Invalid format: #{target_format}. Must be 'longform' or 'shorts'."
-end
 
 LLMClient.mode = llm_mode.to_sym if llm_mode
 
-# --- Load library ---
+# ─── Load library + profile ─────────────────────────────────────────────────
 
 library_dir = LibraryResolver.resolve(library_name)
 library_yaml_path = File.join(library_dir, 'library.yaml')
@@ -81,267 +64,188 @@ tone_context = build_tone_context(profile, tone_guide)
 
 output_path = File.join(library_dir, 'arrangement.yaml')
 
-# --- Load semantic_ingest.yaml (REQUIRED) ---
+# ─── Load discovery_pass.yaml (REQUIRED) ────────────────────────────────────
 
-ingest_path = File.join(library_dir, 'semantic_ingest.yaml')
-abort "ABORT: semantic_ingest.yaml not found at #{ingest_path}\nRun semantic_ingest.rb first." unless File.exist?(ingest_path)
+discovery_path = File.join(library_dir, 'discovery_pass.yaml')
+abort "PIPELINE ABORT: discovery_pass.yaml not found — run discovery_pass.rb (Phase 2) first" unless File.exist?(discovery_path)
 
-ingest = YAML.safe_load(File.read(ingest_path), permitted_classes: [Date])
-abort "ABORT: semantic_ingest.yaml is empty or invalid" unless ingest && ingest['clip_groups']
+discovery = YAML.safe_load(File.read(discovery_path), permitted_classes: [Date])
+abort "PIPELINE ABORT: discovery_pass.yaml is empty or invalid" unless discovery.is_a?(Hash)
 
-# --- Cache check ---
+selected_thesis_id = discovery['selected_thesis']
+abort "PIPELINE ABORT: No selected_thesis in discovery_pass.yaml — run Phase 2 review gate first" unless selected_thesis_id
 
-cache_hash = Digest::MD5.hexdigest(File.read(ingest_path) + target_format)
+theses = discovery['theses'] || []
+chosen_thesis = theses.find { |t| t['id'] == selected_thesis_id }
+abort "PIPELINE ABORT: selected_thesis '#{selected_thesis_id}' not found in theses list" unless chosen_thesis
+
+clip_groups  = discovery['clip_groups']  || []
+throughlines = discovery['throughlines'] || []
+
+# ─── Load segments_classified.yaml (REQUIRED) ───────────────────────────────
+
+segments_path = File.join(library_dir, 'segments_classified.yaml')
+abort "PIPELINE ABORT: segments_classified.yaml not found" unless File.exist?(segments_path)
+
+segments_data = YAML.safe_load(File.read(segments_path), permitted_classes: [Date])
+segments = segments_data['segments'] || []
+abort "PIPELINE ABORT: No segments in segments_classified.yaml" if segments.empty?
+
+# Build lookup by ID for validation
+seg_by_id = {}
+segments.each { |s| seg_by_id[s['id']] = s }
+
+profile_name_resolved = profile_name || find_profile_match(library_name) || '_default'
+
+# ─── Cache check ─────────────────────────────────────────────────────────────
+
+cache_parts = [
+  Digest::SHA256.hexdigest(File.read(discovery_path)),
+  Digest::SHA256.hexdigest(File.read(segments_path)),
+  profile_name_resolved
+]
+input_fingerprint = Digest::SHA256.hexdigest(cache_parts.join(':'))
 
 if File.exist?(output_path)
-  existing = YAML.safe_load(File.read(output_path), permitted_classes: [Date])
-  if existing && existing['cache_hash'] == cache_hash
-    $stderr.puts "arrangement.yaml up to date (hash #{cache_hash[0..7]})"
+  existing = YAML.safe_load(File.read(output_path), permitted_classes: [Date]) rescue nil
+  if existing.is_a?(Hash) && existing['input_fingerprint'] == input_fingerprint
+    $stderr.puts "arrangement.yaml up to date (fingerprint match). Skipping."
     puts output_path
     exit 0
   end
 end
 
-# ============================================================
-# GATHER INPUTS
-# ============================================================
+# ─── Build prompt ────────────────────────────────────────────────────────────
 
-$stderr.puts "=" * 60
+$stderr.puts '=' * 60
 $stderr.puts "ARRANGEMENT — #{library_name}"
-$stderr.puts "=" * 60
+$stderr.puts '=' * 60
 
-# --- 1. Semantic ingest data ---
-
-clip_groups = ingest['clip_groups'] || []
-open_loops = ingest['open_loops'] || {}
-
-all_ingest_clips = clip_groups.flat_map { |g| g['clips'] || [] }
-fine_count = all_ingest_clips.count { |c| c['usability'] == 'fine' || c['usability'].nil? }
-marginal_count = all_ingest_clips.count { |c| c['usability'] == 'marginal' }
-unusable_count = all_ingest_clips.count { |c| c['usability'] == 'unusable' }
-cluster_names = all_ingest_clips.map { |c| c['cluster'] }.compact.uniq
-
-$stderr.puts "  Ingest: #{clip_groups.size} groups, #{all_ingest_clips.size} clips"
-$stderr.puts "  Usability: #{fine_count} fine, #{marginal_count} marginal, #{unusable_count} unusable"
-$stderr.puts "  Clusters: #{cluster_names.size} (#{cluster_names.join(', ')})" if cluster_names.any?
-
-# --- 2. Segments classified (OPTIONAL enrichment) ---
-
-classified_path = File.join(library_dir, 'segments_classified.yaml')
-t_lookup = {}  # t_value → enrichment hash
-
-if File.exist?(classified_path)
-  classified = YAML.safe_load(File.read(classified_path), permitted_classes: [Date])
-  segments = classified['segments'] || []
-  segments.each do |s|
-    t_val = s['t'].to_f
-    t_lookup[t_val] = {
-      'e' => s['e']&.to_f,
-      'narrative_role' => s['narrative_role'],
-      'dur' => s['dur'],
-      'confidence' => s['confidence'],
-      'audio_profile' => s['audio_profile'],
-      'states' => s['states'],
-      'distillation' => s['distillation']
-    }
-  end
-  $stderr.puts "  Classification: #{segments.size} segments enriched"
-else
-  # Fallback: try to build t→e lookup from transcript JSON segments
-  transcripts_dir = File.join(library_dir, 'transcripts')
-  (library['videos'] || []).each do |v|
-    ct = v['cleaned_transcript'] || v['transcript']
-    next unless ct
-    t_path = File.join(transcripts_dir, ct)
-    next unless File.exist?(t_path)
-    data = JSON.parse(File.read(t_path)) rescue next
-    (data['segments'] || []).each do |s|
-      t_val = s['start'].to_f
-      t_lookup[t_val] = { 'e' => s['end'].to_f } unless t_lookup.key?(t_val)
-    end
-  end
-  $stderr.puts "  Classification: not available (using transcript end times)"
+# Compact segments table
+segments_block = +""
+segments.each do |s|
+  dur = (s['e'].to_f - s['t'].to_f).round(1)
+  line = "#{s['id']} | #{s['source']} | #{s['t']}-#{s['e']} (#{dur}s)"
+  line << " | #{s['acoustic_pattern']}" if s['acoustic_pattern']
+  line << " | energy=#{s['audio_energy']}" if s['audio_energy']
+  line << " | pitch=#{s['audio_pitch_trend']}" if s['audio_pitch_trend']
+  line << "\n  #{s['text']}"
+  segments_block << line << "\n\n"
 end
 
-# --- 3. Script/outline (determines branch) ---
+$stderr.puts "  Thesis: #{selected_thesis_id} — #{chosen_thesis['logline'].to_s.strip[0..80]}"
+$stderr.puts "  Segments: #{segments.size}, Clip groups: #{clip_groups.size}, Throughlines: #{throughlines.size}"
 
-script_block = ""
-branch = 'B'  # default: semantic judgment
+# Editorial bias (D9)
+editorial_frame = <<~EDITORIAL
+  ## Editorial Frame
+  You have been given a chosen thesis. Your job is to select and order segments from the material
+  that serve this thesis as the tightest, most engaging cut possible.
 
-if library['script_parsed']
-  sp_path = File.join(library_dir, 'transcripts', library['script_parsed'])
-  sp_path = File.join(library_dir, library['script_parsed']) unless File.exist?(sp_path)
+  Aim for the tightest, most engaging cut the material supports. Err shorter when possible.
+  Texture, asides, and examples earn their place when they meaningfully advance OR meaningfully
+  enrich the video AND are engaging on their own merits. Bar is "earns its seconds," not
+  "serves the thesis exclusively."
 
-  if File.exist?(sp_path)
-    branch = 'A'  # script-faithful
-    script_data = YAML.safe_load(File.read(sp_path), permitted_classes: [Date]) rescue nil
-    if script_data
-      script_block = "\n## Script/Outline\n"
-      if script_data['beats']
-        script_data['beats'].each_with_index do |b, i|
-          script_block << "#{i + 1}. #{b['label'] || b['text']}\n"
-        end
-      elsif script_data['sections']
-        script_data['sections'].each do |s|
-          script_block << "## #{s['heading']}\n#{s['text']}\n\n"
-        end
-      else
-        script_block << script_data.to_yaml
-      end
-    end
-  end
-end
-
-$stderr.puts "  Branch: #{branch} (#{branch == 'A' ? 'script-faithful' : 'semantic judgment'})"
-
-# --- Build enriched clip groups for prompt ---
-
-enriched_groups = clip_groups.map do |g|
-  enriched_clips = (g['clips'] || []).map do |c|
-    usability = c['usability'] || 'fine'
-
-    # P1: Unusable clips get minimal representation — they're dropped by Rule 2 anyway
-    if usability == 'unusable'
-      next { 't' => c['t'], 'source' => c['source'], 'usability' => 'unusable' }
-    end
-
-    t_val = c['t'].to_f
-    enrichment = t_lookup[t_val] || {}
-    entry = { 't' => c['t'], 'source' => c['source'], 'usability' => usability,
-              'content_summary' => c['content_summary'] }
-    entry['cluster'] = c['cluster'] if c['cluster']
-    entry['trim_in'] = c['trim_in'] if c['trim_in']
-    entry['mid_cuts'] = c['mid_cuts'] if c['mid_cuts']
-    entry['e'] = enrichment['e'] if enrichment['e']
-    entry['narrative_role'] = enrichment['narrative_role'] if enrichment['narrative_role']
-    entry['dur'] = enrichment['dur'] if enrichment['dur']
-    entry['confidence'] = enrichment['confidence'] if enrichment['confidence']
-    entry['audio_profile'] = enrichment['audio_profile'] if enrichment['audio_profile']
-    entry
-  end
-  # P2: Drop group description — redundant when clips have content_summaries
-  { 'id' => g['id'], 'label' => g['label'], 'clips' => enriched_clips }
-end
-
-# --- Source file durations (for LLM boundary awareness) ---
-
-unique_sources = all_ingest_clips.map { |c| c['source'] }.compact.uniq
-source_durations = {}
-library_videos = library['videos'] || []
-unique_sources.each do |src|
-  video_entry = library_videos.find { |v| File.basename(v['path']) == src }
-  next unless video_entry
-  abs_path = File.expand_path(video_entry['path'])
-  dur_str = `ffprobe -v error -show_entries format=duration -of csv=p=0 "#{abs_path}" 2>/dev/null`.strip
-  source_durations[src] = dur_str.to_f.round(2) if dur_str =~ /\d/
-end
-
-source_durations_block = ""
-if source_durations.any?
-  source_durations_block = "\n## Source File Durations\n"
-  source_durations.sort.each do |src, dur|
-    source_durations_block << "- #{src}: #{dur}s\n"
-  end
-end
-
-# --- Format constraints ---
-
-format_defaults = profile.dig('format_defaults', target_format) || {}
-target_duration_range = format_defaults['target_duration'] || (target_format == 'shorts' ? '30-60' : '480-900')
-content_type = effective_content_type(profile, library)
-
-# ============================================================
-# BUILD PROMPT
-# ============================================================
+  You must honor declared relationships:
+  - alternate_takes: pick one; you may override selection_guidance.recommended when the thesis
+    specifically demands a different take, but you must state why in arrangement_reasoning.
+  - setup_payoff: segments travel together; if one is in the cut, the other must be too.
+  - throughline open/close pairs must both appear with the specified distance between them.
+  - bridge and run-on groupings preserve their internal coherence.
+  - tangents are evaluated against the editorial bias — include only if they earn their seconds.
+EDITORIAL
 
 prompt = <<~PROMPT
-  You are a senior video editor creating a proposed cut for a video.
+  You are a senior video editor creating a thesis-driven cut.
 
-  ## Directorial Understanding
+  #{editorial_frame}
 
-  ### Core Understanding
-  #{ingest['core_understanding']}
+  ## Chosen Thesis
 
-  ### Central Tension
-  #{ingest['central_tension']}
+  ID: #{chosen_thesis['id']}
+  Logline: #{chosen_thesis['logline']}
+  Target Duration: #{chosen_thesis['duration']}
+  Shape & Risk: #{chosen_thesis['shape_and_risk']}
 
-  ## Clip Groups (with enrichment)
-  #{enriched_groups.to_yaml}
+  ## Clip Groups
+  #{clip_groups.to_yaml}
 
-  ## Open Loops
-  #{open_loops.to_yaml}
+  ## Throughlines
+  #{throughlines.to_yaml}
 
-  #{source_durations_block}
-  #{script_block}
-  ## Constraints
-  target_format: #{target_format}
-  target_duration_range: #{target_duration_range} seconds
-  branch: #{branch}
-  include_ctas: #{profile['include_ctas'] || true}
-  content_type: #{content_type}
+  ## Enriched Segments
 
-  ## Rules
+  #{segments_block}
 
-  1. **Chapter ordering**: Group clips into narrative chapters (ch_01, ch_02, ...). Order for maximum engagement — hook first, then build tension, resolve, conclude.
-  2. **Usability filtering**: Exclude all clips marked `unusable`. Prefer `fine` clips. Use `marginal` clips only when no `fine` alternative exists in the same cluster.
-  3. **Cluster take selection**: When clips share a `cluster` name, pick the best `fine` clip for V1. Put a second `fine` take on V2 only when it adds genuine value. Never use `marginal` if a `fine` exists in the same cluster.
-  4. **V2 stacking**: Only use track V2 for: (a) alternate cluster takes worth preserving, (b) cutaway/reaction shots. Never put primary narrative on V2.
-  5. **Keep logic**: Every `fine` clip should appear unless explicitly dropped with reasoning in key_decisions.
-  6. **Chapter assignment**: Every clip must belong to exactly one chapter.
-  7. **t_in / t_out**: Use the `t` value as t_in (or `trim_in` if set — it overrides the in-point). Use the `e` value (if available) as t_out. If `e` is not available, estimate from content. IMPORTANT: t_out must never exceed the source file's duration (listed in Source File Durations above). Clip boundaries must fit within the source they reference.
-  8. **trim_in**: If a clip has `trim_in`, use that as the effective t_in instead of `t`. Pass `trim_in` through to the output clip.
-  9. **mid_cuts**: If a clip has `mid_cuts`, pass them through to the output clip unchanged. They represent internal ranges to excise.
-  10. **Duration**: Estimate total duration from sum of (t_out - t_in) for all V1 clips. Warn if outside target range.
-  11. **Narrative roles**: Assign a narrative_role to each clip from: hook, setup, continuation, payoff, transition. Use `continuation` for anything developing the thought (arguments, evidence, examples, anecdotes, body). Use `transition` for bridges between sections.
+  ## Task
+
+  Produce arrangement.yaml v2 selecting and ordering segments that serve the chosen thesis.
+
+  For each chapter:
+  - Select segments that advance the thesis
+  - Order them for maximum engagement and narrative coherence
+  - Use clip_in/clip_out from segment t/e values (source-relative video time)
+  - Reference clip_group_ref when a segment belongs to a clip_group
+  - Add notes for any editorial decisions (take overrides, trim reasoning)
+
+  For throughlines:
+  - Track which chapters contain open/middle/close segments
+  - Calculate actual distance in seconds between open and close in the cut
+  - Note whether distance_guidance was honored
+
+  For unused segments:
+  - Categorize why each unused segment was excluded:
+    cut_by_thesis, alternate_take_not_chosen, cut_for_pacing, bridge_dropped
 
   ## Output Schema
 
-  Respond with ONLY valid YAML. Do not wrap in markdown code fences.
+  Respond with ONLY valid YAML. No markdown code fences.
 
-  cut_summary: |
-    2-3 sentence summary of the proposed cut — what story it tells,
-    key editorial choices, and overall approach.
-
-  target_format: #{target_format}
-  estimated_duration: "<M:SS format>"
-  branch: #{branch}
+  arrangement_reasoning: |
+    [How this cut serves the chosen thesis, key trade-offs made,
+    why alternate-take overrides happened if any, how throughlines were honored.]
 
   chapters:
-    - id: ch_01
-      label: "Chapter label"
-      clips:
-        - t_in: <start_seconds>
-          t_out: <end_seconds>
-          source: "<filename>"
-          track: V1
-          narrative_role: hook
-        - t_in: <start_seconds>
-          t_out: <end_seconds>
-          source: "<filename>"
-          track: V2
-          narrative_role: continuation
-          trim_in: <seconds>
-          mid_cuts:
-            - [<cut_start>, <cut_end>]
+    - id: chapter_001
+      title: "Chapter title"
+      segments:
+        - seg_id: seg_NNN
+          source: "filename.ext"
+          clip_in: <start_seconds>
+          clip_out: <end_seconds>
+          clip_group_ref: cg_NNN
+          notes: "any editorial notes"
 
-  key_decisions:
-    - "Dropped group_003 (false start, content repeated better in group_005)"
-    - "Used alternate take at t=21.30 for punchier delivery"
+  throughline_honoring:
+    - throughline_id: tl_NNN
+      open_chapter: chapter_NNN
+      middle_chapters: [chapter_NNN, ...]
+      close_chapter: chapter_NNN
+      distance_seconds: <int>
+      notes: "within/outside distance_guidance"
+
+  unused_segment_audit:
+    cut_by_thesis: [seg_NNN, ...]
+    alternate_take_not_chosen: [seg_NNN, ...]
+    cut_for_pacing: [seg_NNN, ...]
+    bridge_dropped: [seg_NNN, ...]
 PROMPT
 
-# P3: Tone context goes to system message with prompt caching (API mode only)
+# Tone context goes to system message with prompt caching
 cached_system = tone_context.empty? ? nil : tone_context
 prompt_total = prompt.length + (cached_system&.length || 0)
-$stderr.puts "\n  Prompt: #{prompt.length} chars + #{cached_system&.length || 0} system (~#{(prompt_total / 4.0).ceil} tokens)"
+$stderr.puts "  Prompt: #{prompt.length} chars + #{cached_system&.length || 0} system (~#{(prompt_total / 4.0).ceil} tokens)"
 
-# ============================================================
-# LLM CALL
-# ============================================================
+# ─── LLM call ───────────────────────────────────────────────────────────────
 
-$stderr.puts "\n  Calling LLM (arrangement)..."
+arrange_model = profile.dig('llm_routing', 'arrangement') || 'claude-opus-4-6'
+$stderr.puts "  Calling LLM (#{arrange_model}) for arrangement..."
+
 pending_dir = File.join(library_dir, 'pending_llm_calls')
 begin
-  response = LLMClient.call(prompt, call_type: 'arrangement', profile: profile, max_tokens: 16384,
+  response = LLMClient.call(prompt, call_type: 'arrangement', profile: profile,
+                            model: arrange_model, max_tokens: 32768,
                             pending_dir: pending_dir, call_name: 'arrangement',
                             cached_system_prompt: cached_system)
 rescue LLMClient::Pending => e
@@ -349,7 +253,8 @@ rescue LLMClient::Pending => e
   exit 2
 end
 
-# Parse YAML response — strip code fences if present
+# ─── Parse response ──────────────────────────────────────────────────────────
+
 yaml_text = response.gsub(/\A```ya?ml\s*/, '').gsub(/```\s*\z/, '').strip
 
 begin
@@ -363,115 +268,108 @@ rescue Psych::SyntaxError => e
     result = YAML.safe_load(fixed, permitted_classes: [Date])
     $stderr.puts "  Recovery successful"
   rescue Psych::SyntaxError => e2
-    abort "ABORT: LLM returned invalid YAML that could not be recovered.\n" \
-          "Error: #{e2.message}\n\nResponse (first 500 chars):\n#{yaml_text[0..500]}"
+    raw_path = File.join(library_dir, 'arrangement_raw_response.txt')
+    File.write(raw_path, response)
+    abort "PIPELINE ABORT: LLM returned invalid YAML that could not be recovered.\n" \
+          "Error: #{e2.message}\nRaw response saved: #{raw_path}\n\n" \
+          "Response (first 500 chars):\n#{yaml_text[0..500]}"
   end
 end
 
-# ============================================================
-# VALIDATE + ENRICH OUTPUT
-# ============================================================
+abort "PIPELINE ABORT: LLM response is not a Hash" unless result.is_a?(Hash)
 
-# Required fields
-%w[cut_summary target_format estimated_duration branch chapters].each do |field|
-  abort "ABORT: LLM response missing required field: #{field}" unless result[field]
-end
+# ─── Validate ────────────────────────────────────────────────────────────────
 
 chapters = result['chapters'] || []
-abort "ABORT: No chapters in LLM response" if chapters.empty?
+abort "PIPELINE ABORT: No chapters in arrangement" if chapters.empty?
 
-# Validate chapter structure
-chapters.each_with_index do |ch, i|
-  expected_id = "ch_#{(i + 1).to_s.rjust(2, '0')}"
-  %w[id label clips].each do |field|
-    abort "ABORT: Chapter #{i + 1} missing '#{field}'" unless ch[field]
-  end
-  abort "ABORT: Chapter #{ch['id']} has no clips" if ch['clips'].empty?
-end
-
-# Validate clip structure
-all_clips = chapters.flat_map { |ch| ch['clips'] || [] }
-
-# Build set of unusable t-values from ingest
-unusable_t_values = all_ingest_clips
-  .select { |c| c['usability'] == 'unusable' }
-  .map { |c| c['t'].to_f }
-
-all_clips.each do |clip|
-  %w[t_in t_out source track narrative_role].each do |field|
-    abort "ABORT: Clip missing '#{field}': #{clip.inspect}" unless clip[field]
-  end
-  t_in = clip['t_in'].to_f
-  t_out = clip['t_out'].to_f
-  abort "ABORT: Clip t_out (#{t_out}) must be > t_in (#{t_in})" unless t_out > t_in
-
-  unless VALID_NARRATIVE_ROLES.include?(clip['narrative_role'])
-    $stderr.puts "  WARNING: Unknown narrative_role '#{clip['narrative_role']}' at t_in=#{t_in} — defaulting to 'continuation'"
-    clip['narrative_role'] = 'continuation'
-  end
-
-  if unusable_t_values.include?(t_in)
-    abort "ABORT: Clip at t_in=#{t_in} references an unusable clip"
+# Validate segment ID references
+all_arranged_segs = []
+chapters.each do |ch|
+  (ch['segments'] || []).each do |seg_entry|
+    sid = seg_entry['seg_id']
+    unless seg_by_id[sid]
+      abort "PIPELINE ABORT: Arrangement references non-existent segment '#{sid}' — LLM hallucination"
+    end
+    all_arranged_segs << sid
   end
 end
 
-v1_clips = all_clips.select { |c| c['track'] == 'V1' }
-v2_clips = all_clips.select { |c| c['track'] == 'V2' }
-
-# Parse estimated duration
-est_dur_str = result['estimated_duration'].to_s
-if est_dur_str =~ /(\d+):(\d+)/
-  est_dur_seconds = $1.to_i * 60 + $2.to_i
-else
-  est_dur_seconds = est_dur_str.to_f
-end
-
-# Warn if outside target range
-if target_duration_range =~ /(\d+)-(\d+)/
-  range_min, range_max = $1.to_i, $2.to_i
-  if est_dur_seconds < range_min || est_dur_seconds > range_max
-    $stderr.puts "  WARNING: Estimated duration #{est_dur_str} (#{est_dur_seconds}s) outside target range #{target_duration_range}s"
+# Check throughline honoring
+tl_honoring = result['throughline_honoring'] || []
+throughlines.each do |tl|
+  honor = tl_honoring.find { |h| h['throughline_id'] == tl['id'] }
+  if honor
+    # Check distance_guidance (warn, don't abort)
+    if tl['distance_guidance'] && honor['notes']
+      $stderr.puts "  Throughline #{tl['id']}: #{honor['notes']}"
+    end
+  else
+    $stderr.puts "  WARNING: Throughline #{tl['id']} not tracked in throughline_honoring"
   end
 end
 
-# Default missing optional fields
-result['key_decisions'] ||= []
+# Check setup_payoff integrity (warn, don't abort)
+clip_groups.select { |cg| cg['type'] == 'setup_payoff' }.each do |cg|
+  cg_segs = cg['segments'] || []
+  in_cut = cg_segs.select { |sid| all_arranged_segs.include?(sid) }
+  if in_cut.size > 0 && in_cut.size < cg_segs.size
+    missing = cg_segs - in_cut
+    $stderr.puts "  WARNING: setup_payoff #{cg['id']} broken — #{missing.join(', ')} missing from cut"
+  end
+end
 
 # Enrich with metadata
-result['generated_at'] = Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z')
-result['source'] = library_name
-result['cache_hash'] = cache_hash
-result['time_domain'] = 'wav'  # arrangement timestamps match transcript (WAV) time domain
-result['llm_model'] = profile.dig('llm_routing', 'arrangement') || LLMClient::DEFAULT_MODEL
+result['version']           = 2
+result['input_fingerprint'] = input_fingerprint
+result['generated_at']      = Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z')
+result['selected_thesis']   = selected_thesis_id
+result['model']             = arrange_model
+result['time_domain']       = 'wav'
 
-$stderr.puts "  Parsed: #{chapters.size} chapters, #{all_clips.size} clips (V1: #{v1_clips.size}, V2: #{v2_clips.size})"
+# Ensure optional blocks exist
+result['arrangement_reasoning']  ||= ''
+result['throughline_honoring']   ||= []
+result['unused_segment_audit']   ||= {
+  'cut_by_thesis' => [], 'alternate_take_not_chosen' => [],
+  'cut_for_pacing' => [], 'bridge_dropped' => []
+}
 
-# ============================================================
-# WRITE OUTPUT
-# ============================================================
+total_segs = chapters.sum { |ch| (ch['segments'] || []).size }
+$stderr.puts "  Parsed: #{chapters.size} chapters, #{total_segs} segments arranged"
 
-File.write(output_path, result.to_yaml)
-$stderr.puts "\n  Output: #{output_path}"
+# ─── Write output ────────────────────────────────────────────────────────────
 
-# ============================================================
-# REVIEW GATE
-# ============================================================
+File.write(output_path, YAML.dump(result))
+$stderr.puts "  Written: #{output_path}"
+
+# ─── Review gate ─────────────────────────────────────────────────────────────
 
 unless skip_review
-  $stderr.puts "\n#{'=' * 60}"
-  $stderr.puts "PROPOSED CUT: #{library_name}"
-  $stderr.puts '=' * 60
-  $stderr.puts "\nTarget: #{target_format} (#{result['estimated_duration']} estimated)"
-  $stderr.puts "Branch: #{result['branch']}"
-  $stderr.puts "\nSummary:"
-  $stderr.puts result['cut_summary']
-  if result['key_decisions'].any?
-    $stderr.puts "\nKey decisions:"
-    result['key_decisions'].each { |d| $stderr.puts "  - #{d}" }
+  $stderr.puts "\n#{'=' * 68}"
+  $stderr.puts "  PROPOSED CUT: #{library_name}"
+  $stderr.puts "  Thesis: #{selected_thesis_id}"
+  $stderr.puts '=' * 68
+
+  $stderr.puts "\n  Reasoning:"
+  $stderr.puts "  #{result['arrangement_reasoning'].to_s.strip}"
+
+  $stderr.puts "\n  Chapters:"
+  chapters.each do |ch|
+    seg_count = (ch['segments'] || []).size
+    $stderr.puts "    #{ch['id']}: #{ch['title']} (#{seg_count} segments)"
   end
-  $stderr.puts "\nChapters: #{chapters.size} | Clips: #{all_clips.size} (V1: #{v1_clips.size}, V2: #{v2_clips.size})"
-  $stderr.puts "\n(y) Continue  (r) Show full output  (n) Abort"
-  $stderr.print "> "
+
+  unused = result['unused_segment_audit'] || {}
+  unused_total = unused.values.flatten.size
+  $stderr.puts "\n  Unused segments: #{unused_total}"
+  $stderr.puts "    cut_by_thesis: #{(unused['cut_by_thesis'] || []).size}"
+  $stderr.puts "    alternate_take_not_chosen: #{(unused['alternate_take_not_chosen'] || []).size}"
+  $stderr.puts "    cut_for_pacing: #{(unused['cut_for_pacing'] || []).size}"
+  $stderr.puts "    bridge_dropped: #{(unused['bridge_dropped'] || []).size}"
+
+  $stderr.puts "\n  (y) Continue  (r) Show full output  (n) Abort"
+  $stderr.print "  > "
 
   answer = $stdin.gets&.strip&.downcase
   answer = 'y' if answer.nil? || answer.empty?
