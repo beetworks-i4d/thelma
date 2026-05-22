@@ -1,6 +1,8 @@
 # Thelma — Repo State
 
-Generated 2026-05-13 from filesystem. Facts, not assumptions.
+Generated 2026-05-22 from filesystem. Facts, not assumptions.
+
+> **Session 3 (v4.1)**: Pipeline restructured. `classify()` excised from orchestrate.rb. New scripts: `extract_segments.rb`, `discovery_pass.rb`, `register_pool_sources.rb`. Branch C deprecated. Branch D consolidated (discover_arcs/present_candidates/convert_candidate retired). `arrange.rb` fully reworked (thesis-driven). See `docs/SESSION_3_SPEC.md`.
 
 ---
 
@@ -105,9 +107,9 @@ Per README.md, CLAUDE.md, and `docs/v4_design.md`:
 | Mode | Name | Implementation Status | Evidence |
 |------|------|-----------------------|----------|
 | **A** | Script-driven (Branch A) | Shipped | `scripts/branch_a_batch.rb`, `scripts/parse_script.rb`. orchestrate.rb auto-detects Branch A when `script_parsed` exists in library.yaml. |
-| **B** | Organic/unscripted (Branch B) | Shipped | Default branch in orchestrate.rb when no script. Full pipeline: ingest → classify → semantic dedup → semantic ingest → arrange → export. |
-| **C** | Analyze-only (Branch C) | Shipped | `--analyze-only` or `--branch C` in orchestrate.rb. Runs through storyline discovery, template matching, coherence scoring, then generates report via `generate_report.rb`. Exits before arrangement. |
-| **D** | Mining/pool-based (Mode D) | Shipped | `--mode mine` in orchestrate.rb. Pool indexing, HQ audio matching, arc discovery, candidate selection, arrangement export. Per `v4_design.md` this was Phase 1 priority, and it is implemented: `pool_index.rb`, `discover_arcs.rb`, `convert_candidate.rb`, `present_candidates.rb`, `match_hq_audio.rb`, `export_arrangement_xml.rb`. |
+| **B** | Organic/unscripted (Branch B) | **Reworked (Session 3)** | Default branch. Pipeline: ingest → extract_segments (deterministic) → audio_emotion → prosody → discovery_pass (LLM, thesis-driven) → arrange (LLM, thesis-driven) → export. `classify()` excised, `semantic_ingest.rb` and `semantic_dedup.rb` deprecated. |
+| **C** | Analyze-only (Branch C) | **Deprecated (v4.1)** | `--analyze-only` and `--branch C` now error with deprecation message. Scripts remain in tree for P5 redesign. |
+| **D** | Mining/pool-based (Mode D) | **Reworked (Session 3)** | `--mode mine` in orchestrate.rb. Pool indexing → shared pipeline (extract_segments → discovery_pass → register_pool_sources → arrange → export). Legacy scripts `discover_arcs.rb`, `present_candidates.rb`, `convert_candidate.rb` deprecated; replaced by `discovery_pass.rb`, `register_pool_sources.rb`, `arrange.rb`. |
 
 ### v4_design.md planned phases vs actual state
 
