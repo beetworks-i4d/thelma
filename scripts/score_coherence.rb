@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — see VISION.md P5. Will be replaced by finished-video template extraction.
 # Phase 1.8 — Coherence Scoring & Combined Ranking
 # Two-layer scoring: algorithmic pre-filter + LLM narrative judgment.
 #

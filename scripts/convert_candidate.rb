@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — replaced by discovery_pass.rb / arrange.rb / register_pool_sources.rb in Session 3 (v4.1).
 # Converts an arc candidate from arc_candidates.yaml into arrangement.yaml.
 # Updates library.yaml['videos'] with the pool sources required for export.
 # Generates pickup_recording_suggestions.md if missing_bridge_clips are present.

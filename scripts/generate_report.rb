@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — see VISION.md P5. Will be replaced by finished-video template extraction.
 # Phase C — Generate analysis report for a library.
 # Reads all pipeline outputs and formats into standardized report YAML.
 #

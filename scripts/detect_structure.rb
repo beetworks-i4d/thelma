@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — see VISION.md P5. Will be replaced by finished-video template extraction.
 # Phase 1.9.4 — Adaptive Structure Detection
 # Detects narrative structure when no existing template scores above threshold.
 # Two-pass design: viability check (is there a story?) then ad-hoc template synthesis.

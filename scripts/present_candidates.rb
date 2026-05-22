@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — replaced by discovery_pass.rb / arrange.rb / register_pool_sources.rb in Session 3 (v4.1).
 # Displays arc candidate summary from arc_candidates.yaml.
 # Called by orchestrate.rb before interactive selection, or run standalone.
 #

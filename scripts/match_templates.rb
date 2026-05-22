@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — see VISION.md P5. Will be replaced by finished-video template extraction.
 # Phase 1.7 — Template Matching for Storyline Candidates
 # Scores how well each storyline's distilled segments fit known narrative templates.
 # Enables future combined scoring: state 30% + template fit 40% + coherence 30%.

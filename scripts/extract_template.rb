@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — see VISION.md P5. Will be replaced by finished-video template extraction.
 # Phase 2.1 — Template Extraction Pipeline
 # Extracts reusable narrative templates from multiple source videos that share
 # a structural pattern. Minimum 3 segments_classified.yaml files required.

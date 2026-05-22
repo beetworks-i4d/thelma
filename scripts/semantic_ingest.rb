@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — replaced by discovery_pass.rb / arrange.rb / register_pool_sources.rb in Session 3 (v4.1).
 # Phase 1.5 — Semantic Ingest Pass (R1)
 # Replaces per-segment classification with a unified directorial understanding.
 # One LLM call reads the full transcript + audio emotion + visual analysis and

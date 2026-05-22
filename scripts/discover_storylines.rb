@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — see VISION.md P5. Will be replaced by finished-video template extraction.
 # Phase 1.6 — Storyline Discovery
 # Clusters classified segments into candidate storylines ranked by quality.
 # Runs after Phase 1.5 classification, before Phase 2 editorial questions.

@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — see VISION.md P5. Will be replaced by finished-video template extraction.
 # Phase 2.5 — Pre-Build Sanity Check
 # Runs after Phase 1.8 coherence scoring, before Phase 3 XML generation.
 # For each selected candidate, generates review data: shape descriptor,

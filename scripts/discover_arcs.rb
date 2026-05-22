@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# DEPRECATED — replaced by discovery_pass.rb / arrange.rb / register_pool_sources.rb in Session 3 (v4.1).
 # Discovers narrative arc candidates in a pool library.
 # Reads pool index + all transcripts, calls LLM (Opus) to find up to 5
 # self-contained video arcs that could be cut from the pool.
