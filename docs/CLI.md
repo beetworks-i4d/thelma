@@ -2,6 +2,8 @@
 
 Auto-generated from source. Every flag listed below exists in code.
 
+> **v4.1 (Session 3):** Branch C, `classify()`, and the legacy Branch D candidate-selection scripts (`discover_arcs`, `present_candidates`, `convert_candidate`) are deprecated. See VISION.md.
+
 ---
 
 ## Orchestrator
@@ -18,15 +20,14 @@ ruby scripts/orchestrate.rb --library <name> [options]
 |------|------|---------|-------------|
 | `--library` | string | **required** | Library name |
 | `--profile` | string | auto-detected | Creator profile name |
-| `--branch` | `A\|B\|C` | auto-detected (`A` if `script_parsed` exists, else `B`) | Pipeline branch override |
-| `--analyze-only` | boolean | `false` | Shorthand for `--branch C` |
+| `--branch` | `A\|B` | auto-detected (`A` if `script_parsed` exists, else `B`) | Pipeline branch override. Branch C deprecated in v4.1 |
 | `--no-review` | boolean | `false` | Skip interactive review gates |
 | `--llm-mode` | `api\|claude_code` | `[unknown]` | Override LLM mode |
 | `--mode` | `mine` | `nil` | Activates pool-based mining pipeline |
 | `--force-reindex` | boolean | `false` | Force re-scan of all pool sources (mine mode) |
 | `--force-rediscover` | boolean | `false` | Bypass arc discovery cache (mine mode) |
-| `--discover-only` | boolean | `false` | Stop after arc discovery, skip candidate selection (mine mode) |
-| `--candidate` | string | `nil` | Pre-select candidate ID, skip interactive selection (mine mode) |
+| `--discover-only` | boolean | `false` | Stop after pool indexing (mine mode) |
+| `--duration` | string | `nil` | Target runtime for discovery pass (e.g. `7:30`). Filters theses to ±30s of target |
 | `--force-cascade` | boolean | `false` | Force regeneration of downstream outputs (mine mode) |
 | `--force-revisualize` | boolean | `false` | Regenerate visual analysis even if cached |
 | `--pool-dir` | string | `nil` | Pool folder path. Auto-creates library if missing. For Branch A/B/C, also auto-registers top-level `.mp4`/`.mov`/`.mkv` files into `library.yaml['videos']` when empty (subfolders ignored). For mine mode, triggers pool indexing via `index.yaml`. |
@@ -35,7 +36,7 @@ ruby scripts/orchestrate.rb --library <name> [options]
 
 **Positional args:** none.
 
-**Downstream calls (standard pipeline, Branch A/B):**
+**Downstream calls (Branch B pipeline):**
 
 | Phase | Script called | Flags forwarded |
 |-------|--------------|-----------------|
@@ -44,43 +45,36 @@ ruby scripts/orchestrate.rb --library <name> [options]
 | 1 — Ingest | `audio_sync_offset.rb` | positional: `<video> <audio> <library.yaml>` |
 | 1 — Ingest | `audio_analysis.rb` | positional: `<input> <library.yaml>` |
 | 1 — Ingest | `transcript_cleanup.rb` | positional: `<transcript.json>`, `--speech-analysis`, `--protect-rhetorical` |
-| 1 — Ingest | `parse_script.rb` | positional: `<script_file> <output_dir>` (Branch A only) |
 | 0 — Content Type | `detect_content_type.rb` | positional: `<library.yaml>`, `--profile` |
-| 1.5 — Classification | `validate_classification.rb` | positional: `<segments_classified.yaml>` |
-| 1.5 — Classification | `semantic_dedup.rb` | positional: `<segments_classified.yaml>` (Branch B only) |
+| 1.25 — Prosody | `audio_prosody.rb` | `--library` |
+| 1.4 — Extract Segments | `extract_segments.rb` | `--library` |
 | 1.5c — Audio Emotion | `audio_emotion.rb` | positional: `<wav> <classified.yaml> <library.yaml>` |
 | 1.5d — Scene Detection | `detect_scenes.rb` | `--library`, `--output` |
 | 1.5d — Visual Analysis | `extract_visual_frames.rb` | `--library`, `--video`, `--force` |
-| 2 — Semantic Ingest | `semantic_ingest.rb` | `--library`, `--profile`, `--llm-mode`, `--no-review` |
+| 2 — Discovery Pass | `discovery_pass.rb` | `--library`, `--profile`, `--llm-mode`, `--duration`, `--no-review` |
 | 3 — Arrangement | `arrange.rb` | `--library`, `--profile`, `--llm-mode`, `--no-review` |
 | 4 — Export | `export_arrangement_xml.rb` | `--library`, `--profile` |
 | 5 — Packaging Brief | `export_packaging_brief.rb` | `--library`, `--output`, `--profile`, `--llm-mode`, `--no-review` |
 
-**Downstream calls (Branch C — analyze-only):**
+**Downstream calls (mine mode / Branch D):**
 
 | Phase | Script called | Flags forwarded |
 |-------|--------------|-----------------|
-| 1.6 | `discover_storylines.rb` | positional: `<segments>`, `--library`, `--profile` |
-| 1.7 | `match_templates.rb` | positional: `<storylines> <classified>`, `--profile` |
-| 1.7.5 | `detect_structure.rb` | positional: `<segments>`, `--best-fit-score` |
-| 1.8 | `score_coherence.rb` | `--no-llm`, `--profile`, positional: `<matched> <classified>` |
-| C | `generate_report.rb` | positional: `<library_dir>`, `--profile` |
+| D.0 — Pool Indexing | `audio_cleanup.rb` | positional: `<input> <transcripts_dir>` |
+| D.0 — Pool Indexing | WhisperX (external) | `--model turbo --language <code>` (`--diarize` if `--diarize` set) |
+| D.0 — Pool Indexing | `detect_scenes.rb` | positional: `<video>`, `--output` |
+| D.0 — Pool Indexing | `extract_visual_frames.rb` | `--library`, `--video`, `--scene-file`, `--force` |
+| D.0 — HQ Audio | `match_hq_audio.rb` | `--library` |
+| 1.4 — Extract Segments | `extract_segments.rb` | `--library` |
+| 1.5c — Audio Emotion | `audio_emotion.rb` | positional: `<wav> <classified.yaml> <library.yaml>` |
+| 2 — Discovery Pass | `discovery_pass.rb` | `--library`, `--profile`, `--llm-mode`, `--duration`, `--no-review` |
+| D.2.5 — Pool Sources | `register_pool_sources.rb` | `--library` |
+| 3 — Arrangement | `arrange.rb` | `--library`, `--profile`, `--llm-mode`, `--no-review` |
+| 4 — Export | `export_arrangement_xml.rb` | `--library`, `--profile` |
 
-**Downstream calls (mine mode):**
+**Branch A:** Unchanged in Session 3 — has its own lean pipeline (parse_script → prosody → arrange_to_script per beat → export).
 
-| Phase | Script called | Flags forwarded |
-|-------|--------------|-----------------|
-| Pool Indexing | `audio_cleanup.rb` | positional: `<input> <transcripts_dir>` |
-| Pool Indexing | WhisperX (external) | `--model turbo --language <code>` (`--diarize` if `--diarize` set) |
-| Pool Indexing | `detect_scenes.rb` | positional: `<video>`, `--output` |
-| Pool Indexing | `extract_visual_frames.rb` | `--library`, `--video`, `--scene-file`, `--force` |
-| HQ Audio | `match_hq_audio.rb` | `--library` |
-| Arc Discovery | `discover_arcs.rb` | `--library`, `--profile`, `--llm-mode`, `--force-rediscover` |
-| Candidate Selection | `present_candidates.rb` | `--library` |
-| Candidate Conversion | `convert_candidate.rb` | `--library`, `--candidate`, `--profile`, `--force` |
-| Export | `export_arrangement_xml.rb` | `--library`, `--profile` |
-
-**Legacy phases (1.6–4):** Unreachable in default pipeline. Kept in source for reference. Includes interactive storyline selection, `sanity_check.rb`, and per-storyline `build_structure_cut.rb` calls.
+**Branch C:** Deprecated as of v4.1. `--analyze-only` and `--branch C` error with deprecation message.
 
 ---
 
@@ -202,6 +196,30 @@ ruby scripts/read_transcript.rb <transcript.json>
 
 ---
 
+## Extract & Enrich Phase
+
+### `scripts/extract_segments.rb`
+
+Phase 1.4 — Deterministic segment extraction. Reads cleaned_transcript.json per source video, writes combined segments_classified.yaml with nil placeholders for enrichment by audio_emotion.rb and merge_prosody_segments.rb.
+
+```
+ruby scripts/extract_segments.rb --library <name>
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--library` | string | **required** | Library name |
+
+**Positional args:** none.
+
+**Output:** `libraries/<name>/segments_classified.yaml`
+
+**Cache:** SHA256 fingerprint of all cleaned transcripts. Stale → invalidates downstream `discovery_pass.yaml` and `arrangement.yaml`.
+
+**Called by:** `orchestrate.rb` (Phase 1.4).
+
+---
+
 ## Classify Phase
 
 ### `scripts/detect_content_type.rb`
@@ -224,64 +242,51 @@ ruby scripts/detect_content_type.rb <library.yaml> [--profile <name>]
 
 ---
 
-### `scripts/validate_classification.rb`
-
-Phase 1.1 — Classification output validator. Validates segments_classified.yaml structure and taxonomy.
-
-```
-ruby scripts/validate_classification.rb <segments_classified.yaml>
-```
-
-| Positional | Type | Description |
-|-----------|------|-------------|
-| `<segments_classified.yaml>` | string | **required** — path to classified segments YAML |
-
-**Flags:** none.
-
-**Exit codes:** 0=valid, 1=structural error, 2=taxonomy error, 3=data error.
-
-**Called by:** `orchestrate.rb` (Phase 1.5).
-
 ---
 
-## Semantic Phase
+## Discovery Phase
 
-### `scripts/semantic_ingest.rb`
+### `scripts/discovery_pass.rb`
 
-Phase 1.5 — Semantic ingest pass. Replaces per-segment classification with a unified directorial understanding. One LLM call reads full transcript + audio emotion + visual analysis.
+Phase 2 — Discovery pass. Single LLM call. Reads enriched segments_classified.yaml, emits discovery_pass.yaml with ranked thesis candidates, clip_groups, throughlines, and reserved visual_context. Includes interactive review gate for thesis selection.
 
 ```
-ruby scripts/semantic_ingest.rb --library <name> [options]
+ruby scripts/discovery_pass.rb --library <name> [options]
 ```
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--library` | string | **required** | Library name |
 | `--profile` | string | auto-detected | Creator profile name |
-| `--no-review` | boolean | `false` | Skip interactive review gate |
+| `--no-review` | boolean | `false` | Auto-select top thesis, skip interactive review |
 | `--llm-mode` | `api\|claude_code` | `[unknown]` | Override LLM mode |
+| `--duration` | string | `nil` | Target runtime (e.g. `7:30`). Filters theses to ±30s of target |
 
 **Positional args:** none.
 
-**Called by:** `orchestrate.rb` (Phase 2).
+**Output:** `libraries/<name>/discovery_pass.yaml`
+
+**Review gate:** Presents up to 5 theses. User picks by number/id, or 'r' to regenerate (max 3 regenerations), or 'q' to abort.
+
+**Called by:** `orchestrate.rb` (Phase 2, both Branch B and Branch D).
 
 ---
 
-### `scripts/semantic_dedup.rb`
+### `scripts/register_pool_sources.rb`
 
-Phase 1.5b — Semantic deduplication. Removes near-duplicate segments from classification.
+Phase D.2.5 — Register pool sources (Branch D only). Reads chosen thesis from discovery_pass.yaml, identifies which pool sources are referenced by clip_groups and throughlines, resolves paths from pool index, and registers in library.yaml.
 
 ```
-ruby scripts/semantic_dedup.rb <segments_classified.yaml>
+ruby scripts/register_pool_sources.rb --library <name>
 ```
 
-| Positional | Type | Description |
-|-----------|------|-------------|
-| `<segments_classified.yaml>` | string | **required** — path to classified segments YAML |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--library` | string | **required** | Library name |
 
-**Flags:** none.
+**Positional args:** none.
 
-**Called by:** `orchestrate.rb` (Branch B, Phase 1.5).
+**Called by:** `orchestrate.rb` (Phase D.2.5, Branch D only).
 
 ---
 
@@ -347,129 +352,13 @@ ruby scripts/extract_visual_frames.rb --library <name> --video <video_path> [opt
 
 ---
 
-### `scripts/discover_storylines.rb`
-
-Phase 1.6 — Storyline discovery. Identifies narrative storylines from classified segments.
-
-```
-ruby scripts/discover_storylines.rb <segments_classified.yaml> [options]
-```
-
-| Positional | Type | Description |
-|-----------|------|-------------|
-| `<segments_classified.yaml>` | string | **required** — path to classified segments YAML |
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--library` | string | `nil` | Path to library.yaml (optional enrichment) |
-| `--profile` | string | `nil` | Creator profile name |
-
-**Called by:** `orchestrate.rb` (Branch C, legacy phases).
-
----
-
-### `scripts/match_templates.rb`
-
-Phase 1.7 — Template matching for storyline candidates. Matches discovered storylines against story structure templates.
-
-```
-ruby scripts/match_templates.rb <storylines.yaml> <segments_classified.yaml> [options]
-```
-
-| Positional | Type | Description |
-|-----------|------|-------------|
-| `<storylines.yaml>` | string | **required** — path to storylines YAML |
-| `<segments_classified.yaml>` | string | **required** — path to classified segments YAML |
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--profile` | string | `nil` | Creator profile name |
-| `--extra-template` | string | `nil` | Path to additional template YAML to include in matching |
-
-**Called by:** `orchestrate.rb` (Branch C, legacy phases).
-
----
-
-### `scripts/detect_structure.rb`
-
-Phase 1.9.4 — Adaptive structure detection. Detects narrative structure when no existing template scores above threshold. Two-pass design: viability check then ad-hoc template synthesis.
-
-```
-ruby scripts/detect_structure.rb <segments_classified.yaml> [options]
-ruby scripts/detect_structure.rb --save-template <structure_detected.yaml> [--category <name>]
-```
-
-| Positional | Type | Description |
-|-----------|------|-------------|
-| `<segments_classified.yaml>` | string | **required** (normal mode) — path to classified segments YAML |
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--best-fit-score` | integer | `nil` | Best existing template fit score (context for reporting) |
-| `--save-template` | string | `nil` | Path to completed `structure_detected.yaml` — saves synthesized template to `templates/story_structures/` |
-| `--category` | string | `nil` | Subdirectory category for saved template |
-
-**Called by:** `orchestrate.rb` (Phase 1.7.5, Branch C).
-
----
-
-### `scripts/score_coherence.rb`
-
-Phase 1.8 — Coherence scoring and combined ranking. Scores storyline candidates for coherence and assigns combined rank.
-
-```
-ruby scripts/score_coherence.rb <storylines_matched.yaml> <segments_classified.yaml> [options]
-```
-
-| Positional | Type | Description |
-|-----------|------|-------------|
-| `<storylines_matched.yaml>` | string | **required** — path to matched storylines YAML |
-| `<segments_classified.yaml>` | string | **required** — path to classified segments YAML |
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--no-llm` | boolean | `false` | Algorithmic-only mode (skip LLM coherence check) |
-| `--profile` | string | auto-detected from directory | Creator profile name |
-
-**Called by:** `orchestrate.rb` (Phase 1.8, Branch C).
-
----
-
-### `scripts/sanity_check.rb`
-
-Phase 2.5 — Pre-build sanity check. Runs after coherence scoring, before XML generation. Generates review data: shape descriptor, cold-open/close assessment, distilled segments.
-
-```
-ruby scripts/sanity_check.rb <storylines_scored.yaml> <segments_file.yaml> [candidate_ids...]
-ruby scripts/sanity_check.rb --skip-sanity-check
-ruby scripts/sanity_check.rb --all <storylines_scored.yaml> <segments_file.yaml>
-ruby scripts/sanity_check.rb --batch <storylines_scored.yaml> <segments_file.yaml>
-```
-
-| Positional | Type | Description |
-|-----------|------|-------------|
-| `<storylines_scored.yaml>` | string | **required** — path to scored storylines YAML |
-| `<segments_file.yaml>` | string | **required** — path to segments YAML |
-| `[candidate_ids...]` | string(s) | optional — space-separated candidate IDs to review |
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--skip-sanity-check` | boolean | `false` | Skip sanity check entirely (exit 0) |
-| `--all` | boolean | `false` | Review all candidates, not just ranked ones |
-| `--batch` | boolean | `false` | Batch triage mode: classifies candidates into tiers (strong/acceptable/borderline) |
-| `--profile` | string | `_default` | Creator profile name (for threshold defaults) |
-| `--strong-threshold` | integer | `80` (or from profile) | Score threshold for "strong" tier |
-| `--acceptable-threshold` | integer | `65` (or from profile) | Score threshold for "acceptable" tier |
-
-**Called by:** `orchestrate.rb` (legacy Phase 1.9).
-
 ---
 
 ## Arrange Phase
 
 ### `scripts/arrange.rb`
 
-Phase 2 — Arrangement. Converts semantic understanding into a proposed cut. One LLM call that produces arrangement.yaml with chapter ordering, clip selection, take decisions, B-roll matching, and editorial reasoning.
+Phase 3 — Thesis-driven arrangement. Reads discovery_pass.yaml (chosen thesis + clip_groups + throughlines) and enriched segments_classified.yaml. Produces arrangement.yaml v2 with chapters, throughline_honoring, and unused_segment_audit.
 
 ```
 ruby scripts/arrange.rb --library <name> [options]
@@ -479,7 +368,6 @@ ruby scripts/arrange.rb --library <name> [options]
 |------|------|---------|-------------|
 | `--library` | string | **required** | Library name |
 | `--profile` | string | auto-detected | Creator profile name |
-| `--format` | `longform\|shorts` | `longform` | Target format |
 | `--no-review` | boolean | `false` | Skip interactive review gate |
 | `--llm-mode` | `api\|claude_code` | `[unknown]` | Override LLM mode |
 
@@ -509,67 +397,6 @@ ruby scripts/mine_content.rb --library <name>
 **Called by:** standalone (not part of standard pipeline).
 
 ---
-
-### `scripts/discover_arcs.rb`
-
-Discovers narrative arc candidates in a pool library. Reads pool index + all transcripts, calls LLM (Opus) to find up to 5 self-contained video arcs.
-
-```
-ruby scripts/discover_arcs.rb --library <name> [options]
-```
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--library` | string | **required** | Library name |
-| `--topic` | string | `nil` | Semantic topic filter (e.g. `"brand strategy"`) |
-| `--template` | string | `nil` | Story structure template name to match against |
-| `--format` | `longform\|shorts` | `longform` | Target duration class |
-| `--profile` | string | auto-detected | Creator profile name |
-| `--force-rediscover` | boolean | `false` | Bypass cache and re-run LLM |
-| `--llm-mode` | `api\|claude_code` | `[unknown]` | Override LLM mode |
-
-**Positional args:** none.
-
-**Called by:** `orchestrate.rb` (mine mode).
-
----
-
-### `scripts/present_candidates.rb`
-
-Displays arc candidate summary from arc_candidates.yaml. Called by orchestrate.rb before interactive selection, or run standalone.
-
-```
-ruby scripts/present_candidates.rb --library <name>
-```
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--library` | string | **required** | Library name |
-
-**Positional args:** none.
-
-**Called by:** `orchestrate.rb` (mine mode).
-
----
-
-### `scripts/convert_candidate.rb`
-
-Converts an arc candidate from arc_candidates.yaml into arrangement.yaml. Updates library.yaml `videos` with pool sources required for export. Generates pickup_recording_suggestions.md if missing_bridge_clips are present.
-
-```
-ruby scripts/convert_candidate.rb --library <name> --candidate <id> [options]
-```
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--library` | string | **required** | Library name |
-| `--candidate` | string | **required** | Candidate ID from arc_candidates.yaml |
-| `--profile` | string | `nil` | Creator profile name |
-| `--force` | boolean | `false` | Regenerate arrangement even if one exists for this candidate |
-
-**Positional args:** none.
-
-**Called by:** `orchestrate.rb` (mine mode).
 
 ---
 
@@ -659,25 +486,6 @@ ruby scripts/export_packaging_brief.rb --library <name> [options]
 **Called by:** `orchestrate.rb` (Phase 5, legacy phases).
 
 ---
-
-### `scripts/generate_report.rb`
-
-Phase C — Generates analysis report for a library. Produces a comprehensive YAML report with storyline analysis, template matches, and recommendations.
-
-```
-ruby scripts/generate_report.rb <library_path> [options]
-```
-
-| Positional | Type | Description |
-|-----------|------|-------------|
-| `<library_path>` | string | **required** — library directory path or library.yaml file |
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--profile` | string | `nil` | Creator profile name |
-| `--output-dir` | string | `reports/` | Output directory for report YAML |
-
-**Called by:** `orchestrate.rb` (Branch C).
 
 ---
 
@@ -896,3 +704,28 @@ Library code for XML generation. No CLI interface — used programmatically by `
 | `lib/buttercut/fcp7.rb` | FCP7/Premiere/DaVinci Resolve implementation (xmeml version 5) |
 | `lib/buttercut/fcpx.rb` | Final Cut Pro X implementation (FCPXML 1.8) |
 | `lib/buttercut/version.rb` | Gem version constant |
+
+---
+
+## Deprecated (v4.1)
+
+Scripts below are kept in tree but removed from active orchestrate.rb routing.
+
+### Branch C scripts (will be redesigned in P5)
+
+- `scripts/discover_storylines.rb` — Phase 1.6 storyline discovery
+- `scripts/match_templates.rb` — Phase 1.7 template matching
+- `scripts/detect_structure.rb` — Phase 1.7.5 adaptive structure detection
+- `scripts/score_coherence.rb` — Phase 1.8 coherence scoring
+- `scripts/sanity_check.rb` — Phase 1.9 pre-build sanity check
+- `scripts/generate_report.rb` — Branch C report generation
+- `scripts/extract_template.rb` — template extraction from classified segments
+
+### Branch D legacy scripts (replaced in Session 3)
+
+- `scripts/discover_arcs.rb` — replaced by `discovery_pass.rb`
+- `scripts/present_candidates.rb` — replaced by discovery_pass review gate
+- `scripts/convert_candidate.rb` — arrangement-building absorbed by `arrange.rb`; source-registration extracted into `register_pool_sources.rb`
+- `scripts/semantic_ingest.rb` — replaced by `discovery_pass.rb`
+- `scripts/validate_classification.rb` — no longer needed (extract_segments.rb is deterministic)
+- `scripts/semantic_dedup.rb` — no longer needed (discovery_pass handles dedup internally)
