@@ -208,7 +208,6 @@ arrangement['chapters'].each do |chapter|
 
     # Clamp video_end to source file duration — LLM may produce round-number
     # t_out values that exceed the actual file length, causing black frames
-    source_filename = clip_source || File.basename(video_path)
     source_dur = source_duration_lookup[source_filename]
     if source_dur && video_end > source_dur + 0.01  # 10ms tolerance for ffprobe rounding
       overshoot = video_end - source_dur

@@ -599,20 +599,26 @@ containment_overlaps  = []  # [{ chapter, beat_id, clip_idx, overlap_s, prev_cha
 #   video_start/video_end → video time, use directly
 #   start/end (legacy) → requires time_domain flag, logs deprecation warning
 config['clips'].each_with_index do |c, idx|
+  # Per-clip sync audio (multi-source support)
+  # Falls back to global sync values when per-clip fields aren't set
+  clip_sync_offset = c['sync_audio_offset']&.to_f || sync_offset
+  clip_sync_path   = c['sync_audio_path'] || sync_path
+  clip_has_sync    = !clip_sync_path.nil? && clip_sync_path != ''
+
   if c['audio_start'] && c['audio_end']
-    abort "sync_audio required for audio_start/audio_end clips" unless has_sync
-    start_time = c['audio_start'].to_f - sync_offset
-    end_time = c['audio_end'].to_f - sync_offset
+    abort "sync_audio required for audio_start/audio_end clips" unless clip_has_sync
+    start_time = c['audio_start'].to_f - clip_sync_offset
+    end_time = c['audio_end'].to_f - clip_sync_offset
     $stderr.puts "Clip #{idx + 1}: audio #{c['audio_start']} → video #{'%.2f' % start_time}, audio #{c['audio_end']} → video #{'%.2f' % end_time}"
   elsif c['video_start'] && c['video_end']
     start_time = c['video_start'].to_f
     end_time = c['video_end'].to_f
   elsif c['start'] && c['end']
     if config['time_domain'] == 'audio'
-      abort "sync_audio required for time_domain: audio" unless has_sync
+      abort "sync_audio required for time_domain: audio" unless clip_has_sync
       $stderr.puts "DEPRECATION: time_domain + start/end is deprecated. Use audio_start/audio_end instead." if idx == 0
-      start_time = c['start'].to_f - sync_offset
-      end_time = c['end'].to_f - sync_offset
+      start_time = c['start'].to_f - clip_sync_offset
+      end_time = c['end'].to_f - clip_sync_offset
     elsif config.key?('time_domain')
       $stderr.puts "DEPRECATION: time_domain + start/end is deprecated. Use video_start/video_end instead." if idx == 0
       start_time = c['start'].to_f
@@ -647,15 +653,15 @@ config['clips'].each_with_index do |c, idx|
 
   # Snap-to-boundary if speech analysis is available
   if clip_speech_segments
-    if has_sync
-      wav_start = start_time + sync_offset
-      wav_end = end_time + sync_offset
+    if clip_has_sync
+      wav_start = start_time + clip_sync_offset
+      wav_end = end_time + clip_sync_offset
 
       snapped_start, adj_s = snap_to_boundary(wav_start, clip_speech_segments, :start)
       snapped_end, adj_e = snap_to_boundary(wav_end, clip_speech_segments, :end)
 
-      start_time = snapped_start - sync_offset
-      end_time = snapped_end - sync_offset
+      start_time = snapped_start - clip_sync_offset
+      end_time = snapped_end - clip_sync_offset
     else
       start_time, adj_s = snap_to_boundary(start_time, clip_speech_segments, :start)
       end_time, adj_e = snap_to_boundary(end_time, clip_speech_segments, :end)
@@ -728,7 +734,7 @@ config['clips'].each_with_index do |c, idx|
   # Use per-source transcript when available (multi-source), fall back to global
   clip_transcript_words = transcript_cache[clip_source_path] || transcript_words
   if clip_transcript_words
-    new_start, trimmed = trim_restart_inpoint(start_time, end_time, clip_transcript_words, sync_offset, has_sync)
+    new_start, trimmed = trim_restart_inpoint(start_time, end_time, clip_transcript_words, clip_sync_offset, clip_has_sync)
     if trimmed
       $stderr.puts "Clip #{idx + 1}: trimmed restart #{'%.2f' % start_time}→#{'%.2f' % new_start}s (#{'%.1f' % (new_start - start_time)}s removed: '#{trimmed}')"
       start_time = new_start
@@ -752,8 +758,8 @@ config['clips'].each_with_index do |c, idx|
   # === Find internal pauses to remove ===
   removable_pauses = []
   if pause_removal_threshold && clip_long_pauses
-    wav_check_start = has_sync ? start_time + sync_offset : start_time
-    wav_check_end = has_sync ? end_time + sync_offset : end_time
+    wav_check_start = clip_has_sync ? start_time + clip_sync_offset : start_time
+    wav_check_end = clip_has_sync ? end_time + clip_sync_offset : end_time
 
     clip_long_pauses.each do |p|
       if p['start'] > wav_check_start + 0.5 && p['end'] < wav_check_end - 0.5 &&
@@ -768,8 +774,8 @@ config['clips'].each_with_index do |c, idx|
   if mid_cut_ranges.any?
     mid_cut_ranges.each do |mc|
       # Convert to WAV time if sync_audio is present (to match removable_pauses format)
-      if has_sync
-        removable_pauses << { 'start' => mc['start'] + sync_offset, 'end' => mc['end'] + sync_offset, 'duration' => mc['duration'] }
+      if clip_has_sync
+        removable_pauses << { 'start' => mc['start'] + clip_sync_offset, 'end' => mc['end'] + clip_sync_offset, 'duration' => mc['duration'] }
       else
         removable_pauses << mc
       end
@@ -804,12 +810,12 @@ config['clips'].each_with_index do |c, idx|
     sub_ranges = []
     current_v = start_time
     removable_pauses.each do |p|
-      p_start_v = has_sync ? p['start'] - sync_offset : p['start']
-      p_end_v = has_sync ? p['end'] - sync_offset : p['end']
+      p_start_v = clip_has_sync ? p['start'] - clip_sync_offset : p['start']
+      p_end_v = clip_has_sync ? p['end'] - clip_sync_offset : p['end']
 
       # Refine split to sentence boundary if available within 1s
       if clip_speech_segments
-        seg_end_target = has_sync ? p['start'] : p_start_v
+        seg_end_target = clip_has_sync ? p['start'] : p_start_v
         best_boundary = nil
         best_dist = 1.0  # max 1 second tolerance
         clip_speech_segments.each do |seg|
@@ -820,7 +826,7 @@ config['clips'].each_with_index do |c, idx|
           end
         end
         if best_boundary
-          refined_v = has_sync ? best_boundary - sync_offset : best_boundary
+          refined_v = clip_has_sync ? best_boundary - clip_sync_offset : best_boundary
           # Only use if it's within the clip and doesn't create a too-short segment
           if refined_v > current_v + 0.5 && refined_v < end_time - 0.5
             p_start_v = refined_v
@@ -893,14 +899,16 @@ config['clips'].each_with_index do |c, idx|
       end
       clips << clip_hash
 
-      wav_range_start = has_sync ? sr[:start] + sync_offset : sr[:start]
-      wav_range_end = has_sync ? sr[:end] + sync_offset : sr[:end]
+      wav_range_start = clip_has_sync ? sr[:start] + clip_sync_offset : sr[:start]
+      wav_range_end = clip_has_sync ? sr[:end] + clip_sync_offset : sr[:end]
       clip_source_ranges << { wav_start: wav_range_start, wav_end: wav_range_end, source: clip_video_path }
 
-      if has_sync
-        ws = (sr[:start] + sync_offset) - start_buf
+      if clip_has_sync
+        ws = (sr[:start] + clip_sync_offset) - start_buf
         ws = 0.0 if ws < 0
-        wav_clip_info << { wav_start: ws, wav_duration: dur }
+        wav_clip_info << { wav_start: ws, wav_duration: dur, wav_path: clip_sync_path, wav_offset: clip_sync_offset }
+      else
+        wav_clip_info << nil
       end
 
       # Record join-point marker (not for first sub-clip)
@@ -927,14 +935,16 @@ config['clips'].each_with_index do |c, idx|
     end
     clips << clip_hash
 
-    wav_range_start = has_sync ? start_time + sync_offset : start_time
-    wav_range_end = has_sync ? end_time + sync_offset : end_time
+    wav_range_start = clip_has_sync ? start_time + clip_sync_offset : start_time
+    wav_range_end = clip_has_sync ? end_time + clip_sync_offset : end_time
     clip_source_ranges << { wav_start: wav_range_start, wav_end: wav_range_end, source: clip_video_path }
 
-    if has_sync
-      wav_start = (start_time + sync_offset) - buffer
+    if clip_has_sync
+      wav_start = (start_time + clip_sync_offset) - buffer
       wav_start = 0.0 if wav_start < 0
-      wav_clip_info << { wav_start: wav_start, wav_duration: duration }
+      wav_clip_info << { wav_start: wav_start, wav_duration: duration, wav_path: clip_sync_path, wav_offset: clip_sync_offset }
+    else
+      wav_clip_info << nil
     end
   end
 
@@ -962,10 +972,15 @@ if max_segment_duration && long_pauses
         end
       end
       new_clips << clip
-      new_wav_clip_info << wav_clip_info[ci] if has_sync && ci < wav_clip_info.size
+      new_wav_clip_info << wav_clip_info[ci] if ci < wav_clip_info.size
       new_clip_source_ranges << clip_source_ranges[ci] if ci < clip_source_ranges.size
       next
     end
+
+    # Per-clip sync for auto-split (from wav_clip_info built in clip loop)
+    wi_entry = ci < wav_clip_info.size ? wav_clip_info[ci] : nil
+    split_sync_offset = wi_entry ? wi_entry[:wav_offset] : sync_offset
+    split_has_sync    = !wi_entry.nil?
 
     # Determine clip's video-time range (strip breathing room for split calculation)
     clip_video_start = clip[:start_at] + buffer
@@ -973,7 +988,7 @@ if max_segment_duration && long_pauses
 
     split_points = find_split_points(clip_video_start, clip_video_end,
                                       long_pauses, max_segment_duration,
-                                      sync_offset, has_sync)
+                                      split_sync_offset, split_has_sync)
 
     if split_points.empty?
       # No valid split points — remap markers and keep as-is
@@ -983,12 +998,13 @@ if max_segment_duration && long_pauses
         end
       end
       new_clips << clip
-      new_wav_clip_info << wav_clip_info[ci] if has_sync && ci < wav_clip_info.size
+      new_wav_clip_info << wav_clip_info[ci] if ci < wav_clip_info.size
       new_clip_source_ranges << clip_source_ranges[ci] if ci < clip_source_ranges.size
       next
     end
 
     # Build sub-clips from split points
+    split_wav_path = wi_entry ? wi_entry[:wav_path] : nil
     boundaries = [clip_video_start] + split_points + [clip_video_end]
     boundaries.each_cons(2).with_index do |(sub_start, sub_end), si|
       is_first = si == 0
@@ -1003,14 +1019,16 @@ if max_segment_duration && long_pauses
       sub_clip = { path: clip[:path], start_at: buffered_start, duration: dur }
       new_clips << sub_clip
 
-      wav_s = has_sync ? sub_start + sync_offset : sub_start
-      wav_e = has_sync ? sub_end + sync_offset : sub_end
+      wav_s = split_has_sync ? sub_start + split_sync_offset : sub_start
+      wav_e = split_has_sync ? sub_end + split_sync_offset : sub_end
       new_clip_source_ranges << { wav_start: wav_s, wav_end: wav_e, source: clip[:path] }
 
-      if has_sync
+      if split_has_sync
         ws = wav_s - start_buf
         ws = 0.0 if ws < 0
-        new_wav_clip_info << { wav_start: ws, wav_duration: dur }
+        new_wav_clip_info << { wav_start: ws, wav_duration: dur, wav_path: split_wav_path, wav_offset: split_sync_offset }
+      else
+        new_wav_clip_info << nil
       end
 
       if si > 0
@@ -1542,28 +1560,38 @@ generator = ButterCut.new(clips, editor: editor, markers: markers, name: config[
 base_xml = generator.to_xml
 
 # === Post-process: add sync audio track if present ===
-if has_sync
+# Per-clip sync: wav_clip_info entries carry their own wav_path + wav_offset.
+# Non-synced clips have nil entries. Track is emitted if ANY clip has sync.
+any_sync = wav_clip_info.any? { |wi| wi }
+if any_sync
   doc = Nokogiri::XML(base_xml)
 
-  # Get WAV properties via ffprobe
-  wav_info_raw = `ffprobe -v error -show_entries format=duration -show_entries stream=sample_rate,bits_per_sample,channels -of json #{Shellwords.escape(sync_path)}`
-  wav_meta = JSON.parse(wav_info_raw)
-  wav_duration_s = wav_meta['format']['duration'].to_f
-  wav_duration_frames = (wav_duration_s * fps).round
-
-  wav_stream = wav_meta['streams']&.find { |s| s['codec_type'] == 'audio' } || {}
-  wav_sample_rate = wav_stream['sample_rate'] || '48000'
-  wav_bit_depth = wav_stream['bits_per_sample'] || 16
-  wav_channels = wav_stream['channels'] || 2
-
-  wav_pathurl = "file://#{sync_path.gsub(' ', '%20')}"
-  wav_basename = File.basename(sync_path, File.extname(sync_path))
-  wav_filename = File.basename(sync_path)
+  # Probe unique WAV files for metadata (cache per path)
+  wav_file_metadata = {}
+  wav_clip_info.each do |wi|
+    next unless wi
+    wpath = wi[:wav_path]
+    next if wav_file_metadata.key?(wpath)
+    wav_info_raw = `ffprobe -v error -show_entries format=duration -show_entries stream=sample_rate,bits_per_sample,channels -of json #{Shellwords.escape(wpath)}`
+    wm = JSON.parse(wav_info_raw)
+    wav_dur_s = wm['format']['duration'].to_f
+    ws = wm['streams']&.find { |s| s['codec_type'] == 'audio' } || {}
+    wav_file_metadata[wpath] = {
+      duration_frames: (wav_dur_s * fps).round,
+      sample_rate: ws['sample_rate'] || '48000',
+      bit_depth: ws['bits_per_sample'] || 16,
+      channels: ws['channels'] || 2,
+      pathurl: "file://#{wpath.gsub(' ', '%20')}",
+      basename: File.basename(wpath, File.extname(wpath)),
+      filename: File.basename(wpath)
+    }
+  end
 
   audio_node = doc.at_xpath('//sequence/media/audio')
   track_node = Nokogiri::XML::Node.new('track', doc)
-  wav_file_id = "file-wav-production"
-  first_clip = true
+
+  # Track which WAV file IDs have been emitted (first ref gets full <file>)
+  emitted_file_ids = {}
 
   # Single source of truth for seconds->frames: replicate fcp7.rb's
   # frames_for_fraction(seconds_to_fraction(seconds), "1/fps s") exactly so
@@ -1577,35 +1605,48 @@ if has_sync
     ((numerator * fps).to_f / 10000.0).round
   }
 
-  # WAV gets a CONSTANT frame shift applied to the video-domain source position.
-  # This decouples the wav vs video gap from per-clip float rounding (which is
-  # what caused the cumulative drift previously).
-  sync_offset_frames = has_sync ? fcp7_seconds_to_frames.call(sync_offset) : 0
-
   # Cumulative timeline position must sum *rounded* per-clip durations, not
   # float seconds rounded at the end — otherwise the WAV timeline drifts away
   # from the video timeline by the same fractional accumulation.
   wav_cumulative_tl_frames = 0
+  wav_clip_count = 0
 
   wav_clip_info.each_with_index do |wi, i|
+    # For non-synced V1 clips, advance timeline accumulator but emit no A2 clip
+    unless wi
+      if i < clips.size && (!clips[i].key?(:video_track) || clips[i][:video_track] == 1)
+        tl_duration_frames = fcp7_seconds_to_frames.call(clips[i][:duration])
+        wav_cumulative_tl_frames += tl_duration_frames
+      end
+      next
+    end
+
+    wav_clip_count += 1
+    wpath  = wi[:wav_path]
+    woffset = wi[:wav_offset]
+    wmeta  = wav_file_metadata[wpath]
+
+    # Per-clip sync offset in frames (constant shift for this WAV source)
+    clip_sync_offset_frames = fcp7_seconds_to_frames.call(woffset)
+
     tl_duration_frames = fcp7_seconds_to_frames.call(wi[:wav_duration])
     tl_start_frames    = wav_cumulative_tl_frames
     tl_end_frames      = tl_start_frames + tl_duration_frames
 
-    # Recover the un-shifted buffered_start in video time (= wav_start - sync_offset).
+    # Recover the un-shifted buffered_start in video time (= wav_start - offset).
     # This is the same input the video clipitem uses for its source_in.
-    # Apply the SAME math, then add the constant sync_offset_frames.
-    buffered_start_video = wi[:wav_start] - (has_sync ? sync_offset : 0.0)
+    # Apply the SAME math, then add the constant sync offset in frames.
+    buffered_start_video = wi[:wav_start] - woffset
     buffered_start_video = 0.0 if buffered_start_video < 0
-    src_in_frames        = fcp7_seconds_to_frames.call(buffered_start_video) + sync_offset_frames
+    src_in_frames        = fcp7_seconds_to_frames.call(buffered_start_video) + clip_sync_offset_frames
     src_in_frames        = 0 if src_in_frames < 0
     src_out_frames       = src_in_frames + tl_duration_frames
 
     wav_cumulative_tl_frames += tl_duration_frames
 
     clip_node = Nokogiri::XML::Node.new('clipitem', doc)
-    clip_node['id'] = "clipitem-wav-#{i + 1}"
-    clip_node.add_child("<name>#{wav_basename}</name>")
+    clip_node['id'] = "clipitem-wav-#{wav_clip_count}"
+    clip_node.add_child("<name>#{wmeta[:basename]}</name>")
     clip_node.add_child("<enabled>TRUE</enabled>")
     clip_node.add_child("<duration>#{tl_duration_frames}</duration>")
     clip_node.add_child("<start>#{tl_start_frames}</start>")
@@ -1613,30 +1654,32 @@ if has_sync
     clip_node.add_child("<in>#{src_in_frames}</in>")
     clip_node.add_child("<out>#{src_out_frames}</out>")
 
-    if first_clip
+    file_id = emitted_file_ids[wpath]
+    if file_id
+      file_xml = "<file id=\"#{file_id}\"/>"
+    else
+      file_id = "file-wav-#{emitted_file_ids.size + 1}"
+      emitted_file_ids[wpath] = file_id
       file_xml = <<~XML
-        <file id="#{wav_file_id}">
-          <name>#{wav_filename}</name>
-          <pathurl>#{wav_pathurl}</pathurl>
+        <file id="#{file_id}">
+          <name>#{wmeta[:filename]}</name>
+          <pathurl>#{wmeta[:pathurl]}</pathurl>
           <rate><timebase>#{fps}</timebase><ntsc>FALSE</ntsc></rate>
-          <duration>#{wav_duration_frames}</duration>
+          <duration>#{wmeta[:duration_frames]}</duration>
           <media>
             <audio>
               <samplecharacteristics>
-                <samplerate>#{wav_sample_rate}</samplerate>
-                <sampledepth>#{wav_bit_depth}</sampledepth>
+                <samplerate>#{wmeta[:sample_rate]}</samplerate>
+                <sampledepth>#{wmeta[:bit_depth]}</sampledepth>
               </samplecharacteristics>
             </audio>
           </media>
         </file>
       XML
-      first_clip = false
-    else
-      file_xml = "<file id=\"#{wav_file_id}\"/>"
     end
     clip_node.add_child(file_xml)
     clip_node.add_child("<sourcetrack><mediatype>audio</mediatype><trackindex>1</trackindex></sourcetrack>")
-    clip_node.add_child("<channelcount>#{wav_channels}</channelcount>")
+    clip_node.add_child("<channelcount>#{wmeta[:channels]}</channelcount>")
     track_node.add_child(clip_node)
   end
 
@@ -1707,8 +1750,14 @@ summary = "Duration: #{mins}:#{format('%02d', secs)} | Clips: #{clips.length} (V
 summary += " (T1:#{tier1_markers.size} T2:#{tier2_markers.size} T3:#{tier3_count})" if tier1_markers.any? || tier2_markers.any? || tier3_count > 0
 summary += " | Pauses removed: #{removed_pause_count} (#{(total_removed_ms / 1000.0).round(1)}s)" if removed_pause_count > 0
 $stderr.puts summary
-if has_sync
-  $stderr.puts "Sync audio: #{File.basename(sync_path)} (offset: #{sync_offset}s)"
+if any_sync
+  unique_wavs = wav_clip_info.compact.map { |wi| wi[:wav_path] }.uniq
+  if unique_wavs.size == 1
+    $stderr.puts "Sync audio: #{File.basename(unique_wavs.first)} (offset: #{wav_clip_info.compact.first[:wav_offset]}s)"
+  else
+    $stderr.puts "Sync audio: #{unique_wavs.size} WAV sources (multi-source)"
+    unique_wavs.each { |wp| $stderr.puts "  #{File.basename(wp)}" }
+  end
   $stderr.puts "Track 1: scratch audio (mute) | Track 2: production audio"
 end
 
