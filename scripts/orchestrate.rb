@@ -632,19 +632,27 @@ videos.each_with_index do |video, vi|
   else
     step 'transcript_cleanup'
     sa_flag = speech_analysis_path && file_cached?(speech_analysis_path) ? ['--speech-analysis', speech_analysis_path, '--protect-rhetorical'] : []
-    run_script('transcript_cleanup.rb', transcript_path, *sa_flag)
+    cleanup_output = run_script('transcript_cleanup.rb', transcript_path, *sa_flag)
+    # transcript_cleanup.rb prints the output path to stdout — use it
+    if cleanup_output && File.exist?(cleanup_output)
+      cleaned_path = cleanup_output
+    end
   end
 
   # Persist transcript / cleaned_transcript filenames back to library.yaml
   # (audio_analysis.rb already persists speech_analysis, but whisperx and cleanup don't)
-  if transcript_name || cleaned_path
-    lib_snap = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
-    v_entry = lib_snap['videos'][vi]
-    v_entry['transcript'] ||= transcript_name if transcript_name
-    cleaned_basename = cleaned_path ? File.basename(cleaned_path) : nil
-    if cleaned_basename && File.exist?(File.join(transcripts_dir, cleaned_basename))
-      v_entry['cleaned_transcript'] ||= cleaned_basename
-    end
+  lib_snap = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
+  v_entry = lib_snap['videos'][vi]
+  changed = false
+  if transcript_name && !v_entry['transcript']
+    v_entry['transcript'] = transcript_name
+    changed = true
+  end
+  if cleaned_path && File.exist?(cleaned_path) && !v_entry['cleaned_transcript']
+    v_entry['cleaned_transcript'] = File.basename(cleaned_path)
+    changed = true
+  end
+  if changed
     File.write(library_yaml_path, lib_snap.to_yaml)
   end
 
