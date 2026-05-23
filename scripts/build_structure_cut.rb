@@ -1600,7 +1600,8 @@ if any_sync
   # diverges from the rational path on boundary cases (15/303 clips for
   # Dylan005, accumulating 16 frames of A/V drift over 38 minutes).
   fcp7_seconds_to_frames = ->(seconds) {
-    return 0 if seconds.nil? || seconds <= 0
+    return 0 if seconds.nil? || seconds == 0
+    abort "BUG: fcp7_seconds_to_frames received negative value (#{seconds}s) — caller must pass absolute time or duration" if seconds < 0
     numerator = (seconds * 10000).round
     ((numerator * fps).to_f / 10000.0).round
   }
@@ -1623,24 +1624,17 @@ if any_sync
 
     wav_clip_count += 1
     wpath  = wi[:wav_path]
-    woffset = wi[:wav_offset]
     wmeta  = wav_file_metadata[wpath]
-
-    # Per-clip sync offset in frames (constant shift for this WAV source)
-    clip_sync_offset_frames = fcp7_seconds_to_frames.call(woffset)
 
     tl_duration_frames = fcp7_seconds_to_frames.call(wi[:wav_duration])
     tl_start_frames    = wav_cumulative_tl_frames
     tl_end_frames      = tl_start_frames + tl_duration_frames
 
-    # Recover the un-shifted buffered_start in video time (= wav_start - offset).
-    # This is the same input the video clipitem uses for its source_in.
-    # Apply the SAME math, then add the constant sync offset in frames.
-    buffered_start_video = wi[:wav_start] - woffset
-    buffered_start_video = 0.0 if buffered_start_video < 0
-    src_in_frames        = fcp7_seconds_to_frames.call(buffered_start_video) + clip_sync_offset_frames
-    src_in_frames        = 0 if src_in_frames < 0
-    src_out_frames       = src_in_frames + tl_duration_frames
+    # wav_start is already the correct source position within the WAV file,
+    # computed in the clip loop as: (video_start + sync_offset) - buffer.
+    # Use it directly — no need to undo/redo the offset in frame domain.
+    src_in_frames  = fcp7_seconds_to_frames.call(wi[:wav_start])
+    src_out_frames = src_in_frames + tl_duration_frames
 
     wav_cumulative_tl_frames += tl_duration_frames
 
