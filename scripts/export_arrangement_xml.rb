@@ -101,17 +101,31 @@ end
 # First video's transcript as legacy fallback for single-source
 transcript_path = transcript_map[File.expand_path(video_entry['path'])]
 
-# === Determine sync offset for time domain conversion ===
+# === Build per-source sync audio lookup ===
+# Each source video may have its own sync_audio WAV with a different offset.
+# Multi-source arrangements (v2) need per-clip offset for correct conversion.
+sync_audio_lookup = {}
+library_yaml['videos'].each do |v|
+  if v['sync_audio'] && v['sync_audio']['path'] && v['sync_audio']['offset']
+    filename = File.basename(v['path'])
+    sync_audio_lookup[filename] = {
+      'path'   => v['sync_audio']['path'],
+      'offset' => v['sync_audio']['offset'].to_f
+    }
+  end
+end
+
+# === Determine time domain for conversion ===
 # Arrangement timestamps come from the transcript, which was generated from
 # the sync_audio WAV (if present). So arrangement times are in WAV time domain.
 # build_structure_cut.rb expects video_start/video_end in video time domain.
 # Convert: video_time = wav_time - sync_offset
-sync_offset_for_conversion = 0.0
-if video_entry['sync_audio'] && video_entry['sync_audio']['offset']
-  arr_time_domain = arrangement['time_domain'] || 'wav'
+arr_time_domain = arrangement['time_domain'] || 'wav'
+convert_from_wav = false
+if sync_audio_lookup.any?
   if arr_time_domain == 'wav'
-    sync_offset_for_conversion = video_entry['sync_audio']['offset'].to_f
-    $stderr.puts "  Time domain: arrangement is WAV time, converting to video time (offset: #{sync_offset_for_conversion}s)"
+    convert_from_wav = true
+    $stderr.puts "  Time domain: arrangement is WAV time, converting per-source (#{sync_audio_lookup.size} sources with sync_audio)"
   elsif arr_time_domain == 'video'
     $stderr.puts "  Time domain: arrangement is already video time, no conversion needed"
   else
@@ -183,9 +197,14 @@ arrangement['chapters'].each do |chapter|
       clip_video_path = video_path  # fallback to first video (single-source compat)
     end
 
+    # Per-source sync offset for time domain conversion
+    source_filename = clip_source || File.basename(video_path)
+    clip_sync = sync_audio_lookup[source_filename]
+    clip_sync_offset = (convert_from_wav && clip_sync) ? clip_sync['offset'] : 0.0
+
     # Convert from arrangement time domain (WAV) to video time domain
-    video_start = clip['t_in'].to_f - sync_offset_for_conversion
-    video_end = clip['t_out'].to_f - sync_offset_for_conversion
+    video_start = clip['t_in'].to_f - clip_sync_offset
+    video_end = clip['t_out'].to_f - clip_sync_offset
 
     # Clamp video_end to source file duration — LLM may produce round-number
     # t_out values that exceed the actual file length, causing black frames
@@ -225,6 +244,12 @@ arrangement['chapters'].each do |chapter|
 
     # Pass through chapter identity for diagnostic logs in build_structure_cut
     clip_entry['chapter_id'] = chapter['id'] if chapter['id']
+
+    # Per-clip sync audio for multi-source WAV track
+    if clip_sync
+      clip_entry['sync_audio_path']   = clip_sync['path']
+      clip_entry['sync_audio_offset'] = clip_sync['offset']
+    end
 
     if track == 'V1'
       # Track seg_id → clip index for marker resolution
