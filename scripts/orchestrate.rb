@@ -530,6 +530,17 @@ $stderr.puts "Branch: #{branch}#{analyze_only ? ' (analyze-only)' : ''}"
 
 phase '1 — Ingest'
 
+# Fail-fast: refuse to proceed if any source has a transcript but no transcript_domain.
+# This prevents stale-cache domain mismatches (video-time transcripts treated as WAV time).
+videos.each do |v|
+  next unless v['transcript'] && !v['transcript'].to_s.empty?
+  next if v['transcript_domain']
+  source = File.basename(v['path'].to_s)
+  abort "PIPELINE ABORT: Source '#{source}' has a transcript but no transcript_domain in library.yaml.\n" \
+        "  Run: ruby scripts/normalize_transcript_domain.rb --library #{library_name}\n" \
+        "  This ensures all transcripts have a verified time domain before processing."
+end
+
 # Track per-video outputs for downstream consumers
 per_video_outputs = []
 
@@ -646,6 +657,7 @@ videos.each_with_index do |video, vi|
   changed = false
   if transcript_name && !v_entry['transcript']
     v_entry['transcript'] = transcript_name
+    v_entry['transcript_domain'] = 'wav'  # orchestrator always transcribes from treated WAV
     changed = true
   end
   if cleaned_path && File.exist?(cleaned_path) && !v_entry['cleaned_transcript']
