@@ -8,7 +8,6 @@
 #   output_dir: /absolute/path/to/output/
 #   editor: fcp7
 #   name: "My Structure Cut"          # optional, defaults to video basename
-#   breathing_room_frames: 3          # optional, default 3
 #   fps: 25                           # optional, auto-detected from video
 #
 #   output_format: match_source       # optional: "match_source" (default) or "vertical_short"
@@ -40,7 +39,6 @@
 #                                    # After pause removal, segments shorter than this
 #                                    # are merged with adjacent segments.
 #
-#   max_segment_duration: 0          # optional, disabled by default (no auto-split)
 #                                    # Legacy: if set, splits clips exceeding this duration
 #                                    # at sentence boundaries. Set to 0 or false to disable.
 #
@@ -146,7 +144,7 @@ source_fps_num, source_fps_denom = source_fps_str.split('/').map(&:to_f)
 source_fps_exact = source_fps_denom > 0 ? source_fps_num / source_fps_denom : 25.0
 source_vertical = source_height > source_width
 
-# FPS for buffer and WAV frame calculations (timebase integer)
+# FPS for WAV frame calculations (timebase integer)
 if config['fps']
   fps = config['fps'].to_f
 else
@@ -192,8 +190,9 @@ end
 $stderr.puts "Source: #{File.basename(video_path)} — #{source_desc}"
 $stderr.puts "Output: #{out_desc}"
 
-breathing_room_frames = config['breathing_room_frames'] || 3
-buffer = breathing_room_frames.to_f / fps
+# BREATHING_MARGIN: fixed 80ms padding per side (D5.10).
+# Atoms from semantic_segment.rb have precise word-level boundaries.
+BREATHING_MARGIN = 0.080
 
 # === Tier 0: Narrative role indicator markers (point markers at clip starts) ===
 # Replaces clip label coloring (which Premiere ties to source media, not timeline instances).
@@ -370,201 +369,7 @@ else
   min_segment_duration = (profile['min_segment_duration'] || 2).to_f
 end
 
-# === Parse max_segment_duration (legacy support — disabled by default) ===
-max_segment_duration = nil
-if config.key?('max_segment_duration')
-  val = config['max_segment_duration']
-  if val && val != false && val.to_i > 0
-    max_segment_duration = val.to_i
-  end
-end
-# NOTE: max_segment_duration no longer has a default. Natural boundaries only.
 
-if max_segment_duration && long_pauses
-  $stderr.puts "Max segment duration: #{max_segment_duration}s (legacy auto-split enabled)"
-end
-
-# Find split points for an oversized clip using internal pauses (legacy).
-# Only used when max_segment_duration is explicitly set in YAML config.
-SENTENCE_BOUNDARY_THRESHOLD = 0.300  # 300ms minimum pause for sentence boundary
-
-def find_split_points(video_start, video_end, pauses, max_dur, sync_offset, has_sync)
-  duration = video_end - video_start
-  return [] if duration <= max_dur
-
-  # Find the longest qualifying pause inside this range (in video time)
-  best_pause = nil
-  best_dur = 0
-  pauses.each do |p|
-    p_start_v = has_sync ? p['start'] - sync_offset : p['start']
-    next unless p_start_v > video_start + 0.5 && p_start_v < video_end - 0.5
-    next unless p['duration'] >= SENTENCE_BOUNDARY_THRESHOLD
-    if p['duration'] > best_dur
-      best_pause = p
-      best_dur = p['duration']
-    end
-  end
-
-  return [] unless best_pause
-
-  split_v = has_sync ? best_pause['start'] - sync_offset : best_pause['start']
-
-  # Recursively check sub-segments
-  left_splits = find_split_points(video_start, split_v, pauses, max_dur, sync_offset, has_sync)
-  right_splits = find_split_points(split_v, video_end, pauses, max_dur, sync_offset, has_sync)
-
-  left_splits + [split_v] + right_splits
-end
-
-# Snap a time to the nearest speech boundary within tolerance.
-# boundary_type: :start snaps to segment starts, :end snaps to segment ends.
-# Returns [snapped_time, adjustment] or [original_time, 0.0] if no match.
-SNAP_TOLERANCE = (profile['snap_end_tolerance_ms'] || 300) / 1000.0
-END_BUFFER = 0.200      # 200ms after speech end for breathing room
-
-def snap_to_boundary(time, segments, boundary_type, tolerance = SNAP_TOLERANCE)
-  return [time, 0.0] unless segments
-
-  best = nil
-  best_dist = tolerance
-
-  segments.each do |seg|
-    target = boundary_type == :start ? seg['start'] : seg['end']
-    dist = (time - target).abs
-    if dist < best_dist
-      best = target
-      best_dist = dist
-    end
-  end
-
-  if best
-    snapped = boundary_type == :end ? best + END_BUFFER : best
-    [(snapped * 1000).round / 1000.0, (snapped - time).round(3)]
-  else
-    if boundary_type == :end
-      [((time + END_BUFFER) * 1000).round / 1000.0, END_BUFFER]
-    else
-      [time, 0.0]
-    end
-  end
-end
-
-# Trim in-point restart false-starts using transcript word timing.
-# Detects pattern: speaker starts a phrase, abandons it, restarts with same
-# opening more completely. Moves clip in-point to the successful restart.
-# Returns [new_start_time, trimmed_text] or [start_time, nil] if no trim.
-RESTART_FILLER = %w[so and but um uh like well okay right yeah i mean the a].to_set.freeze
-RESTART_GAP_THRESHOLD = 0.300 # 300ms gap indicates restart boundary
-
-def trim_restart_inpoint(start_time, end_time, all_words, sync_offset, has_sync)
-  return [start_time, nil] unless all_words&.any?
-
-  # Work in transcript time domain
-  t_start = has_sync ? start_time + sync_offset : start_time
-  t_end = has_sync ? end_time + sync_offset : end_time
-
-  clip_words = all_words.select { |w|
-    w['start'].to_f >= t_start - 0.15 && w['end'].to_f <= t_end + 0.15
-  }
-  return [start_time, nil] if clip_words.size < 6
-
-  norms = clip_words.map { |w| w['word'].to_s.downcase.gsub(/[^a-z0-9']/, '') }
-  all_trimmed = []
-
-  3.times do # max iterations for chained restarts
-    break if clip_words.size < 6
-
-    found = false
-    min_plen = 3
-    max_plen = [norms.size / 3, 8].min
-
-    max_plen.downto(min_plen) do |plen|
-      # Only search for phrases starting in the first 40% of the clip
-      max_start_idx = [clip_words.size * 2 / 5, clip_words.size - plen * 2].min
-      next if max_start_idx < 0
-
-      (0..max_start_idx).each do |i|
-        phrase = norms[i, plen]
-        next if phrase.all? { |w| RESTART_FILLER.include?(w) || w.empty? }
-
-        # Find same phrase later in clip
-        search_from = i + plen
-        match_at = nil
-        max_search = [search_from + 25 + plen, norms.size - plen].min
-        (search_from..max_search).each do |j|
-          if norms[j, plen] == phrase
-            match_at = j
-            break
-          end
-        end
-        next unless match_at
-
-        # Walk back from match_at to find second attempt start (nearest gap >= 300ms)
-        second_attempt_start = match_at
-        ([i + plen, match_at - 20].max...match_at).to_a.reverse_each do |g|
-          gap = clip_words[g]['start'].to_f - clip_words[g - 1]['end'].to_f
-          if gap >= RESTART_GAP_THRESHOLD
-            second_attempt_start = g
-            break
-          end
-        end
-
-        # Compute tails using second_attempt_start (not match_at) for first tail
-        # First tail: what speaker said after phrase before giving up (between phrase end and restart)
-        first_tail = (i + plen...second_attempt_start).map { |j| norms[j] }
-                       .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
-        second_tail_end = [match_at + plen + 25, norms.size].min
-        second_tail = (match_at + plen...second_tail_end).map { |j| norms[j] }
-                        .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
-
-        # Don't trim if second occurrence doesn't continue further
-        next if second_tail.size <= first_tail.size
-
-        # Short parallel protection: "X of A, X of B" in continuous speech
-        # Only applies when no significant gap was found (second_attempt_start == match_at)
-        if second_attempt_start == match_at && first_tail.size >= 1 && first_tail.size <= 3
-          unique_first = first_tail - second_tail
-          next if unique_first.size >= 1 # First tail has unique content → deliberate parallel
-        end
-
-        # Rhetorical protection: both tails substantial with different content → preserve
-        if first_tail.size >= 2 && second_tail.size >= 2
-          overlap = (first_tail & second_tail).size.to_f / [first_tail.size, second_tail.size].min
-          next if overlap < 0.5
-        end
-
-        # Pre-phrase content check: if substantial unique content before the phrase,
-        # this isn't an in-point issue (legitimate content precedes the restart)
-        if i > 0
-          pre_content = (0...i).map { |j| norms[j] }
-                          .reject { |w| RESTART_FILLER.include?(w) || w.empty? }
-          if pre_content.size > 2
-            second_attempt_words = norms[second_attempt_start, 30]&.to_set || Set.new
-            unique_pre = pre_content.reject { |w| second_attempt_words.include?(w) }
-            next if unique_pre.size > 2 # Substantial unique content before restart → skip
-          end
-        end
-
-        trimmed_text = clip_words[0...second_attempt_start].map { |w| w['word'] }.join(' ')
-        all_trimmed << trimmed_text
-
-        clip_words = clip_words[second_attempt_start..]
-        norms = norms[second_attempt_start..]
-        found = true
-        break # restart search with shorter clip
-      end
-      break if found
-    end
-    break unless found
-  end
-
-  return [start_time, nil] if all_trimmed.empty?
-
-  # New start time from first remaining word
-  new_t_start = clip_words.first['start'].to_f
-  new_start = has_sync ? new_t_start - sync_offset : new_t_start
-  [new_start, all_trimmed.join(' | ')]
-end
 
 clips = []
 wav_clip_info = []
@@ -578,20 +383,6 @@ total_removed_ms = 0
 v1_timeline_duration = 0.0
 # Tier 0: collect narrative role marker data during clip processing
 tier0_role_markers = []
-# State for source-window overlap clamp. Phrase-snap extends clip[N].end_time
-# forward (END_BUFFER + snap-forward tolerance) without pulling clip[N+1].start
-# forward, so adjacent same-source clips end up sharing 0.3-0.5s of source audio
-# even when the timeline butt-joins cleanly. The clamp resolves that.
-prev_clamp_end     = nil
-prev_clamp_source  = nil
-prev_clamp_track   = nil
-prev_clamp_chapter = nil
-prev_clamp_beat_id = nil
-# Containment cases: clip N+1's source window is fully inside clip N's. Clamping
-# would zero-out the clip — instead we leave the overlap intact and surface it.
-overlap_clamp_count   = 0
-overlap_clamp_total_s = 0.0
-containment_overlaps  = []  # [{ chapter, beat_id, clip_idx, overlap_s, prev_chapter, prev_beat_id }]
 
 # === Per-clip time domain detection ===
 # Field names are self-describing:
@@ -648,96 +439,6 @@ config['clips'].each_with_index do |c, idx|
     if trim_in_val > start_time && trim_in_val < end_time
       $stderr.puts "Clip #{idx + 1}: trim_in #{'%.2f' % start_time}→#{'%.2f' % trim_in_val}s (ingest)"
       start_time = trim_in_val
-    end
-  end
-
-  # Snap-to-boundary if speech analysis is available
-  if clip_speech_segments
-    if clip_has_sync
-      wav_start = start_time + clip_sync_offset
-      wav_end = end_time + clip_sync_offset
-
-      snapped_start, adj_s = snap_to_boundary(wav_start, clip_speech_segments, :start)
-      snapped_end, adj_e = snap_to_boundary(wav_end, clip_speech_segments, :end)
-
-      start_time = snapped_start - clip_sync_offset
-      end_time = snapped_end - clip_sync_offset
-    else
-      start_time, adj_s = snap_to_boundary(start_time, clip_speech_segments, :start)
-      end_time, adj_e = snap_to_boundary(end_time, clip_speech_segments, :end)
-    end
-
-    if adj_s != 0.0 || adj_e != 0.0
-      $stderr.puts "Clip #{idx + 1}: snapped start #{'%+.3f' % adj_s}s, end #{'%+.3f' % adj_e}s"
-    end
-  end
-
-  # === Overlap clamp ===
-  # Two buffer mechanisms can each create source-window overlap between
-  # consecutive same-source clips even when the timeline butt-joins cleanly:
-  #
-  #   (1) Phrase-snap extends end_time forward by SNAP_TOLERANCE + END_BUFFER
-  #       without pulling the next clip's start_time forward.
-  #   (2) Breathing-room buffer (line 196: buffer = breathing_room_frames / fps)
-  #       is applied SYMMETRICALLY when each clipitem is emitted — the clip
-  #       renders [start_time - buffer, end_time + buffer]. So even with snap
-  #       fully resolved, every adjacent pair overlaps by 2*buffer at render time.
-  #
-  # Clamp must require a 2*buffer gap so the buffered renderings butt-join
-  # exactly: next.start - buffer >= prev.end + buffer  <=>  next.start >= prev.end + 2*buffer.
-  #
-  # Full-containment case (the clamped start would land past this clip's end):
-  # do NOT zero-clamp or drop. That would silently delete an LLM-arranged beat.
-  # Leave the clip unchanged and log loud — visible duplicated phrase in QA
-  # (fixable by re-arranging the specific beat), not a silently missing beat.
-  required_gap         = 2.0 * buffer
-  clip_track_for_clamp = (c['track'] || 'V1').to_s.upcase.sub(/^V/, '').to_i
-  clip_track_for_clamp = 1 if clip_track_for_clamp < 1
-  clamp_target         = prev_clamp_end && (prev_clamp_end + required_gap)
-  if prev_clamp_end && prev_clamp_source == clip_source_path \
-       && prev_clamp_track == 1 && clip_track_for_clamp == 1 \
-       && start_time < clamp_target
-    overlap_s  = clamp_target - start_time
-    chapter_id = c['chapter_id'] || '?'
-    beat_id    = c['beat_id']    || '?'
-    if clamp_target >= end_time
-      $stderr.puts "Clip #{idx + 1}: OVERLAP-CONTAINMENT (chapter=#{chapter_id} beat=#{beat_id}) " \
-                   "clip span [#{'%.3f' % start_time}-#{'%.3f' % end_time}] (#{'%.3f' % (end_time - start_time)}s) " \
-                   "would be consumed by buffered clamp (target #{'%.3f' % clamp_target}). LEAVING INTACT — needs re-arrange."
-      containment_overlaps << {
-        clip_idx:    idx + 1,
-        chapter:     chapter_id,
-        beat_id:     beat_id,
-        overlap_s:   overlap_s,
-        clip_span:   [start_time, end_time],
-        prev_end:    prev_clamp_end,
-        prev_chapter: prev_clamp_chapter,
-        prev_beat_id: prev_clamp_beat_id
-      }
-      # Do NOT touch start_time/end_time. Do NOT update prev_clamp_end here —
-      # the previous clip's end is still the binding constraint for clip N+2.
-    else
-      $stderr.puts "Clip #{idx + 1}: OVERLAP-CLAMP (chapter=#{chapter_id} beat=#{beat_id}) " \
-                   "start #{'%.3f' % start_time} -> #{'%.3f' % clamp_target} (#{'%.3f' % overlap_s}s dropped; required_gap=#{'%.3f' % required_gap}s)"
-      start_time = clamp_target
-      overlap_clamp_count   += 1
-      overlap_clamp_total_s += overlap_s
-    end
-  end
-  prev_clamp_end     = end_time
-  prev_clamp_source  = clip_source_path
-  prev_clamp_track   = clip_track_for_clamp
-  prev_clamp_chapter = c['chapter_id']
-  prev_clamp_beat_id = c['beat_id']
-
-  # === Trim in-point restart false-starts ===
-  # Use per-source transcript when available (multi-source), fall back to global
-  clip_transcript_words = transcript_cache[clip_source_path] || transcript_words
-  if clip_transcript_words
-    new_start, trimmed = trim_restart_inpoint(start_time, end_time, clip_transcript_words, clip_sync_offset, clip_has_sync)
-    if trimmed
-      $stderr.puts "Clip #{idx + 1}: trimmed restart #{'%.2f' % start_time}→#{'%.2f' % new_start}s (#{'%.1f' % (new_start - start_time)}s removed: '#{trimmed}')"
-      start_time = new_start
     end
   end
 
@@ -881,8 +582,8 @@ config['clips'].each_with_index do |c, idx|
       is_first = si == 0
       is_last = si == sub_ranges.size - 1
       # Breathing room only at outer edges, not at internal split points
-      start_buf = is_first ? buffer : 0.0
-      end_buf = is_last ? buffer : 0.0
+      start_buf = is_first ? BREATHING_MARGIN : 0.0
+      end_buf = is_last ? BREATHING_MARGIN : 0.0
 
       buffered_start = sr[:start] - start_buf
       buffered_start = 0.0 if buffered_start < 0
@@ -922,9 +623,9 @@ config['clips'].each_with_index do |c, idx|
     end
   else
     # Single clip — no pauses to remove
-    buffered_start = start_time - buffer
+    buffered_start = start_time - BREATHING_MARGIN
     buffered_start = 0.0 if buffered_start < 0
-    duration = (end_time - start_time) + (buffer * 2)
+    duration = (end_time - start_time) + (BREATHING_MARGIN * 2)
 
     clip_hash = { path: clip_video_path, start_at: buffered_start, duration: duration }
     clip_hash[:media_type] = :audio_only if is_audio_only_clip
@@ -940,7 +641,7 @@ config['clips'].each_with_index do |c, idx|
     clip_source_ranges << { wav_start: wav_range_start, wav_end: wav_range_end, source: clip_video_path }
 
     if clip_has_sync
-      wav_start = (start_time + clip_sync_offset) - buffer
+      wav_start = (start_time + clip_sync_offset) - BREATHING_MARGIN
       wav_start = 0.0 if wav_start < 0
       wav_clip_info << { wav_start: wav_start, wav_duration: duration, wav_path: clip_sync_path, wav_offset: clip_sync_offset }
     else
@@ -952,100 +653,6 @@ config['clips'].each_with_index do |c, idx|
   if clip_video_track == 1
     v1_timeline_duration = clips.select { |cl| !cl.key?(:video_track) || cl[:video_track] == 1 }
                                 .sum { |cl| cl[:duration] }
-  end
-end
-
-# === Auto-split oversized segments ===
-split_count = 0
-if max_segment_duration && long_pauses
-  new_clips = []
-  new_wav_clip_info = []
-  new_clip_source_ranges = []
-  new_pause_removal_markers = []
-
-  clips.each_with_index do |clip, ci|
-    if clip[:duration] <= max_segment_duration
-      # Remap any existing pause_removal_markers for this clip
-      pause_removal_markers.each do |prm|
-        if prm[:clip_index] == ci
-          new_pause_removal_markers << prm.merge(clip_index: new_clips.size)
-        end
-      end
-      new_clips << clip
-      new_wav_clip_info << wav_clip_info[ci] if ci < wav_clip_info.size
-      new_clip_source_ranges << clip_source_ranges[ci] if ci < clip_source_ranges.size
-      next
-    end
-
-    # Per-clip sync for auto-split (from wav_clip_info built in clip loop)
-    wi_entry = ci < wav_clip_info.size ? wav_clip_info[ci] : nil
-    split_sync_offset = wi_entry ? wi_entry[:wav_offset] : sync_offset
-    split_has_sync    = !wi_entry.nil?
-
-    # Determine clip's video-time range (strip breathing room for split calculation)
-    clip_video_start = clip[:start_at] + buffer
-    clip_video_end = clip[:start_at] + clip[:duration] - buffer
-
-    split_points = find_split_points(clip_video_start, clip_video_end,
-                                      long_pauses, max_segment_duration,
-                                      split_sync_offset, split_has_sync)
-
-    if split_points.empty?
-      # No valid split points — remap markers and keep as-is
-      pause_removal_markers.each do |prm|
-        if prm[:clip_index] == ci
-          new_pause_removal_markers << prm.merge(clip_index: new_clips.size)
-        end
-      end
-      new_clips << clip
-      new_wav_clip_info << wav_clip_info[ci] if ci < wav_clip_info.size
-      new_clip_source_ranges << clip_source_ranges[ci] if ci < clip_source_ranges.size
-      next
-    end
-
-    # Build sub-clips from split points
-    split_wav_path = wi_entry ? wi_entry[:wav_path] : nil
-    boundaries = [clip_video_start] + split_points + [clip_video_end]
-    boundaries.each_cons(2).with_index do |(sub_start, sub_end), si|
-      is_first = si == 0
-      is_last = si == boundaries.size - 2
-      start_buf = is_first ? buffer : 0.0
-      end_buf = is_last ? buffer : 0.0
-
-      buffered_start = sub_start - start_buf
-      buffered_start = 0.0 if buffered_start < 0
-      dur = (sub_end - sub_start) + start_buf + end_buf
-
-      sub_clip = { path: clip[:path], start_at: buffered_start, duration: dur }
-      new_clips << sub_clip
-
-      wav_s = split_has_sync ? sub_start + split_sync_offset : sub_start
-      wav_e = split_has_sync ? sub_end + split_sync_offset : sub_end
-      new_clip_source_ranges << { wav_start: wav_s, wav_end: wav_e, source: clip[:path] }
-
-      if split_has_sync
-        ws = wav_s - start_buf
-        ws = 0.0 if ws < 0
-        new_wav_clip_info << { wav_start: ws, wav_duration: dur, wav_path: split_wav_path, wav_offset: split_sync_offset }
-      else
-        new_wav_clip_info << nil
-      end
-
-      if si > 0
-        new_pause_removal_markers << { clip_index: new_clips.size - 1, pause_ms: 0, auto_split: true }
-        split_count += 1
-      end
-    end
-
-    $stderr.puts "  Clip #{ci + 1}: auto-split #{clip[:duration].round(1)}s → #{boundaries.size - 1} sub-clips at sentence boundaries"
-  end
-
-  if split_count > 0
-    clips = new_clips
-    wav_clip_info = new_wav_clip_info
-    clip_source_ranges = new_clip_source_ranges
-    pause_removal_markers = new_pause_removal_markers
-    $stderr.puts "Auto-split: #{split_count} segments split at sentence boundaries (max #{max_segment_duration}s)"
   end
 end
 
@@ -1072,23 +679,17 @@ clips.each do |c|
   end
 end
 
-# === Add "Auto-removed" / "Auto-split" markers at split join points ===
+# === Add "Auto-removed" markers at pause removal join points ===
 pause_removal_markers.each do |prm|
   tl_time = timeline_positions[prm[:clip_index]].round(2)
-  if prm[:auto_split]
-    comment = "Auto-split: segment exceeded #{max_segment_duration}s"
-    log_msg = "  Auto-split at timeline #{tl_time}s"
-  else
-    comment = "Auto-removed #{prm[:pause_ms]}ms pause"
-    log_msg = "  Auto-removed: #{prm[:pause_ms]}ms pause at timeline #{tl_time}s"
-  end
+  comment = "Auto-removed #{prm[:pause_ms]}ms pause"
   markers << {
     name: 'NOTE',
     comment: comment,
     time: tl_time,
     color: 'yellow'
   }
-  $stderr.puts log_msg
+  $stderr.puts "  Auto-removed: #{prm[:pause_ms]}ms pause at timeline #{tl_time}s"
 end
 
 # === Add "tighten manually" markers for below-threshold internal pauses ===
@@ -1434,21 +1035,6 @@ unless markers_only_structure
       end
     end
 
-    # Long segments — only flag if max_segment_duration is explicitly set
-    if max_segment_duration
-      arranged.each do |seg|
-        seg_duration = seg['e'].to_f - seg['t'].to_f
-        if seg_duration > max_segment_duration
-          tier2_markers << {
-            name: "SPLIT: #{seg_duration.round(1)}s segment",
-            comment: "Long segment: #{seg_duration.round(1)}s exceeds #{max_segment_duration}s | consider splitting | \"#{seg['distillation']}\"",
-            time: seg['tl_start'],
-            color: 'yellow',
-            pproColor: PPRO_ACTION
-          }
-        end
-      end
-    end
 
     # Low confidence segments
     arranged.each do |seg|
@@ -1631,7 +1217,7 @@ if any_sync
     tl_end_frames      = tl_start_frames + tl_duration_frames
 
     # wav_start is already the correct source position within the WAV file,
-    # computed in the clip loop as: (video_start + sync_offset) - buffer.
+    # computed in the clip loop as: (video_start + sync_offset) - BREATHING_MARGIN.
     # Use it directly — no need to undo/redo the offset in frame domain.
     src_in_frames  = fcp7_seconds_to_frames.call(wi[:wav_start])
     src_out_frames = src_in_frames + tl_duration_frames
@@ -1755,29 +1341,3 @@ if any_sync
   $stderr.puts "Track 1: scratch audio (mute) | Track 2: production audio"
 end
 
-# === Overlap clamp summary ===
-if overlap_clamp_count > 0
-  $stderr.puts ""
-  $stderr.puts "OVERLAP-CLAMP summary: #{overlap_clamp_count} clip(s) clamped, " \
-               "#{'%.3f' % overlap_clamp_total_s}s of source-window overlap removed " \
-               "(phrase-snap END_BUFFER artifact)."
-end
-if containment_overlaps.any?
-  $stderr.puts ""
-  $stderr.puts "=" * 60
-  $stderr.puts "BEATS WITH GENUINE OVERLAP REQUIRING RE-ARRANGE"
-  $stderr.puts "=" * 60
-  $stderr.puts "These clips have source windows fully inside the previous clip's"
-  $stderr.puts "source window. The clamp left them intact (dropping would silently"
-  $stderr.puts "delete an LLM-arranged beat). The doubled audio is audible in QA."
-  $stderr.puts "Re-arrange the listed beats with a corrected prompt to fix."
-  $stderr.puts ""
-  containment_overlaps.each do |co|
-    $stderr.puts "  clip ##{co[:clip_idx]} chapter=#{co[:chapter]} beat=#{co[:beat_id]}: " \
-                 "span [#{'%.3f' % co[:clip_span][0]}-#{'%.3f' % co[:clip_span][1]}] " \
-                 "fully inside prev (ends #{'%.3f' % co[:prev_end]}, " \
-                 "chapter=#{co[:prev_chapter] || '?'} beat=#{co[:prev_beat_id] || '?'}) " \
-                 "— overlap #{'%.3f' % co[:overlap_s]}s"
-  end
-  $stderr.puts "=" * 60
-end
