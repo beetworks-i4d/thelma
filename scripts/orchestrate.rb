@@ -7,8 +7,9 @@
 #   ruby scripts/orchestrate.rb --library <name> [--profile <name>] [--branch A|B]
 #                               [--duration mm:ss] [--no-review] [--llm-mode api|claude_code]
 #
-# Session 3 pipeline: Phase 1 → 1.4 (extract_segments) → 1.5c (audio_emotion) →
-# 1.5d (scene/visual) → Phase 2 (discovery_pass) → Phase 3 (arrange) → Phase 4 (export)
+# Session 5 pipeline: Phase 1 → 1.35 (semantic_segment) → 1.4 (extract_segments) →
+# 1.5c (audio_emotion) → 1.5d (scene/visual) → Phase 2 (discovery_pass) →
+# Phase 3 (arrange) → Phase 4 (export)
 # Branch C deprecated as of v4.1 (will be redesigned in P5).
 
 require 'yaml'
@@ -648,37 +649,13 @@ videos.each_with_index do |video, vi|
     speech_analysis_path = speech_analysis_name ? File.join(transcripts_dir, speech_analysis_name) : nil
   end
 
-  # 1e. Transcript cleanup
-  cleaned_name = video['cleaned_transcript']
-  cleaned_path = cleaned_name ? File.join(transcripts_dir, cleaned_name) : nil
-
-  if cleaned_path && file_cached?(cleaned_path)
-    skip 'transcript_cleanup', 'cleaned transcript exists'
-  else
-    step 'transcript_cleanup'
-    sa_flag = speech_analysis_path && file_cached?(speech_analysis_path) ? ['--speech-analysis', speech_analysis_path, '--protect-rhetorical'] : []
-    cleanup_output = run_script('transcript_cleanup.rb', transcript_path, *sa_flag)
-    # transcript_cleanup.rb prints the output path to stdout — use it
-    if cleanup_output && File.exist?(cleanup_output)
-      cleaned_path = cleanup_output
-    end
-  end
-
-  # Persist transcript / cleaned_transcript filenames back to library.yaml
-  # (audio_analysis.rb already persists speech_analysis, but whisperx and cleanup don't)
+  # Persist transcript filename back to library.yaml
+  # (audio_analysis.rb already persists speech_analysis, but whisperx doesn't)
   lib_snap = YAML.safe_load(File.read(library_yaml_path), permitted_classes: [Date])
   v_entry = lib_snap['videos'][vi]
-  changed = false
   if transcript_name && !v_entry['transcript']
     v_entry['transcript'] = transcript_name
     v_entry['transcript_domain'] = 'wav'  # orchestrator always transcribes from treated WAV
-    changed = true
-  end
-  if cleaned_path && File.exist?(cleaned_path) && !v_entry['cleaned_transcript']
-    v_entry['cleaned_transcript'] = File.basename(cleaned_path)
-    changed = true
-  end
-  if changed
     File.write(library_yaml_path, lib_snap.to_yaml)
   end
 
@@ -687,7 +664,6 @@ videos.each_with_index do |video, vi|
     treated_wav: treated_wav,
     transcript_path: transcript_path,
     speech_analysis_path: speech_analysis_path,
-    cleaned_path: cleaned_path,
     has_sync: has_sync,
     production_audio: production_audio
   }
@@ -702,7 +678,6 @@ first_video = videos.first
 first_output = per_video_outputs.first
 video_path = first_video['path']
 transcript_path = first_output&.dig(:transcript_path)
-cleaned_path = first_output&.dig(:cleaned_path)
 speech_analysis_path = first_output&.dig(:speech_analysis_path)
 treated_wav = first_output&.dig(:treated_wav)
 has_sync = first_output&.dig(:has_sync) || false
@@ -946,6 +921,28 @@ if prosody_current
 else
   step 'audio_prosody'
   run_script('audio_prosody.rb', '--library', library_name)
+end
+
+# ============================================================
+# PHASE 1.35: SEMANTIC SEGMENTATION (per-source, LLM)
+# ============================================================
+
+phase '1.35 — Semantic Segmentation'
+
+videos.each_with_index do |v, vi|
+  source_filename = File.basename(v['path'])
+  source_basename = File.basename(v['path'], File.extname(v['path']))
+  seg_output = File.join(transcripts_dir, "#{source_basename}_semantic_segments.yaml")
+
+  if file_cached?(seg_output) && !force_cascade
+    skip "semantic_segment (#{source_filename})", 'semantic segments exist'
+  else
+    step "semantic_segment (#{source_filename})"
+    cmd_args = ['--library', library_name, '--source', source_filename]
+    cmd_args += ['--profile', profile_name] if profile_name
+    cmd_args += ['--llm-mode', llm_mode] if llm_mode
+    run_script('semantic_segment.rb', *cmd_args)
+  end
 end
 
 # ============================================================
