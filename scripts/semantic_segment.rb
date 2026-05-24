@@ -25,6 +25,9 @@ require_relative 'library_resolver'
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR    = File.expand_path('..', SCRIPTS_DIR)
 
+# Prompt version — included in fingerprint. Bump when system/user prompt changes.
+PROMPT_VERSION = '1.0.0'
+
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
 library_name = nil
@@ -100,7 +103,8 @@ fingerprint_parts = [
   Digest::SHA256.hexdigest(File.read(transcript_path)),
   has_vad ? Digest::SHA256.hexdigest(File.read(speech_analysis_path)) : 'no_vad',
   profile_name_resolved,
-  source_filename
+  source_filename,
+  Digest::SHA256.hexdigest(PROMPT_VERSION)
 ]
 input_fingerprint = Digest::SHA256.hexdigest(fingerprint_parts.join(':'))
 
@@ -328,19 +332,86 @@ end
 segments = parsed['segments'] || []
 discarded = parsed['discarded'] || []
 
-# ─── Validate word coverage ──────────────────────────────────────────────────
+# ─── Strict output validation (D5.15) ────────────────────────────────────────
+# All checks run before any file is written. Failure = abort loud, no partial output.
 
+def validation_abort(msg, response, library_dir, source_basename)
+  raw_path = File.join(library_dir, "semantic_segment_#{source_basename}_raw.txt")
+  File.write(raw_path, response)
+  abort "SEGMENTATION ABORT: #{msg}\nRaw response saved: #{raw_path}"
+end
+
+# 1. Word coverage exact match
 output_word_count = 0
 segments.each { |s| output_word_count += (s['words'] || []).size }
 discarded.each { |d| output_word_count += (d['words'] || []).size }
 
 if output_word_count != all_words.size
   diff = all_words.size - output_word_count
-  raw_path = File.join(library_dir, "semantic_segment_#{source_basename}_raw.txt")
-  File.write(raw_path, response)
-  abort "SEGMENTATION ABORT: Word count mismatch — input #{all_words.size}, output #{output_word_count}. " \
-        "#{diff.abs} words #{diff > 0 ? 'lost' : 'added'}. Raw saved: #{raw_path}"
+  validation_abort(
+    "Word count mismatch — input #{all_words.size}, output #{output_word_count}. " \
+    "#{diff.abs} words #{diff > 0 ? 'lost' : 'added'}.",
+    response, library_dir, source_basename
+  )
 end
+
+# 2. Segment boundary consistency (start = first word start, end = last word end)
+(segments + discarded).each_with_index do |entry, i|
+  words = entry['words'] || []
+  next if words.empty?
+  label = entry.key?('reason') ? "discarded[#{i - segments.size}]" : "segment[#{i}]"
+  expected_start = words.first['start']
+  expected_end = words.last['end']
+  if entry['start'] != expected_start
+    validation_abort(
+      "#{label} start=#{entry['start']} but first word start=#{expected_start}",
+      response, library_dir, source_basename
+    )
+  end
+  if entry['end'] != expected_end
+    validation_abort(
+      "#{label} end=#{entry['end']} but last word end=#{expected_end}",
+      response, library_dir, source_basename
+    )
+  end
+end
+
+# 3. Chronological ordering within segments
+segments.each_cons(2) do |a, b|
+  if a['end'] > b['start']
+    validation_abort(
+      "Segments not chronological: segment ending at #{a['end']} overlaps segment starting at #{b['start']}. " \
+      "Texts: '#{a['text'][0..60]}...' / '#{b['text'][0..60]}...'",
+      response, library_dir, source_basename
+    )
+  end
+end
+
+# 4. Chronological ordering within discarded
+discarded.each_cons(2) do |a, b|
+  if a['end'] > b['start']
+    validation_abort(
+      "Discarded not chronological: entry ending at #{a['end']} overlaps entry starting at #{b['start']}.",
+      response, library_dir, source_basename
+    )
+  end
+end
+
+# 5. Non-overlapping between segments and discarded (interleaved check)
+all_entries = (segments.map { |s| { start: s['start'], end: s['end'], type: 'segment' } } +
+               discarded.map { |d| { start: d['start'], end: d['end'], type: 'discarded' } })
+              .sort_by { |e| e[:start] }
+
+all_entries.each_cons(2) do |a, b|
+  if a[:end] > b[:start]
+    validation_abort(
+      "Overlap between #{a[:type]} (end=#{a[:end]}) and #{b[:type]} (start=#{b[:start]})",
+      response, library_dir, source_basename
+    )
+  end
+end
+
+$stderr.puts "  Validation: all checks passed (word coverage, boundaries, ordering, no overlaps)"
 
 # ─── Warn if over-discard ────────────────────────────────────────────────────
 
