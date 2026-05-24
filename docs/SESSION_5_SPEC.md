@@ -58,6 +58,12 @@ These were resolved in the design conversation that produced this spec. They are
 
 **D5.11** — `auto_remove_pauses_above` is disabled for v3-path clips. Pauses within an atom are part of the atom. If a pause is editorially objectionable, the fix lives in semantic_segment.rb's prompt (split the atom at that pause), not in downstream timeline surgery. Consistent with D5.10.
 
+**D5.13** — `temperature=0` on all LLM calls. This is a project-wide productization invariant, not specific to semantic_segment. Same input must produce same output. Applies to: semantic_segment.rb, discovery_pass.rb, arrange.rb, and all other LLMClient callers. Enforced at the LLMClient layer (default parameter = 0). Non-zero temperature requires explicit opt-in with justification.
+
+**D5.14** — Prompt version included in fingerprint computation. `semantic_segment.rb` defines a `PROMPT_VERSION` constant (starting at `"1.0.0"`). Its hash is included in `input_fingerprint` alongside transcript content, VAD data, profile, and source filename. When the prompt text changes, bump `PROMPT_VERSION` — all caches invalidate cleanly without needing to detect prompt text changes.
+
+**D5.15** — Strict output validation before write. No partial output written. Before writing `_semantic_segments.yaml` and `_discarded_segments.yaml`, validate: (1) parsed response is a YAML hash with `segments` and `discarded` arrays, (2) word coverage exact match (input count = segments words + discarded words), (3) chronological ordering within segments and within discarded, (4) non-overlapping segment boundaries, (5) segment.start = first word.start and segment.end = last word.end. Any failure = abort loud with diagnostic, do not write partial output.
+
 ---
 
 ## 3. Pipeline Phase Structure
@@ -784,9 +790,9 @@ For a word-level transcript, each word in the compact format (`{index}: {word} [
 
 On subscription billing (Claude Code), this is included. On API billing, $7.50 per library for a one-time segmentation pass is acceptable but worth tracking — a 20-library batch would be ~$150.
 
-### Chunking strategy for long sources (60+ min)
+### Chunking architecture
 
-**Open question — deferred to v2.** A 60-minute source at ~140 words/minute = ~8,400 words = ~67,000 input tokens. Within Opus's 200K context window. Dylan-shorts-batch-1's longest source is 46 minutes (5,598 words). Implement chunking only when a real source exceeds 10,000 words.
+**Pending design lock (D5.12).** Sources over 2,500 words must be chunked into multiple LLM calls. This increases the number of API calls but keeps each call within a size where the LLM can maintain editorial coherence and word-level accuracy. For dylan-shorts-batch-1, only MVI_5116 (650 words) is below the threshold — the other 4 sources will each require 2-4 chunks. Cost impact: more calls but same total token volume (overlap regions add ~15-20% overhead). Revised cost estimate pending D5.12 design decisions.
 
 ---
 
@@ -858,7 +864,7 @@ During prompt iteration (implementation step b-c), ALL 5 dylan-shorts-batch-1 so
 | Critique phase 2.5 | Separate session | Arrangement-level editorial coherence, not segmentation |
 | Branch C redesign | P5 | Finished-video template extraction |
 | Visual analysis P2 | Separate workstream | Shot classification, B-roll correlation |
-| Chunking for 60+ minute sources | Session 5 v2 | No current sources exceed threshold |
+| Chunking for sources >2500 words | Session 5 v1 (pending D5.12 design lock) | Mandatory for productization — see Section 18.1 |
 | Sonnet fallback for cost optimization | Post v1 quality measurement | Need quality baseline from Opus first |
 
 ---
@@ -925,9 +931,9 @@ Not removed from schema. Not populated for new pipeline runs. Existing values ar
 
 ## 18. Open Questions (Surfaced, Not Resolved)
 
-### 18.1 Very long sources (60+ min)
+### 18.1 Chunking architecture for sources >2500 words
 
-Single LLM call or chunked? Deferred. No current sources exceed the 10,000-word threshold. Strategy defined in Section 13 for when needed.
+**Pending design.** Chunking is mandatory for productization (sources >2500 words must be chunked). Design decisions — chunk size target, overlap size, split strategy, merge/dedup logic, failure modes — to be locked as D5.12 before implementation. See Section 13 for cost model implications.
 
 ### 18.2 Over-aggressive discard
 
