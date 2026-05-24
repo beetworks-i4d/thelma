@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
-# Deterministic segment extraction — Phase 1.4 (Session 3).
-# Reads cleaned_transcript.json per source video, writes segments_classified.yaml
+# Deterministic segment extraction — Phase 1.4 (Session 5).
+# Reads *_semantic_segments.yaml per source video, writes segments_classified.yaml
 # with nil placeholders for enrichment by audio_emotion.rb and merge_prosody_segments.rb.
 #
 # Usage: ruby scripts/extract_segments.rb --library <name>
@@ -8,7 +8,6 @@
 # Output: libraries/<name>/segments_classified.yaml
 
 require 'yaml'
-require 'json'
 require 'date'
 require 'digest'
 require 'fileutils'
@@ -46,28 +45,26 @@ abort "PIPELINE ABORT: library.yaml has zero source videos" if videos.empty?
 transcripts_dir = File.join(library_dir, 'transcripts')
 output_path     = File.join(library_dir, 'segments_classified.yaml')
 
-# ─── Resolve cleaned transcript paths ────────────────────────────────────────
+# ─── Resolve semantic segment paths ───────────────────────────────────────────
 
-transcript_paths = []
+seg_paths = []
 videos.each do |v|
-  filename = v['cleaned_transcript'] || v['transcript']
-  unless filename
-    source = File.basename(v['path'].to_s)
-    abort "PIPELINE ABORT: No transcript for source #{source} in library.yaml"
-  end
-  path = File.join(transcripts_dir, filename)
+  source_filename = File.basename(v['path'].to_s)
+  source_basename = File.basename(source_filename, File.extname(source_filename))
+  seg_file = "#{source_basename}_semantic_segments.yaml"
+  path = File.join(transcripts_dir, seg_file)
   unless File.exist?(path)
-    abort "PIPELINE ABORT: Cleaned transcript not found: #{path}"
+    abort "PIPELINE ABORT: Semantic segments not found for source #{source_filename}. Run Phase 1.35 first.\n  Expected: #{path}"
   end
-  transcript_paths << path
+  seg_paths << path
 end
 
 # ─── Cache check ─────────────────────────────────────────────────────────────
 
 video_list_yaml = videos.map { |v| File.basename(v['path'].to_s) }.join(':')
 fingerprint_parts = [video_list_yaml]
-transcript_paths.each do |tp|
-  fingerprint_parts << Digest::SHA256.hexdigest(File.read(tp))
+seg_paths.each do |sp|
+  fingerprint_parts << Digest::SHA256.hexdigest(File.read(sp))
 end
 input_fingerprint = Digest::SHA256.hexdigest(fingerprint_parts.join(':'))
 
@@ -105,21 +102,21 @@ all_segments = []
 
 videos.each_with_index do |v, vi|
   source_filename = File.basename(v['path'].to_s)
-  tp = transcript_paths[vi]
+  sp = seg_paths[vi]
 
-  data = JSON.parse(File.read(tp))
-  segments = data['segments'] || []
+  sem_data = YAML.safe_load(File.read(sp))
+  segments = sem_data['segments'] || []
 
   if segments.empty?
-    abort "PIPELINE ABORT: Empty transcript (no segments) in #{tp}"
+    abort "PIPELINE ABORT: Empty segments in #{sp}"
   end
 
   segments.each do |s|
     seg_counter += 1
     seg_id = format('seg_%03d', seg_counter)
 
-    t = (s['start'] || s['t'] || 0).to_f
-    e = (s['end']   || s['e'] || t).to_f
+    t = (s['start'] || 0).to_f
+    e = (s['end']   || t).to_f
     text = (s['text'] || '').strip
 
     all_segments << {
