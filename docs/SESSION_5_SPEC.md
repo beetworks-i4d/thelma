@@ -64,6 +64,30 @@ These were resolved in the design conversation that produced this spec. They are
 
 **D5.15** — Strict output validation before write. No partial output written. Before writing `_semantic_segments.yaml` and `_discarded_segments.yaml`, validate: (1) parsed response is a YAML hash with `segments` and `discarded` arrays, (2) word coverage exact match (input count = segments words + discarded words), (3) chronological ordering within segments and within discarded, (4) non-overlapping segment boundaries, (5) segment.start = first word.start and segment.end = last word.end. Any failure = abort loud with diagnostic, do not write partial output.
 
+**D5.12** — Chunking mandatory at 3500-word threshold. Sources at or below 3500 words go through as a single LLM call. Above 3500, chunking is mandatory.
+
+Chunk count formula: `chunk_count = max(2, ceil((total_words - 250) / 2000))`. Target chunk size: `target_chunk_size = (total_words + (chunk_count - 1) * 250) / chunk_count`. This balances chunk sizes — 2 chunks for 3500-5750 words, 3 chunks for 5750+, etc. No wasteful tiny final chunks.
+
+Split strategy: At each computed boundary, search ±500 words for the longest VAD pause ≥3s. If no pause ≥3s exists, fall back to the longest pause of any duration in the ±500 window. If no pauses at all (pathological), split at the target word index.
+
+Overlap: 250 words. Each chunk extends 250 words into adjacent chunk territory.
+
+Edge chunks: Chunk 1 has no left overlap, chunk N has no right overlap. Dedup rule only applies to internal overlap regions. Segments at the leftmost edge of chunk 1 and rightmost edge of chunk N are unambiguous.
+
+Per-chunk prompt context: Each chunk's user prompt includes chunk number, total chunks, source filename, and which edges overlap with adjacent chunks. "Chunk boundaries are NOT source boundaries — apply normal editorial rules."
+
+Merge dedup rule (distance-from-boundary-midpoint): For any segment present in both adjacent chunks within the overlap region, compute the boundary midpoint (center of the 250-word overlap). For each version, compute distance from segment center word to boundary midpoint. Keep the version where distance is LARGER (more interior). Tiebreaker: prefer the later chunk.
+
+"Segment in one chunk only" case: When one chunk emits a segment in the overlap region but the adjacent chunk grouped those words differently (into discarded, or merged into a larger segment), treat as disagreement. Apply interior-chunk rule. Log in disagreements.
+
+Disagreement handling (option C): When chunks disagree on usability, take interior-chunk judgment. Log disagreement as warning in stderr. Include disagreement count in output summary. Disagreements are useful signal about prompt ambiguity — surface them, don't bury them.
+
+Failure modes: Chunk invalid YAML → abort entire source. Chunk word count mismatch → abort entire source. Merge word coverage mismatch → abort with diagnostic. Post-merge D5.15 strict validation on final result.
+
+Per-chunk pending files: `semantic_segment_{source_basename}_chunk{N}.yaml` and `_chunk{N}_response.yaml`.
+
+Fingerprint includes chunk count and overlap size — changing chunk parameters invalidates cache.
+
 ---
 
 ## 3. Pipeline Phase Structure
@@ -790,9 +814,27 @@ For a word-level transcript, each word in the compact format (`{index}: {word} [
 
 On subscription billing (Claude Code), this is included. On API billing, $7.50 per library for a one-time segmentation pass is acceptable but worth tracking — a 20-library batch would be ~$150.
 
-### Chunking architecture
+### Chunking architecture (D5.12 — locked)
 
-**Pending design lock (D5.12).** Sources over 2,500 words must be chunked into multiple LLM calls. This increases the number of API calls but keeps each call within a size where the LLM can maintain editorial coherence and word-level accuracy. For dylan-shorts-batch-1, only MVI_5116 (650 words) is below the threshold — the other 4 sources will each require 2-4 chunks. Cost impact: more calls but same total token volume (overlap regions add ~15-20% overhead). Revised cost estimate pending D5.12 design decisions.
+Sources over 3,500 words are chunked per D5.12. Chunk count formula: `max(2, ceil((total_words - 250) / 2000))`.
+
+| Source | Words | Chunks | Target chunk size | Overlap overhead |
+|--------|-------|--------|-------------------|-----------------|
+| MVI_5116 | 650 | 1 (below threshold) | n/a | 0% |
+| MVI_5119 | 3,695 | 2 | ~1,973 | ~6.8% |
+| MVI_5120 | 3,660 | 2 | ~1,955 | ~6.8% |
+| Dylan Shorts 1 | 4,381 | 3 | ~1,627 | ~11.4% |
+| MVI_5118 | 5,598 | 3 | ~2,033 | ~8.9% |
+
+**Cost estimate (Opus, API mode):**
+- MVI_5116: ~$0.50 (single call)
+- MVI_5119: ~$3.00 (2 chunks)
+- MVI_5120: ~$3.00 (2 chunks)
+- Dylan Shorts 1: ~$4.00 (3 chunks)
+- MVI_5118: ~$4.50 (3 chunks)
+- **Total for dylan-shorts-batch-1: ~$15**
+
+On subscription billing (Claude Code), this is included.
 
 ---
 
@@ -864,7 +906,7 @@ During prompt iteration (implementation step b-c), ALL 5 dylan-shorts-batch-1 so
 | Critique phase 2.5 | Separate session | Arrangement-level editorial coherence, not segmentation |
 | Branch C redesign | P5 | Finished-video template extraction |
 | Visual analysis P2 | Separate workstream | Shot classification, B-roll correlation |
-| Chunking for sources >2500 words | Session 5 v1 (pending D5.12 design lock) | Mandatory for productization — see Section 18.1 |
+| Chunking — parallel chunk processing in API mode | Post v1 | Serial processing sufficient for v1; parallelism is API-mode optimization |
 | Sonnet fallback for cost optimization | Post v1 quality measurement | Need quality baseline from Opus first |
 
 ---
@@ -931,9 +973,9 @@ Not removed from schema. Not populated for new pipeline runs. Existing values ar
 
 ## 18. Open Questions (Surfaced, Not Resolved)
 
-### 18.1 Chunking architecture for sources >2500 words
+### 18.1 Chunking architecture
 
-**Pending design.** Chunking is mandatory for productization (sources >2500 words must be chunked). Design decisions — chunk size target, overlap size, split strategy, merge/dedup logic, failure modes — to be locked as D5.12 before implementation. See Section 13 for cost model implications.
+**Resolved.** Locked as D5.12. Threshold: 3500 words. Chunk formula, overlap, dedup, and failure modes fully specified. See Section 2 (D5.12) and Section 13 (cost model).
 
 ### 18.2 Over-aggressive discard
 
