@@ -54,7 +54,9 @@ These were resolved in the design conversation that produced this spec. They are
 
 **D5.9** — Clip-boundary clamping in `build_structure_cut.rb` is folded into this session. Under the atoms-are-inviolate principle, the "clamp" degenerates to a trivial operation: rendered_start = segment.t - BREATHING_MARGIN, rendered_end = segment.e + BREATHING_MARGIN. All existing snap/buffer/overlap-clamp machinery is deleted.
 
-**D5.10 (NEW)** — Atoms are inviolate. The segment's `t` and `e` ARE the speech boundaries by construction (first word start, last word end). No downstream script modifies them. Arrange selects atoms by ID. Export derives source windows from segment t/e. build_structure_cut.rb applies a fixed BREATHING_MARGIN and nothing else.
+**D5.10** — Atoms are inviolate. The segment's `t` and `e` ARE the speech boundaries by construction (first word start, last word end). No downstream script modifies them. Arrange selects atoms by ID. Export derives source windows from segment t/e. build_structure_cut.rb applies a fixed BREATHING_MARGIN and nothing else.
+
+**D5.11** — `auto_remove_pauses_above` is disabled for v3-path clips. Pauses within an atom are part of the atom. If a pause is editorially objectionable, the fix lives in semantic_segment.rb's prompt (split the atom at that pause), not in downstream timeline surgery. Consistent with D5.10.
 
 ---
 
@@ -931,15 +933,7 @@ Single LLM call or chunked? Deferred. No current sources exceed the 10,000-word 
 
 What if the LLM marks >80% of source as not-usable? Warn but don't abort. If it fires on real footage, investigate the prompt.
 
-### 18.3 Interaction between atom rendering and existing pause removal
-
-The current `auto_remove_pauses_above` feature (optional, profile-configured) splits clips at internal pauses. Under atoms-are-inviolate, this feature is in tension: you can't split an atom. Two options:
-- **Option A:** Disable pause removal for atom-sourced clips. Pauses within an atom are part of the atom. If a pause is long enough to be objectionable, the semantic segmenter should have split the atom there.
-- **Option B:** Treat pause removal as a post-atom rendering concern — it operates on the rendered timeline, not on atom boundaries. But this reintroduces the complexity we're deleting.
-
-**Recommendation:** Option A. Disable auto_remove_pauses_above for v3-path clips. If internal pauses are a problem, iterate the segmentation prompt to produce finer atoms at pause points. This is cleaner than re-adding timeline surgery downstream.
-
-### 18.4 Branch A compatibility
+### 18.3 Branch A compatibility
 
 Branch A (script-driven) uses `branch_a_batch.rb` which produces its own arrangement format. Session 5 changes don't touch Branch A's path — it continues to use the v1 arrangement schema and the existing build_structure_cut.rb code paths. The v1/v2 legacy paths in export_arrangement_xml.rb and build_structure_cut.rb are preserved. Only the v3 path gets the simplified atom rendering.
 
