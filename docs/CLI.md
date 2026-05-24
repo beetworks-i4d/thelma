@@ -44,9 +44,9 @@ ruby scripts/orchestrate.rb --library <name> [options]
 | 1 — Ingest | WhisperX (external) | `--model turbo --language <code>` (`--diarize` if `--diarize` set) |
 | 1 — Ingest | `audio_sync_offset.rb` | positional: `<video> <audio> <library.yaml>` |
 | 1 — Ingest | `audio_analysis.rb` | positional: `<input> <library.yaml>` |
-| 1 — Ingest | `transcript_cleanup.rb` | positional: `<transcript.json>`, `--speech-analysis`, `--protect-rhetorical` |
 | 0 — Content Type | `detect_content_type.rb` | positional: `<library.yaml>`, `--profile` |
 | 1.25 — Prosody | `audio_prosody.rb` | `--library` |
+| 1.35 — Semantic Segmentation | `semantic_segment.rb` | `--library`, `--source`, `--profile`, `--llm-mode`, `--force` |
 | 1.4 — Extract Segments | `extract_segments.rb` | `--library` |
 | 1.5c — Audio Emotion | `audio_emotion.rb` | positional: `<wav> <classified.yaml> <library.yaml>` |
 | 1.5d — Scene Detection | `detect_scenes.rb` | `--library`, `--output` |
@@ -138,24 +138,9 @@ ruby scripts/audio_sync_offset.rb <video_path> <audio_path> [library.yaml]
 
 ---
 
-### `scripts/transcript_cleanup.rb`
+### `scripts/transcript_cleanup.rb` *(deprecated)*
 
-Cleans a WhisperX transcript JSON by removing duplicate takes, false starts, single-word filler segments, trailing-off patterns, and within-segment stutters.
-
-```
-ruby scripts/transcript_cleanup.rb <transcript.json> [--speech-analysis <path>] [--protect-rhetorical]
-```
-
-| Positional | Type | Description |
-|-----------|------|-------------|
-| `<transcript.json>` | string | **required** — path to WhisperX transcript JSON |
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--speech-analysis` | string | `nil` | Path to Silero speech analysis JSON |
-| `--protect-rhetorical` | boolean | `false` | When set with `--speech-analysis`, phrase repeats separated by >250ms silence are treated as rhetorical repetition and kept |
-
-**Called by:** `orchestrate.rb` (Phase 1).
+**Deprecated as of Session 5.** Replaced by `semantic_segment.rb` (Phase 1.35). No longer called by `orchestrate.rb`. File remains in tree for reference.
 
 ---
 

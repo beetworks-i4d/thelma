@@ -1,4 +1,7 @@
 #!/usr/bin/env ruby
+# DEPRECATED (Session 5) — replaced by semantic_segment.rb (Phase 1.35).
+# No longer called by orchestrate.rb. File remains for reference only.
+#
 # Cleans a WhisperX transcript JSON by removing duplicate takes, false starts,
 # single-word filler segments, trailing-off patterns, and within-segment stutters.
 #
