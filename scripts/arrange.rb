@@ -180,18 +180,17 @@ prompt = <<~PROMPT
 
   ## Task
 
-  Produce arrangement.yaml v2 selecting and ordering segments that serve the chosen thesis.
+  Produce arrangement.yaml v3 selecting and ordering segments (atoms) that serve the chosen thesis.
+  Each segment is an inviolate atom — select it by seg_id. Do NOT reason about timing within atoms.
 
   For each chapter:
   - Select segments that advance the thesis
   - Order them for maximum engagement and narrative coherence
-  - Use clip_in/clip_out from segment t/e values (source-relative video time)
   - Reference clip_group_ref when a segment belongs to a clip_group
-  - Add notes for any editorial decisions (take overrides, trim reasoning)
+  - Add notes for any editorial decisions (take overrides, ordering rationale)
 
   For throughlines:
   - Track which chapters contain open/middle/close segments
-  - Calculate actual distance in seconds between open and close in the cut
   - Note whether distance_guidance was honored
 
   For unused segments:
@@ -211,18 +210,14 @@ prompt = <<~PROMPT
       title: "Chapter title"
       segments:
         - seg_id: seg_NNN
-          source: "filename.ext"
-          clip_in: <start_seconds>
-          clip_out: <end_seconds>
-          clip_group_ref: cg_NNN
-          notes: "any editorial notes"
+          clip_group_ref: cg_NNN       # if from a clip_group
+          notes: "editorial note"       # optional
 
   throughline_honoring:
     - throughline_id: tl_NNN
       open_chapter: chapter_NNN
       middle_chapters: [chapter_NNN, ...]
       close_chapter: chapter_NNN
-      distance_seconds: <int>
       notes: "within/outside distance_guidance"
 
   unused_segment_audit:
@@ -321,7 +316,7 @@ clip_groups.select { |cg| cg['type'] == 'setup_payoff' }.each do |cg|
 end
 
 # Enrich with metadata
-result['version']           = 2
+result['version']           = 3
 result['input_fingerprint'] = input_fingerprint
 result['generated_at']      = Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z')
 result['selected_thesis']   = selected_thesis_id
