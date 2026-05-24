@@ -44,7 +44,8 @@ module LLMClient
   # --- Main entry point ---
 
   def self.call(prompt, call_type: nil, profile: nil, model: nil, max_tokens: nil,
-                pending_dir: nil, call_name: nil, cached_system_prompt: nil)
+                pending_dir: nil, call_name: nil, cached_system_prompt: nil,
+                input_fingerprint: nil)
     model ||= profile&.dig('llm_routing', call_type) if call_type
     model ||= DEFAULT_MODEL
     max_tokens ||= DEFAULT_MAX_TOKENS
@@ -54,13 +55,19 @@ module LLMClient
       response_path = File.join(pending_dir, "#{call_name}_response.yaml")
       if File.exist?(response_path)
         response_data = YAML.safe_load(File.read(response_path))
-        response_text = response_data['response']
-        if response_text && !response_text.strip.empty?
-          # Clean up pending file if it exists
-          pending_path = File.join(pending_dir, "#{call_name}.yaml")
-          File.delete(pending_path) if File.exist?(pending_path)
-          $stderr.puts "  LLM: loaded response from #{File.basename(response_path)}"
-          return response_text
+        # Fingerprint gate: if caller provided a fingerprint, verify the response matches
+        if input_fingerprint && response_data['input_fingerprint'] != input_fingerprint
+          $stderr.puts "  LLM: response cache stale (fingerprint mismatch) — discarding #{File.basename(response_path)}"
+          File.delete(response_path)
+        else
+          response_text = response_data['response']
+          if response_text && !response_text.strip.empty?
+            # Clean up pending file if it exists
+            pending_path = File.join(pending_dir, "#{call_name}.yaml")
+            File.delete(pending_path) if File.exist?(pending_path)
+            $stderr.puts "  LLM: loaded response from #{File.basename(response_path)}"
+            return response_text
+          end
         end
       end
     end
@@ -80,6 +87,7 @@ module LLMClient
         'created_at' => Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z'),
         'prompt' => prompt
       }
+      pending_data['input_fingerprint'] = input_fingerprint if input_fingerprint
       File.write(pending_path, pending_data.to_yaml)
 
       raise Pending.new(

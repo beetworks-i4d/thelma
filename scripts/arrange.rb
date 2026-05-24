@@ -247,7 +247,8 @@ begin
   response = LLMClient.call(prompt, call_type: 'arrangement', profile: profile,
                             model: arrange_model, max_tokens: 32768,
                             pending_dir: pending_dir, call_name: 'arrangement',
-                            cached_system_prompt: cached_system)
+                            cached_system_prompt: cached_system,
+                            input_fingerprint: input_fingerprint)
 rescue LLMClient::Pending => e
   $stderr.puts e.message
   exit 2

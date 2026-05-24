@@ -260,7 +260,8 @@ unless goto_review
     response = LLMClient.call(prompt, call_type: 'discovery_pass', profile: profile,
                               model: discovery_model, max_tokens: 32768,
                               pending_dir: pending_dir, call_name: 'discovery_pass',
-                              cached_system_prompt: cached_system)
+                              cached_system_prompt: cached_system,
+                              input_fingerprint: input_fingerprint)
   rescue LLMClient::Pending => e
     $stderr.puts e.message
     exit 2

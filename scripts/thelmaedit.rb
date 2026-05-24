@@ -90,7 +90,9 @@ def fulfill_pending!(pending_path, pool_dir)
   die "`claude -p` returned empty output for #{call_name}" if stdout.strip.empty?
 
   FileUtils.mkdir_p(File.dirname(response_path))
-  File.write(response_path, { 'response' => stdout }.to_yaml)
+  response_data = { 'response' => stdout }
+  response_data['input_fingerprint'] = pending['input_fingerprint'] if pending['input_fingerprint']
+  File.write(response_path, response_data.to_yaml)
   $stderr.puts "    wrote #{stdout.length} chars → #{response_path}"
 end
 

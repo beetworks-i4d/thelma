@@ -79,12 +79,20 @@ if File.exist?(output_path)
     exit 0
   else
     $stderr.puts "segments_classified.yaml stale — regenerating"
-    # Invalidate downstream caches
+    # Invalidate downstream caches (parent YAMLs + LLM response files)
     %w[discovery_pass.yaml arrangement.yaml].each do |downstream|
       dp = File.join(library_dir, downstream)
       if File.exist?(dp)
         File.delete(dp)
         $stderr.puts "  Invalidated #{downstream}"
+      end
+    end
+    pending_dir = File.join(library_dir, 'pending_llm_calls')
+    %w[discovery_pass_response.yaml arrangement_response.yaml].each do |resp|
+      rp = File.join(pending_dir, resp)
+      if File.exist?(rp)
+        File.delete(rp)
+        $stderr.puts "  Invalidated #{resp}"
       end
     end
   end
