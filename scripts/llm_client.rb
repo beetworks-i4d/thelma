@@ -45,7 +45,7 @@ module LLMClient
 
   def self.call(prompt, call_type: nil, profile: nil, model: nil, max_tokens: nil,
                 pending_dir: nil, call_name: nil, cached_system_prompt: nil,
-                input_fingerprint: nil)
+                input_fingerprint: nil, temperature: 0)
     model ||= profile&.dig('llm_routing', call_type) if call_type
     model ||= DEFAULT_MODEL
     max_tokens ||= DEFAULT_MAX_TOKENS
@@ -83,6 +83,7 @@ module LLMClient
         'call_type' => call_type,
         'model' => model,
         'max_tokens' => max_tokens,
+        'temperature' => temperature,
         'response_path' => response_path,
         'created_at' => Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z'),
         'prompt' => prompt
@@ -101,7 +102,7 @@ module LLMClient
 
     # Step 3: API mode — make the call
     adapter = resolve_adapter(model)
-    adapter.call(prompt, model: model, max_tokens: max_tokens, cached_system_prompt: cached_system_prompt)
+    adapter.call(prompt, model: model, max_tokens: max_tokens, cached_system_prompt: cached_system_prompt, temperature: temperature)
   end
 
   # --- Adapter resolution ---
@@ -125,7 +126,7 @@ module LLMClient
     API_URL = 'https://api.anthropic.com/v1/messages'
     API_VERSION = '2023-06-01'
 
-    def self.call(prompt, model:, max_tokens: DEFAULT_MAX_TOKENS, cached_system_prompt: nil)
+    def self.call(prompt, model:, max_tokens: DEFAULT_MAX_TOKENS, cached_system_prompt: nil, temperature: 0)
       api_key = ENV['ANTHROPIC_API_KEY']
       abort "LLM ERROR: ANTHROPIC_API_KEY environment variable not set.\n" \
             "Set it with: export ANTHROPIC_API_KEY=sk-ant-..." unless api_key
@@ -139,6 +140,7 @@ module LLMClient
       body = {
         model: model,
         max_tokens: max_tokens,
+        temperature: temperature,
         messages: [{ role: 'user', content: prompt }]
       }
 
