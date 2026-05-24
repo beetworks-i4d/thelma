@@ -7,18 +7,18 @@
 # --arrangement defaults to libraries/<name>/arrangement.yaml.
 # --output-name overrides the XML base name (default: <library>_arrangement).
 #
-# Reads: arrangement YAML (chapters schema — v1 or v2)
+# Reads: arrangement YAML (chapters schema — v1, v2, or v3)
 # Produces: <project>/output/<output-name>_<timestamp>.xml
 #
-# Supports two arrangement schemas:
+# Supports three arrangement schemas:
 #   v1 (Branch A/D): chapter['clips'] with t_in/t_out, track, narrative_role
 #   v2 (Session 3):  chapter['segments'] with seg_id, clip_in/clip_out, source
+#   v3 (Session 5):  chapter['segments'] with seg_id only — t/e/source from segments_classified.yaml
 #
 # Maps arrangement → structure cut YAML with:
 #   - V1 clips sequential (no timeline_offset)
 #   - V2+ clips positioned at the V1 timeline offset where their chapter starts
-#   - Speech analysis for pause removal at natural boundaries
-#   - Per-chapter markers from arrangement (v2) wired to Premiere markers
+#   - Per-chapter markers from arrangement (v2/v3) wired to Premiere markers
 
 require 'yaml'
 require 'json'
@@ -134,11 +134,27 @@ if sync_audio_lookup.any?
 end
 
 # === Detect arrangement schema version ===
-# v2 (Session 3): chapters have 'segments' array with seg_id, clip_in, clip_out
-# v1 (Branch A/D): chapters have 'clips' array with t_in, t_out, track
+# v3 (Session 5): chapters have 'segments' with seg_id only — lookup from segments_classified
+# v2 (Session 3): chapters have 'segments' with seg_id, clip_in, clip_out, source
+# v1 (Branch A/D): chapters have 'clips' with t_in, t_out, track
+arr_version = arrangement['version'] || 1
 first_chapter = (arrangement['chapters'] || []).first
-is_v2 = first_chapter && first_chapter.key?('segments')
-$stderr.puts "  Arrangement schema: #{is_v2 ? 'v2 (Session 3)' : 'v1 (legacy)'}"
+is_v3 = arr_version >= 3
+is_v2 = !is_v3 && first_chapter && first_chapter.key?('segments')
+schema_label = is_v3 ? 'v3 (Session 5)' : (is_v2 ? 'v2 (Session 3)' : 'v1 (legacy)')
+$stderr.puts "  Arrangement schema: #{schema_label}"
+
+# === Load segments_classified for v3 seg_id → timing lookup ===
+seg_lookup = {}
+if is_v3
+  segments_path = File.join(lib_dir, 'segments_classified.yaml')
+  abort "PIPELINE ABORT: segments_classified.yaml not found — required for v3 arrangement" unless File.exist?(segments_path)
+  segments_classified = YAML.safe_load(File.read(segments_path), permitted_classes: [Date])
+  (segments_classified['segments'] || []).each do |s|
+    seg_lookup[s['id']] = { 't' => s['t'], 'e' => s['e'], 'source' => s['source'] }
+  end
+  $stderr.puts "  Loaded #{seg_lookup.size} segments for seg_id lookup"
+end
 
 # === Marker category → Premiere color mapping (CLAUDE.md spec) ===
 MARKER_CATEGORY_COLOR = {
@@ -170,8 +186,20 @@ arrangement['chapters'].each do |chapter|
   chapter_v1_start = v1_raw_duration + v1_buffer_total
   v1_clip_start_idx = v1_clips.size
 
-  # Normalize: v2 'segments' → unified clip list; v1 'clips' passed through
-  raw_clips = if is_v2
+  # Normalize: v3/v2 'segments' → unified clip list; v1 'clips' passed through
+  raw_clips = if is_v3
+    (chapter['segments'] || []).map do |seg|
+      atom = seg_lookup[seg['seg_id']]
+      abort "Unknown seg_id '#{seg['seg_id']}' — not in segments_classified.yaml" unless atom
+      {
+        'source' => atom['source'],
+        't_in'   => atom['t'],
+        't_out'  => atom['e'],
+        'track'  => 'V1',
+        'seg_id' => seg['seg_id']
+      }
+    end
+  elsif is_v2
     (chapter['segments'] || []).map do |seg|
       {
         'source' => seg['source'],
@@ -335,24 +363,21 @@ if arrangement_markers.any?
   config['markers'] = arrangement_markers
 end
 
-# Add speech analysis for natural boundary pause removal
-if speech_analysis_path
-  config['speech_analysis'] = speech_analysis_path
-end
-
-# Add per-source speech analysis map for multi-source boundary snapping
-if speech_analysis_map.size > 1
-  config['speech_analysis_map'] = speech_analysis_map
-end
-
-# Add transcript for in-point restart trimming
-if transcript_path
-  config['transcript'] = transcript_path
-end
-
-# Add per-source transcript map for multi-source restart trimming
-if transcript_map.size > 1
-  config['transcript_map'] = transcript_map
+# v1/v2: pass speech analysis and transcript for boundary snapping / restart trimming
+# v3: atoms are inviolate — no snapping or trimming needed
+unless is_v3
+  if speech_analysis_path
+    config['speech_analysis'] = speech_analysis_path
+  end
+  if speech_analysis_map.size > 1
+    config['speech_analysis_map'] = speech_analysis_map
+  end
+  if transcript_path
+    config['transcript'] = transcript_path
+  end
+  if transcript_map.size > 1
+    config['transcript_map'] = transcript_map
+  end
 end
 
 # Add classification for Tier 2/3 markers
