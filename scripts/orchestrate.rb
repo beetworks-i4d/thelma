@@ -157,9 +157,23 @@ def skip(name, reason = 'cached')
   $stderr.puts "  -- #{name} [SKIP: #{reason}]"
 end
 
-def run_script(script, *args)
+def run_script(script, *args, forward_stdin: false)
   cmd = ['ruby', File.join(SCRIPTS_DIR, script)] + args.map(&:to_s)
   $stderr.puts "  $ #{cmd.join(' ')}"
+  if forward_stdin
+    # Use system() to inherit stdin for interactive prompts (e.g., review gate)
+    system(*cmd)
+    exitstatus = $?.exitstatus
+    if exitstatus == 2
+      $stderr.puts "PIPELINE PAUSED: #{script} awaiting LLM input"
+      exit 2
+    end
+    unless $?.success?
+      abort "\nPIPELINE ABORT: #{script} failed (exit #{exitstatus})\n" \
+            "RUN SESSION INTEGRITY: If running inside Claude Code, do not attempt to patch this defect. End the session. Open a dev session to investigate and fix."
+    end
+    return ''
+  end
   stdout, stderr, status = Open3.capture3(*cmd)
   $stderr.puts stderr unless stderr.strip.empty?
   if status.exitstatus == 2
@@ -1084,7 +1098,7 @@ flags += ['--profile', profile_name] if profile_name
 flags += ['--llm-mode', llm_mode] if llm_mode
 flags += ['--duration', duration_target] if duration_target
 flags << '--no-review' if no_review
-run_script('discovery_pass.rb', *flags)
+run_script('discovery_pass.rb', *flags, forward_stdin: true)
 
 # Verify selected_thesis exists (review gate sets it)
 dp_data = YAML.safe_load(File.read(discovery_pass_path), permitted_classes: [Date])
