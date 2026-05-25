@@ -1,412 +1,269 @@
 # Editorial Candidate Schema v1.2
 # Locked: 2026-05-25
 #
-# This schema defines the output of candidate_builder.rb.
-# Each candidate wraps one segment atom with:
-#   - Phase A: deterministic mechanical substrate (trim_choices, exclusion_choices, boundary safety)
-#   - Phase B: LLM editorial labeling (states, distillation, durability, roles, confidence)
-#   - Phase C: validation (structural + semantic integrity checks)
+# Candidates are cuttable editorial moments derived from atoms.
+# A candidate may span one or more atoms.
 #
-# Core invariant: LLMs judge meaning. Scripts handle mechanics.
-# LLMs may NOT invent timestamps, seg_ids, cand_ids, trim_ids, exclusion_ids, or source paths.
-# LLMs may ONLY classify, summarize, rank, reason, choose among pre-generated IDs,
-# and evaluate semantic preservation.
+# Core invariant:
+# LLMs judge meaning. Scripts handle mechanics.
+#
+# Phase A deterministic:
+# - creates candidate spans
+# - assigns id, source, segment_ids, t, e, text
+# - creates trim_choices
+# - creates exclusion_choices
+# - computes mechanical_boundary_safe
+# - assigns deterministic cluster label
+# - aggregates prosody
+#
+# Phase B LLM:
+# - fills summary, distillation, usability, candidate_priority
+# - fills suggested_narrative_roles
+# - fills states, durability, confidence
+# - evaluates content_preserved for every trim_choice
+# - writes edit_notes
+#
+# Phase C deterministic:
+# - validates schema
+# - rejects invented IDs/timestamps
+# - rejects broken references
+# - produces loud errors
 
----
 schema: editorial_candidate
 version: "1.2"
 
-# ============================================================
-# TOP-LEVEL STRUCTURE
-# ============================================================
-#
-# File: libraries/<name>/editorial_candidates.yaml
-#
-# top_level:
-#   version: "1.2"
-#   input_fingerprint: <sha256 of segments_classified.yaml + profile name>
-#   generated_at: <ISO 8601 timestamp>
-#   model: <LLM model used for Phase B>
-#   candidate_count: <integer>
-#   candidates: <array of candidate objects>
-
-# ============================================================
-# CANDIDATE OBJECT
-# ============================================================
-
 candidate:
   required_fields:
-    # --- Identity (from segment atom, immutable) ---
-    cand_id:
+    id:
       type: string
       format: "cand_NNN"
-      description: >
-        Globally unique candidate ID. Assigned sequentially by candidate_builder.rb.
-        Maps 1:1 to a segment atom. Never reused.
-    seg_id:
-      type: string
-      format: "seg_NNN"
-      description: >
-        Reference to the source segment in segments_classified.yaml.
-        Immutable. The candidate inherits t, e, text, source from this segment.
+      description: Globally unique candidate ID assigned by Phase A.
+
     source:
       type: string
-      description: >
-        Video source filename. Copied verbatim from segment atom.
-        Used by export to resolve file paths.
+      description: Source filename or source key. Used to resolve library paths.
+
+    segment_ids:
+      type: array
+      min_items: 1
+      items: string
+      description: Ordered atom seg_ids this candidate spans. Candidates may span multiple atoms.
+
     t:
       type: float
-      description: >
-        Segment start time in seconds (WAV-domain).
-        Copied from segment atom. Never modified by candidate_builder.
+      description: Candidate outer start time in seconds, source-relative.
+
     e:
       type: float
-      description: >
-        Segment end time in seconds (WAV-domain).
-        Copied from segment atom. Never modified by candidate_builder.
+      description: Candidate outer end time in seconds, source-relative.
+
     text:
       type: string
-      description: >
-        Full transcript text of the segment.
-        Copied from segment atom. Used by Phase B for LLM labeling.
+      description: Full transcript text covered by segment_ids. Never mutated.
 
-    # --- Phase A: Deterministic Mechanical Substrate ---
     trim_choices:
       type: array
       min_items: 1
-      description: >
-        Pre-computed trim options for this candidate. At minimum contains
-        the 'full' option (no trimming). Additional options computed from
-        word-level timing, VAD pauses, and acoustic boundaries.
-        Every trim_choice is mechanically validated before inclusion.
+      description: Pre-generated trim pairings. Arrangement selects by trim choice ID, never by raw timestamp.
       items:
-        trim_choice:
-          required_fields:
-            trim_id:
-              type: string
-              format: "trim_NNN_<type>"
-              description: >
-                Unique within this candidate. Generated deterministically
-                by candidate_builder.rb Phase A.
-            t:
-              type: float
-              description: >
-                Trimmed start time. Must be >= candidate.t.
-                Computed from word boundaries, not invented.
-            e:
-              type: float
-              description: >
-                Trimmed end time. Must be <= candidate.e.
-                Computed from word boundaries, not invented.
-            type:
-              type: string
-              enum: [full, tight, leading_trim, trailing_trim, word_boundary]
-              description: >
-                full: no trimming (t/e match candidate atom).
-                tight: trimmed to first/last word boundaries + BREATHING_MARGIN.
-                leading_trim: removes false-start prefix.
-                trailing_trim: removes trailing dead air.
-                word_boundary: snapped to specific word onset/offset.
-            mechanical_boundary_safe:
-              type: boolean
-              description: >
-                Deterministically computed by Phase A.
-                true: trim boundaries land on word boundaries or VAD pause edges.
-                false: trim boundary falls mid-word or mid-phoneme.
-                Arrangement should prefer safe=true trims.
-          optional_fields:
-            content_preserved:
-              type: boolean
-              description: >
-                LLM-evaluated in Phase B. Answers: "Does this trim retain
-                the segment's core meaning?" null until Phase B runs.
-                A trim can be mechanically safe but semantically destructive.
-            preserved_text:
-              type: string
-              description: >
-                The text content that survives after this trim is applied.
-                Deterministically extracted from word-level timing.
+        required_fields:
+          id:
+            type: string
+            format: "trim_NNN"
+          in:
+            type: float
+            description: Trim start time. Generated by Phase A from word or silence boundary.
+          out:
+            type: float
+            description: Trim end time. Generated by Phase A from word or silence boundary.
+          label:
+            type: string
+            enum: [full_clean, tighter_start, tighter_end, both_tighter, minimal_trim]
+          mechanical_boundary_safe:
+            type: boolean
+            description: Deterministic Phase A boundary-safety judgment.
+          content_preserved:
+            type: boolean
+            nullable: true
+            description: Phase B semantic-preservation judgment. Null until Phase B.
 
     exclusion_choices:
       type: array
-      min_items: 1
-      description: >
-        Pre-computed mid-segment exclusion options. At minimum contains
-        the 'none' option (no exclusions). Additional options identify
-        removable ranges: stutters, false starts, filler phrases.
-        Ranges are computed from word-level timing and acoustic analysis.
+      default: []
+      description: Optional pre-generated internal exclusions. Arrangement selects by exclusion ID.
       items:
-        exclusion_choice:
-          required_fields:
-            exclusion_id:
-              type: string
-              format: "excl_NNN_<type>"
-              description: >
-                Unique within this candidate. Generated deterministically.
-            type:
-              type: string
-              enum: [none, stutter, false_start, filler, pause, mid_cut]
-              description: >
-                none: no exclusions applied.
-                stutter: repeated word/phrase removal.
-                false_start: abandoned sentence prefix.
-                filler: um/uh/like removal.
-                pause: long silence removal.
-                mid_cut: general mid-segment cut (compound of multiple issues).
-            ranges:
-              type: array
-              description: >
-                Array of [start, end] float pairs defining excluded time ranges.
-                Empty for type=none. Each range must fall within [candidate.t, candidate.e].
-                Boundaries computed from word-level timing.
-              items:
-                type: array
-                items: [float, float]
-            mechanical_boundary_safe:
-              type: boolean
-              description: >
-                All exclusion boundaries land on word boundaries or VAD pause edges.
+        required_fields:
+          id:
+            type: string
+            format: "ex_NNN"
+          start:
+            type: float
+          end:
+            type: float
+          type:
+            type: string
+            enum: [defect, pacing]
+          reason:
+            type: string
+            enum: [long_pause, stumble, abandonment, false_start, trailing_off, low_energy_pause, dead_air]
+          recommended:
+            type: boolean
 
-    # --- Phase B: LLM Editorial Labeling ---
+    summary:
+      type: string
+      max_words: 25
+      description: Phase B summary of what the candidate says or does.
+
+    distillation:
+      type: string
+      max_words: 5
+      description: Phase B five-word semantic fingerprint.
+
+    usability:
+      type: string
+      enum: [fine, marginal, unusable]
+      description: Phase B judgment of candidate usability.
+
+    candidate_priority:
+      type: string
+      enum: [primary, secondary, tertiary]
+      description: Importance/centrality of the candidate. Not cut position.
+
+    suggested_narrative_roles:
+      type: array
+      max_items: 3
+      description: Phase B ranked suggestions only. Final narrative_role belongs in arrangement.
+      items:
+        required_fields:
+          role:
+            type: string
+            enum: [hook, setup, continuation, payoff, transition, claim, evidence, definition, aside]
+          confidence:
+            type: string
+            enum: [high, medium, low]
+
     states:
       type: array
       min_items: 1
       max_items: 3
       items:
         type: string
-        enum:
-          - vindication
-          - outrage
-          - awe
-          - competence
-          - fear
-          - schadenfreude
-          - amusement
-          - catharsis
-          - nostalgia
-          - belonging
-          - escape
-          - calm
-          - aspiration
-          - sensual
-          - curiosity
-      description: >
-        1-3 emotional states from the Content Psychopharmacology taxonomy.
-        Primary state listed first. Assigned by LLM in Phase B.
+        enum: [vindication, outrage, awe, competence, fear, schadenfreude, amusement, catharsis, nostalgia, belonging, escape, calm, aspiration, sensual, curiosity]
+      description: Phase B 15-state taxonomy labels. Primary state first.
 
-    distillation:
-      type: string
-      max_words: 5
-      description: >
-        5-word-max semantic fingerprint of what the segment SAYS (not how it feels).
-        Assigned by LLM in Phase B. Used downstream by template matching
-        and coherence scoring.
-
-    dur:
+    durability:
       type: string
       enum: [spike, mood, identity]
-      description: >
-        Durability tier. How long the emotional effect persists.
-        spike: momentary reaction. mood: sets/sustains tone. identity: lasting impact.
-        Assigned by LLM in Phase B.
-
-    roles:
-      type: array
-      min_items: 1
-      items:
-        type: string
-        enum: [primary, secondary, tertiary]
-      description: >
-        Editorial function roles. primary=hook candidate, secondary=body fill,
-        tertiary=close candidate. Assigned by LLM in Phase B.
-        Used by storyline discovery and arrangement.
+      description: Phase B durability tier.
 
     confidence:
       type: string
       enum: [high, medium, low]
-      description: >
-        LLM's confidence in its own state/role classification.
-        Assigned in Phase B.
+      description: Phase B confidence in classification.
+
+    cluster:
+      type: string
+      nullable: true
+      description: Deterministic Phase A snake_case cluster label, or null. Advisory only.
+
+    prosody:
+      type: object
+      description: Phase A aggregate prosody.
+      required_fields:
+        audio_profile:
+          type: string
+          enum: [casual, building, emphatic, landing, reflective, urgent, authoritative]
+        energy:
+          type: string
+          enum: [low, medium, high]
+        stumble_count:
+          type: integer
+        max_pause_ms:
+          type: integer
+        pitch_trend:
+          type: string
+          enum: [rising, falling, level, varied]
 
   optional_fields:
-    suggested_narrative_roles:
-      type: array
-      items:
-        type: string
-        enum: [hook, setup, continuation, payoff, transition, claim, evidence, definition, aside, close]
-      description: >
-        LLM-suggested narrative function within a potential edit.
-        Advisory only — arrangement is not bound by these suggestions.
-        Assigned in Phase B.
+    edit_notes:
+      type: string
+      description: Phase B debug notes. Not consumed by downstream scripts.
 
-    candidate_priority:
+file_metadata:
+  required_fields:
+    version:
+      type: string
+      value: "1.2"
+    input_fingerprint:
+      type: string
+    generated_at:
+      type: string
+    candidate_count:
       type: integer
-      min: 1
-      description: >
-        Within a cluster, the LLM's recommended usage priority.
-        1 = first choice, 2 = backup, etc.
-        Only meaningful when cluster_id is non-null.
-        Assigned in Phase B.
-
-    rationale:
-      type: string
-      max_words: 15
-      description: >
-        LLM's brief explanation of state/role assignment.
-
-    signpost:
-      type: boolean
-      description: >
-        true if segment is meta-commentary announcing content without delivering it.
-        e.g., "Let me tell you about..." without the actual telling.
-
-    # --- Cluster Membership ---
-    cluster_id:
-      type: string
-      nullable: true
-      description: >
-        Reference to a clip_group from discovery_pass.yaml.
-        null if segment doesn't belong to any cluster.
-        Propagated from discovery_pass clip_groups.
-
-    cluster_role:
-      type: string
-      nullable: true
-      enum: [recommended, alternate, null]
-      description: >
-        Within an alternate_takes cluster, whether this is the recommended
-        take or an alternate. null for non-alternate-takes clusters and
-        unclustered candidates.
-
-    # --- Acoustic Fields (inherited from segments_classified.yaml) ---
-    audio_profile:
-      type: string
-      nullable: true
-      enum: [casual, emphatic, building, landing]
-    audio_energy:
-      type: float
-      nullable: true
-    audio_speaking_rate:
-      type: float
-      nullable: true
-    stumble_count:
-      type: integer
-      nullable: true
-    max_within_segment_pause_ms:
-      type: float
-      nullable: true
-
-# ============================================================
-# CLUSTER SEMANTICS
-# ============================================================
-#
-# Clusters are imported from discovery_pass.yaml clip_groups.
-# Five cluster types exist:
-#
-#   alternate_takes — Multiple segments covering the same content.
-#     candidate_priority distinguishes recommended (1) from alternates (2+).
-#     cluster_role = recommended | alternate.
-#
-#   setup_payoff — Segments that form a narrative pair.
-#     Both candidates share cluster_id. No priority ranking.
-#     Arrangement should honor proximity or ordering.
-#
-#   tangent — Segments that digress from the main thesis.
-#     Useful as texture. Can be cut for pacing.
-#
-#   bridge — Connective segments between ideas.
-#     Short, transitional. Often cut for pacing.
-#
-#   run_on — Segments that repeat/extend a point beyond value.
-#     Arrangement should use at most one from a run_on cluster.
-#
-# Cluster membership is informational — arrangement may ignore it,
-# but validators may warn when arrangements violate cluster guidance.
-
-# ============================================================
-# VALIDATION RULES
-# ============================================================
 
 validation:
-  structural:
-    - Every candidate must have exactly one trim_choice with type=full
-    - Every candidate must have exactly one exclusion_choice with type=none
-    - trim_choice.t >= candidate.t for all trim_choices
-    - trim_choice.e <= candidate.e for all trim_choices
-    - trim_choice.t < trim_choice.e for all trim_choices
-    - exclusion ranges must fall within [candidate.t, candidate.e]
-    - exclusion ranges must not overlap each other within one exclusion_choice
-    - cand_id values must be globally unique
-    - trim_id values must be unique within their parent candidate
-    - exclusion_id values must be unique within their parent candidate
-    - seg_id must reference a valid segment in segments_classified.yaml
+  hard:
+    - candidate.id must match cand_NNN
+    - candidate.segment_ids must contain one or more valid seg_NNN references
+    - candidate may span multiple atoms
+    - candidate.t < candidate.e
+    - every trim_choice.id must match trim_NNN
+    - every trim_choice.in must be >= candidate.t
+    - every trim_choice.out must be <= candidate.e
+    - every trim_choice.in < trim_choice.out
+    - every trim_choice must have mechanical_boundary_safe set
+    - every trim_choice must have content_preserved set after Phase B
+    - every exclusion_choice.id must match ex_NNN
+    - every exclusion_choice.start/end must fall within candidate.t/e
+    - every exclusion_choice.start < exclusion_choice.end
+    - no exclusion_choice ranges may overlap within a candidate
+    - states must contain 1 to 3 valid taxonomy values
+    - states must not contain incompatible pairs
+    - candidate_priority must be primary, secondary, or tertiary
+    - durability must be spike, mood, or identity
+    - confidence must be high, medium, or low
+    - suggested_narrative_roles may not include close
+    - suggested_narrative_roles may not include duplicate roles
+    - cluster is null or snake_case string
+    - LLM output may not invent timestamps or IDs
 
-  taxonomy:
-    - states must be non-empty array, max 3, all values in 15-state taxonomy
-    - dur must be one of: spike, mood, identity
-    - roles must be non-empty array, all values in [primary, secondary, tertiary]
-    - confidence must be one of: high, medium, low
-    - distillation must be 5 words or fewer
-    - suggested_narrative_roles values must be from allowed enum
-
-  semantic:
-    - content_preserved must be evaluated for every trim_choice (Phase B responsibility)
-    - At least one trim_choice must have content_preserved=true (otherwise candidate is unusable)
-    - candidate_priority must be set for all candidates in alternate_takes clusters
-
-  exit_codes:
-    0: all valid
-    1: structural errors (missing fields, wrong types, broken references)
-    2: taxonomy violations (invalid state names, distillation too long)
-    3: data errors (time violations, range overlaps)
-
-# ============================================================
-# EXAMPLE: MINIMAL VALID CANDIDATE
-# ============================================================
+  soft:
+    - candidates sharing a cluster should have at least one common state
+    - Phase A recommended trim with content_preserved false should warn
+    - candidate with no safe and content-preserved trim should be unusable
 
 example_minimal_valid_candidate:
-  cand_id: cand_001
-  seg_id: seg_013
-  source: "Dylan Shorts 1.MP4"
-  t: 12.340
-  e: 25.670
-  text: "My smartest friend spent three years planning his business and never started it."
-
+  id: cand_001
+  source: "interview_01.mov"
+  segment_ids: [seg_004, seg_005]
+  t: 132.42
+  e: 148.91
+  text: "The thing about positioning is people think it's about being different."
   trim_choices:
-    - trim_id: trim_001_full
-      t: 12.340
-      e: 25.670
-      type: full
+    - id: trim_001
+      in: 132.42
+      out: 148.91
+      label: full_clean
       mechanical_boundary_safe: true
       content_preserved: true
-      preserved_text: "My smartest friend spent three years planning his business and never started it."
-    - trim_id: trim_001_tight
-      t: 12.480
-      e: 25.520
-      type: tight
-      mechanical_boundary_safe: true
-      content_preserved: true
-      preserved_text: "My smartest friend spent three years planning his business and never started it."
-
-  exclusion_choices:
-    - exclusion_id: excl_001_none
-      type: none
-      ranges: []
-      mechanical_boundary_safe: true
-
-  states: [vindication, competence]
-  distillation: "smart friend never started"
-  dur: identity
-  roles: [primary]
+  exclusion_choices: []
+  summary: "Positioning is about recognition, not difference"
+  distillation: "positioning equals recognition"
+  usability: fine
+  candidate_priority: primary
+  suggested_narrative_roles:
+    - role: claim
+      confidence: high
+    - role: hook
+      confidence: medium
+  states: [competence, vindication]
+  durability: identity
   confidence: high
-  suggested_narrative_roles: [hook]
-  candidate_priority: null
-  rationale: "Counterintuitive opener — intelligence as liability"
-  signpost: false
-  cluster_id: null
-  cluster_role: null
-  audio_profile: emphatic
-  audio_energy: 0.092
-  audio_speaking_rate: 3.8
-  stumble_count: 0
-  max_within_segment_pause_ms: 180.0
+  cluster: null
+  prosody:
+    audio_profile: emphatic
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 420
+    pitch_trend: varied
+  edit_notes: "Strong clean statement of the core thesis."
