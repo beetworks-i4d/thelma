@@ -1,0 +1,138 @@
+---
+version: 1
+input_fingerprint: fixture_fake_segments_abc123
+generated_at: '2026-05-25T10:00:00+02:00'
+segments:
+# seg_001: standalone candidate, clean delivery, shares "tree"/"selection" with seg_003
+- id: seg_001
+  t: 10.50
+  e: 17.05
+  text: The most important thing about building a treehouse is picking the right tree.
+    You need a strong oak or maple.
+  source: fake_interview.mov
+  audio_profile: emphatic
+  audio_energy: 1.35
+  audio_energy_variance: 0.000312
+  audio_pitch_mean: 165.2
+  audio_pitch_range: 42.0
+  audio_pitch_trend: falling
+  audio_speaking_rate: 3.8
+  audio_spectral_centroid: 1.22
+  acoustic_pattern: opens strong fades out
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 90
+  max_within_segment_pause_ms: 280
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+
+# seg_002: standalone candidate, has 1800ms internal pause -> exclusion opportunity
+- id: seg_002
+  t: 21.50
+  e: 29.80
+  text: I spent three months just looking at trees before I found the perfect one.
+    Three whole months of searching and waiting.
+  source: fake_interview.mov
+  audio_profile: reflective
+  audio_energy: 0.72
+  audio_energy_variance: 0.000185
+  audio_pitch_mean: 138.5
+  audio_pitch_range: 18.0
+  audio_pitch_trend: falling
+  audio_speaking_rate: 2.9
+  audio_spectral_centroid: 0.95
+  acoustic_pattern: even and measured
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 120
+  max_within_segment_pause_ms: 1800
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+
+# seg_003: standalone candidate, shares "tree"/"selection"/"picking" with seg_001 -> cluster
+- id: seg_003
+  t: 33.50
+  e: 38.90
+  text: And the tree selection process is important. Picking the right tree for
+    building a treehouse takes patience.
+  source: fake_interview.mov
+  audio_profile: reflective
+  audio_energy: 0.78
+  audio_energy_variance: 0.000210
+  audio_pitch_mean: 142.0
+  audio_pitch_range: 15.0
+  audio_pitch_trend: level
+  audio_speaking_rate: 3.1
+  audio_spectral_centroid: 0.98
+  acoustic_pattern: even and measured
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 95
+  max_within_segment_pause_ms: 320
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+
+# seg_004: first of multi-atom pair, gap to seg_005 is 0.40s -> group
+- id: seg_004
+  t: 42.00
+  e: 47.20
+  text: We started by measuring every branch on the tree carefully.
+  source: fake_interview.mov
+  audio_profile: casual
+  audio_energy: 1.05
+  audio_energy_variance: 0.000142
+  audio_pitch_mean: 152.0
+  audio_pitch_range: 25.0
+  audio_pitch_trend: rising
+  audio_speaking_rate: 3.4
+  audio_spectral_centroid: 1.08
+  acoustic_pattern: builds gradually
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 80
+  max_within_segment_pause_ms: 200
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+
+# seg_005: second of multi-atom pair, 0.40s gap from seg_004
+- id: seg_005
+  t: 47.60
+  e: 53.80
+  text: Then we marked where each support beam would go. The whole structure depends
+    on those beams.
+  source: fake_interview.mov
+  audio_profile: building
+  audio_energy: 1.18
+  audio_energy_variance: 0.000198
+  audio_pitch_mean: 158.0
+  audio_pitch_range: 30.0
+  audio_pitch_trend: rising
+  audio_speaking_rate: 3.6
+  audio_spectral_centroid: 1.15
+  acoustic_pattern: builds gradually
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 85
+  max_within_segment_pause_ms: 250
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:

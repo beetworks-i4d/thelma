@@ -1,0 +1,123 @@
+{
+  "segments": [
+    {
+      "start": 10.50,
+      "end": 17.05,
+      "text": "The most important thing about building a treehouse is picking the right tree. You need a strong oak or maple.",
+      "words": [
+        {"word": "The",       "start": 10.52, "end": 10.65},
+        {"word": "most",      "start": 10.70, "end": 10.92},
+        {"word": "important", "start": 10.98, "end": 11.42},
+        {"word": "thing",     "start": 11.48, "end": 11.72},
+        {"word": "about",     "start": 11.78, "end": 12.05},
+        {"word": "building",  "start": 12.12, "end": 12.52},
+        {"word": "a",         "start": 12.58, "end": 12.65},
+        {"word": "treehouse", "start": 12.72, "end": 13.25},
+        {"word": "is",        "start": 13.32, "end": 13.42},
+        {"word": "picking",   "start": 13.50, "end": 13.88},
+        {"word": "the",       "start": 13.95, "end": 14.08},
+        {"word": "right",     "start": 14.15, "end": 14.42},
+        {"word": "tree.",     "start": 14.50, "end": 14.78},
+        {"word": "You",       "start": 15.10, "end": 15.25},
+        {"word": "need",      "start": 15.32, "end": 15.52},
+        {"word": "a",         "start": 15.58, "end": 15.65},
+        {"word": "strong",    "start": 15.72, "end": 16.05},
+        {"word": "oak",       "start": 16.12, "end": 16.35},
+        {"word": "or",        "start": 16.42, "end": 16.55},
+        {"word": "maple.",    "start": 16.62, "end": 17.00}
+      ]
+    },
+    {
+      "start": 21.50,
+      "end": 29.80,
+      "text": "I spent three months just looking at trees before I found the perfect one. Three whole months of searching and waiting.",
+      "words": [
+        {"word": "I",         "start": 21.52, "end": 21.60},
+        {"word": "spent",     "start": 21.65, "end": 21.92},
+        {"word": "three",     "start": 21.98, "end": 22.25},
+        {"word": "months",    "start": 22.32, "end": 22.68},
+        {"word": "just",      "start": 22.75, "end": 22.98},
+        {"word": "looking",   "start": 23.05, "end": 23.42},
+        {"word": "at",        "start": 23.48, "end": 23.58},
+        {"word": "trees",     "start": 23.65, "end": 23.95},
+        {"word": "before",    "start": 24.02, "end": 24.35},
+        {"word": "I",         "start": 24.42, "end": 24.50},
+        {"word": "found",     "start": 24.55, "end": 24.82},
+        {"word": "the",       "start": 24.88, "end": 24.98},
+        {"word": "perfect",   "start": 25.05, "end": 25.42},
+        {"word": "one.",      "start": 25.48, "end": 25.72},
+        {"word": "Three",     "start": 27.52, "end": 27.78},
+        {"word": "whole",     "start": 27.85, "end": 28.10},
+        {"word": "months",    "start": 28.18, "end": 28.50},
+        {"word": "of",        "start": 28.55, "end": 28.62},
+        {"word": "searching", "start": 28.68, "end": 29.05},
+        {"word": "and",       "start": 29.12, "end": 29.22},
+        {"word": "waiting.",  "start": 29.28, "end": 29.72}
+      ]
+    },
+    {
+      "start": 33.50,
+      "end": 38.90,
+      "text": "And the tree selection process is important. Picking the right tree for building a treehouse takes patience.",
+      "words": [
+        {"word": "And",       "start": 33.52, "end": 33.65},
+        {"word": "the",       "start": 33.70, "end": 33.80},
+        {"word": "tree",      "start": 33.85, "end": 34.10},
+        {"word": "selection", "start": 34.18, "end": 34.65},
+        {"word": "process",   "start": 34.72, "end": 35.10},
+        {"word": "is",        "start": 35.15, "end": 35.25},
+        {"word": "important.", "start": 35.32, "end": 35.78},
+        {"word": "Picking",   "start": 36.02, "end": 36.38},
+        {"word": "the",       "start": 36.45, "end": 36.55},
+        {"word": "right",     "start": 36.62, "end": 36.90},
+        {"word": "tree",      "start": 36.98, "end": 37.22},
+        {"word": "for",       "start": 37.28, "end": 37.38},
+        {"word": "building",  "start": 37.45, "end": 37.82},
+        {"word": "a",         "start": 37.88, "end": 37.95},
+        {"word": "treehouse", "start": 38.02, "end": 38.48},
+        {"word": "takes",     "start": 38.55, "end": 38.72},
+        {"word": "patience.", "start": 38.78, "end": 38.85}
+      ]
+    },
+    {
+      "start": 42.00,
+      "end": 47.20,
+      "text": "We started by measuring every branch on the tree carefully.",
+      "words": [
+        {"word": "We",        "start": 42.02, "end": 42.15},
+        {"word": "started",   "start": 42.22, "end": 42.58},
+        {"word": "by",        "start": 42.65, "end": 42.75},
+        {"word": "measuring", "start": 42.82, "end": 43.25},
+        {"word": "every",     "start": 43.32, "end": 43.58},
+        {"word": "branch",    "start": 43.65, "end": 43.98},
+        {"word": "on",        "start": 44.05, "end": 44.15},
+        {"word": "the",       "start": 44.22, "end": 44.32},
+        {"word": "tree",      "start": 44.38, "end": 44.62},
+        {"word": "carefully.", "start": 44.68, "end": 45.15}
+      ]
+    },
+    {
+      "start": 47.60,
+      "end": 53.80,
+      "text": "Then we marked where each support beam would go. The whole structure depends on those beams.",
+      "words": [
+        {"word": "Then",      "start": 47.62, "end": 47.78},
+        {"word": "we",        "start": 47.85, "end": 47.95},
+        {"word": "marked",    "start": 48.02, "end": 48.35},
+        {"word": "where",     "start": 48.42, "end": 48.62},
+        {"word": "each",      "start": 48.68, "end": 48.88},
+        {"word": "support",   "start": 48.95, "end": 49.32},
+        {"word": "beam",      "start": 49.38, "end": 49.62},
+        {"word": "would",     "start": 49.68, "end": 49.88},
+        {"word": "go.",       "start": 49.95, "end": 50.18},
+        {"word": "The",       "start": 50.42, "end": 50.55},
+        {"word": "whole",     "start": 50.62, "end": 50.85},
+        {"word": "structure", "start": 50.92, "end": 51.38},
+        {"word": "depends",   "start": 51.45, "end": 51.82},
+        {"word": "on",        "start": 51.88, "end": 51.98},
+        {"word": "those",     "start": 52.05, "end": 52.30},
+        {"word": "beams.",    "start": 52.38, "end": 52.78}
+      ]
+    }
+  ]
+}
