@@ -1,0 +1,165 @@
+---
+version: '1.2'
+input_fingerprint: cb106b3b704a2c40f905bdc431e8fffe6fff3795590195cfd4be78c3bd61c866
+generated_at: deterministic
+candidate_count: 4
+candidates:
+- id: cand_001
+  source: fake_interview.mov
+  segment_ids:
+  - seg_001
+  t: 10.5
+  e: 17.05
+  text: The most important thing about building a treehouse is picking the right tree.
+    You need a strong oak or maple.
+  trim_choices:
+  - id: trim_001
+    in: 10.5
+    out: 17.05
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: The most important thing about building a treehouse is picking the right
+    tree.
+  distillation: most important thing about building
+  usability: fine
+  candidate_priority: primary
+  suggested_narrative_roles:
+  - role: claim
+    confidence: high
+  - role: hook
+    confidence: medium
+  states:
+  - vindication
+  - competence
+  durability: mood
+  confidence: high
+  cluster: building_important_picking
+  prosody:
+    audio_profile: emphatic
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 280
+    pitch_trend: falling
+  edit_notes: 'Mock labeling: emphatic/high'
+- id: cand_002
+  source: fake_interview.mov
+  segment_ids:
+  - seg_002
+  t: 21.5
+  e: 29.8
+  text: I spent three months just looking at trees before I found the perfect one.
+    Three whole months of searching and waiting.
+  trim_choices:
+  - id: trim_002
+    in: 21.5
+    out: 29.8
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices:
+  - id: ex_001
+    start: 25.72
+    end: 27.52
+    type: pacing
+    reason: long_pause
+    recommended: true
+  summary: I spent three months just looking at trees before I found the perfect one.
+  distillation: spent three months looking trees
+  usability: fine
+  candidate_priority: tertiary
+  suggested_narrative_roles:
+  - role: setup
+    confidence: medium
+  states:
+  - calm
+  durability: mood
+  confidence: medium
+  cluster:
+  prosody:
+    audio_profile: reflective
+    energy: low
+    stumble_count: 0
+    max_pause_ms: 1800
+    pitch_trend: falling
+  edit_notes: 'Mock labeling: reflective/low'
+- id: cand_003
+  source: fake_interview.mov
+  segment_ids:
+  - seg_003
+  t: 33.5
+  e: 38.9
+  text: And the tree selection process is important. Picking the right tree for building
+    a treehouse takes patience.
+  trim_choices:
+  - id: trim_003
+    in: 33.5
+    out: 38.9
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: And the tree selection process is important.
+  distillation: tree selection process important picking
+  usability: fine
+  candidate_priority: secondary
+  suggested_narrative_roles:
+  - role: setup
+    confidence: medium
+  states:
+  - calm
+  durability: mood
+  confidence: high
+  cluster: building_important_picking
+  prosody:
+    audio_profile: reflective
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 320
+    pitch_trend: level
+  edit_notes: 'Mock labeling: reflective/medium'
+- id: cand_004
+  source: fake_interview.mov
+  segment_ids:
+  - seg_004
+  - seg_005
+  t: 42.0
+  e: 53.8
+  text: We started by measuring every branch on the tree carefully. Then we marked
+    where each support beam would go. The whole structure depends on those beams.
+  trim_choices:
+  - id: trim_004
+    in: 42.0
+    out: 53.8
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  - id: trim_005
+    in: 42.0
+    out: 52.86
+    label: tighter_end
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: We started by measuring every branch on the tree carefully.
+  distillation: started measuring every branch tree
+  usability: fine
+  candidate_priority: secondary
+  suggested_narrative_roles:
+  - role: aside
+    confidence: medium
+  - role: transition
+    confidence: low
+  states:
+  - amusement
+  durability: spike
+  confidence: high
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 250
+    pitch_trend: rising
+  edit_notes: 'Mock labeling: casual/medium'
