@@ -2,7 +2,7 @@
 # Locked: 2026-05-25
 #
 # Candidate-based arrangement architecture.
-# The LLM selects candidates by cand_id and chooses trim/exclusion options by ID.
+# The LLM selects candidates by candidate_id and chooses trim/exclusion options by ID.
 # No timestamps, source paths, or mechanical data in the arrangement.
 # Export resolves all mechanical data from editorial_candidates.yaml.
 #
@@ -22,9 +22,10 @@ version: "4"
 #
 # The arrangement file is the LLM's editorial decision output.
 # It contains ONLY:
-#   - Which candidates to use (by cand_id)
+#   - Which candidates to use (by candidate_id)
 #   - Which trim option to apply (by trim_choice_id)
 #   - Which exclusions to apply (by exclusion_choice_ids)
+#   - What narrative role each selection serves (narrative_role)
 #   - Narrative ordering (chapter structure)
 #   - Editorial reasoning (notes)
 #
@@ -44,17 +45,26 @@ top_level:
         Schema version. Must be "4" for candidate-based arrangements.
         Export detects version to choose resolution strategy.
 
-    thesis_id:
+    branch:
+      type: string
+      enum: [A, B, D]
+      description: >
+        Which pipeline branch produced this arrangement.
+        A = script-driven (no thesis). B = organic discovery. D = mine mode.
+
+    selected_thesis:
       type: string
       format: "thesis_NNN"
+      nullable: true
       description: >
         Reference to the selected thesis from discovery_pass.yaml.
-        Locks the editorial intent for this arrangement.
+        Required (non-null) for Branch B and D arrangements.
+        null for Branch A (script-driven) arrangements.
 
     input_fingerprint:
       type: string
       description: >
-        SHA256 of editorial_candidates.yaml content + profile name + thesis_id.
+        SHA256 of editorial_candidates.yaml content + profile name + selected_thesis.
         Used for cache invalidation. If inputs change, arrangement must be regenerated.
 
     generated_at:
@@ -112,15 +122,15 @@ top_level:
         cut_by_thesis:
           type: array
           items: string
-          description: cand_ids excluded because they don't serve the thesis.
+          description: candidate ids excluded because they don't serve the thesis.
         alternate_take_not_chosen:
           type: array
           items: string
-          description: cand_ids that were alternates of a chosen take.
+          description: candidate ids that were alternates of a chosen take.
         cut_for_pacing:
           type: array
           items: string
-          description: cand_ids that fit the thesis but were cut for length/pacing.
+          description: candidate ids that fit the thesis but were cut for length/pacing.
         bridge_dropped:
           type: array
           items: string
@@ -166,28 +176,37 @@ chapter:
 
 segment_selection:
   required_fields:
-    cand_id:
+    candidate_id:
       type: string
       format: "cand_NNN"
       description: >
-        Reference to a candidate in editorial_candidates.yaml.
-        Must be a valid cand_id. Export resolves t, e, source, text from this.
+        Reference to a candidate in editorial_candidates.yaml (by its id field).
+        Export resolves t, e, source, segment_ids, text from this.
 
     trim_choice_id:
       type: string
+      format: "trim_NNN"
       description: >
-        Reference to a trim_choice within the selected candidate.
-        Must be a valid trim_id belonging to the referenced candidate.
+        Reference to a trim_choice within the selected candidate (by its id field).
+        Must belong to the referenced candidate's trim_choices array.
         Export uses this to determine final clip_in and clip_out.
 
     exclusion_choice_ids:
       type: array
       items: string
       description: >
-        References to exclusion_choices within the selected candidate.
-        Empty array means no exclusions. Each must be a valid exclusion_id
-        belonging to the referenced candidate.
-        Export renders exclusions as mid-clip cuts or speed adjustments.
+        References to exclusion_choices within the selected candidate (by their id fields).
+        Empty array means no exclusions. Each must be a valid exclusion choice id
+        belonging to the referenced candidate's exclusion_choices array.
+        Export renders exclusions as mid-clip cuts.
+
+    narrative_role:
+      type: string
+      enum: [hook, setup, continuation, payoff, transition, claim, evidence, definition, aside]
+      description: >
+        The narrative function this candidate serves in this specific arrangement.
+        Assigned by the LLM during arrangement, not during candidate labeling.
+        The same candidate could serve different roles in different arrangements.
 
   optional_fields:
     notes:
@@ -231,32 +250,35 @@ segment_selection:
 validation:
   structural:
     - version must be "4"
-    - thesis_id must reference a valid thesis in discovery_pass.yaml
+    - branch must be one of: A, B, D
+    - selected_thesis must reference a valid thesis in discovery_pass.yaml when branch is B or D
+    - selected_thesis must be null when branch is A
     - chapters must be non-empty array
     - Every chapter must have non-empty segments array
     - chapter.id values must be unique and sequential
-    - Every segment_selection.cand_id must reference a valid candidate in editorial_candidates.yaml
-    - Every segment_selection.trim_choice_id must be a valid trim_id within the referenced candidate
-    - Every exclusion_choice_id must be a valid exclusion_id within the referenced candidate
-    - No cand_id may appear more than once across all chapters (no duplicate selections)
+    - Every segment_selection.candidate_id must reference a valid candidate in editorial_candidates.yaml (by id)
+    - Every segment_selection.trim_choice_id must be a valid trim choice id within the referenced candidate
+    - Every exclusion_choice_ids[] entry must be a valid exclusion choice id within the referenced candidate
+    - Every segment_selection.narrative_role must be from the allowed enum
+    - No candidate_id may appear more than once across all chapters (no duplicate selections)
 
-  semantic:
-    - Selected trim_choice must have content_preserved=true (or null if Phase B hasn't run)
-    - Selected trim_choice should have mechanical_boundary_safe=true (warn if false)
-    - If candidate belongs to an alternate_takes cluster, at most ONE candidate from that cluster should appear
-    - All exclusion_choices referenced must have mechanical_boundary_safe=true (warn if false)
+  hard:
+    - Selected trim_choice must have mechanical_boundary_safe=true
+    - Selected trim_choice must have content_preserved=true
+    - If candidate belongs to an alternate_takes cluster, at most ONE candidate from that cluster may appear
 
   advisory:
-    - Total estimated duration should be within ±30s of thesis target duration
+    - Total estimated duration should be within ±30s of thesis target duration (Branch B/D only)
     - Chapters should follow a narrative arc (not validated mechanically — LLM responsibility)
     - throughline_honoring should document all throughlines from discovery_pass (warn on missing)
     - unused_candidate_audit should account for all non-selected candidates (warn on gaps)
+    - All exclusion_choices referenced should have recommended=true (warn if false)
 
   exit_codes:
     0: all valid
-    1: structural errors (missing fields, broken references, duplicates)
-    2: semantic warnings (boundary safety, content preservation, cluster violations)
-    3: data errors (invalid version, thesis not found)
+    1: structural errors (missing fields, wrong types, broken references, invalid version, duplicates)
+    2: taxonomy violations (invalid enum values, narrative_role not in allowed set)
+    3: data errors (time violations, range overlaps, range boundary violations)
 
 # ============================================================
 # EXPORT RESOLUTION
@@ -265,19 +287,19 @@ validation:
 # export_arrangement_xml.rb resolves arrangement v4 as follows:
 #
 # For each segment_selection:
-#   1. Look up cand_id in editorial_candidates.yaml
-#   2. From the candidate, get: source, seg_id
-#   3. Look up trim_choice_id within the candidate's trim_choices
-#   4. From the trim_choice, get: t (clip_in), e (clip_out)
-#   5. Look up each exclusion_choice_id within the candidate's exclusion_choices
-#   6. From each exclusion_choice, get: ranges (mid-clip cuts)
+#   1. Look up candidate_id in editorial_candidates.yaml (by id field)
+#   2. From the candidate, get: source, segment_ids
+#   3. Look up trim_choice_id within the candidate's trim_choices (by id field)
+#   4. From the trim_choice, get: in (clip_in), out (clip_out)
+#   5. Look up each exclusion_choice_ids[] entry within the candidate's exclusion_choices (by id field)
+#   6. From each exclusion_choice, get: start, end (mid-clip cuts)
 #   7. Resolve source → video file path from library.yaml
 #   8. Resolve source → sync audio WAV + offset from library.yaml
 #   9. Apply BREATHING_MARGIN (80ms per side) to clip_in/clip_out
 #  10. Render clip on V1 timeline at current cursor position
 #  11. Render sync audio on A1/A2
 #  12. Advance cursor by clip duration
-#  13. Generate markers from chapter titles and segment notes
+#  13. Generate markers from chapter titles, narrative_role, and segment notes
 #
 # No timeline math, no timestamps, no source paths appear in the arrangement.
 # The arrangement is a pure editorial decision document.
@@ -288,7 +310,8 @@ validation:
 
 example_minimal_valid_arrangement:
   version: "4"
-  thesis_id: thesis_004
+  branch: B
+  selected_thesis: thesis_004
   input_fingerprint: "a1b2c3d4e5f6..."
   generated_at: "2026-05-25T14:35:28Z"
   model: "claude-opus-4-6"
@@ -302,21 +325,24 @@ example_minimal_valid_arrangement:
     - id: chapter_001
       title: "The Smart Trap"
       segments:
-        - cand_id: cand_001
-          trim_choice_id: trim_001_full
+        - candidate_id: cand_001
+          trim_choice_id: trim_001
           exclusion_choice_ids: []
+          narrative_role: hook
           notes: "Hook — smartest friend planned for 3 years, never started"
-        - cand_id: cand_002
-          trim_choice_id: trim_002_tight
-          exclusion_choice_ids: [excl_002_stutter]
+        - candidate_id: cand_002
+          trim_choice_id: trim_002
+          exclusion_choice_ids: [ex_002]
+          narrative_role: payoff
           notes: "Punchline — being smart made it worse"
 
     - id: chapter_002
       title: "Copy the Dumb Plan"
       segments:
-        - cand_id: cand_015
-          trim_choice_id: trim_015_full
+        - candidate_id: cand_015
+          trim_choice_id: trim_015
           exclusion_choice_ids: []
+          narrative_role: evidence
           notes: "Realization — dumb people focus on what leads to the result"
           clip_group_ref: cg_010
 
