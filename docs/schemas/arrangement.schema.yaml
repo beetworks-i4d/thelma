@@ -1,0 +1,334 @@
+# Arrangement Schema v4
+# Locked: 2026-05-25
+#
+# Candidate-based arrangement architecture.
+# The LLM selects candidates by cand_id and chooses trim/exclusion options by ID.
+# No timestamps, source paths, or mechanical data in the arrangement.
+# Export resolves all mechanical data from editorial_candidates.yaml.
+#
+# Core invariant: LLMs judge meaning. Scripts handle mechanics.
+# The arrangement is a pure editorial decision document.
+# All mechanical resolution happens in export_arrangement_xml.rb.
+
+---
+schema: arrangement
+version: "4"
+
+# ============================================================
+# TOP-LEVEL STRUCTURE
+# ============================================================
+#
+# File: libraries/<name>/arrangement.yaml
+#
+# The arrangement file is the LLM's editorial decision output.
+# It contains ONLY:
+#   - Which candidates to use (by cand_id)
+#   - Which trim option to apply (by trim_choice_id)
+#   - Which exclusions to apply (by exclusion_choice_ids)
+#   - Narrative ordering (chapter structure)
+#   - Editorial reasoning (notes)
+#
+# It does NOT contain:
+#   - Timestamps (t, e, clip_in, clip_out)
+#   - Source file paths
+#   - WAV/video file references
+#   - XML structure or timeline math
+#   - Frame numbers or sample rates
+
+top_level:
+  required_fields:
+    version:
+      type: string
+      value: "4"
+      description: >
+        Schema version. Must be "4" for candidate-based arrangements.
+        Export detects version to choose resolution strategy.
+
+    thesis_id:
+      type: string
+      format: "thesis_NNN"
+      description: >
+        Reference to the selected thesis from discovery_pass.yaml.
+        Locks the editorial intent for this arrangement.
+
+    input_fingerprint:
+      type: string
+      description: >
+        SHA256 of editorial_candidates.yaml content + profile name + thesis_id.
+        Used for cache invalidation. If inputs change, arrangement must be regenerated.
+
+    generated_at:
+      type: string
+      format: ISO 8601
+      description: Timestamp of arrangement generation.
+
+    model:
+      type: string
+      description: LLM model used for arrangement.
+
+    chapters:
+      type: array
+      min_items: 1
+      description: >
+        Ordered array of chapters. Each chapter groups a narrative beat
+        of the thesis. Chapters are rendered sequentially on V1.
+
+  optional_fields:
+    arrangement_reasoning:
+      type: string
+      description: >
+        LLM's reasoning about the arrangement as a whole.
+        Editorial notes: why this ordering, what was cut and why,
+        pacing decisions, thesis arc rationale.
+
+    throughline_honoring:
+      type: array
+      description: >
+        Documentation of how throughlines from discovery_pass were handled.
+        Advisory — validators check this for awareness, not enforcement.
+      items:
+        throughline_honor:
+          required_fields:
+            throughline_id:
+              type: string
+            open_chapter:
+              type: string
+              nullable: true
+            middle_chapters:
+              type: array
+              items: string
+            close_chapter:
+              type: string
+              nullable: true
+            notes:
+              type: string
+
+    unused_candidate_audit:
+      type: object
+      description: >
+        Audit of candidates NOT included in the arrangement.
+        Grouped by reason for exclusion.
+      properties:
+        cut_by_thesis:
+          type: array
+          items: string
+          description: cand_ids excluded because they don't serve the thesis.
+        alternate_take_not_chosen:
+          type: array
+          items: string
+          description: cand_ids that were alternates of a chosen take.
+        cut_for_pacing:
+          type: array
+          items: string
+          description: cand_ids that fit the thesis but were cut for length/pacing.
+        bridge_dropped:
+          type: array
+          items: string
+          description: Bridge candidates that weren't needed for flow.
+
+# ============================================================
+# CHAPTER OBJECT
+# ============================================================
+
+chapter:
+  required_fields:
+    id:
+      type: string
+      format: "chapter_NNN"
+      description: >
+        Sequential chapter ID. Used for throughline_honoring references.
+
+    title:
+      type: string
+      description: >
+        Human-readable chapter title. Becomes a marker in the XML.
+
+    segments:
+      type: array
+      min_items: 1
+      description: >
+        Ordered array of segment selections. Each entry references
+        one candidate and its chosen trim/exclusion options.
+        Rendered sequentially within the chapter on V1.
+
+  optional_fields:
+    notes:
+      type: string
+      description: Chapter-level editorial notes.
+
+# ============================================================
+# SEGMENT SELECTION OBJECT
+# ============================================================
+#
+# This is the atomic unit of an arrangement.
+# It selects ONE candidate with ONE trim choice and zero or more exclusion choices.
+# All IDs must reference valid entries in editorial_candidates.yaml.
+
+segment_selection:
+  required_fields:
+    cand_id:
+      type: string
+      format: "cand_NNN"
+      description: >
+        Reference to a candidate in editorial_candidates.yaml.
+        Must be a valid cand_id. Export resolves t, e, source, text from this.
+
+    trim_choice_id:
+      type: string
+      description: >
+        Reference to a trim_choice within the selected candidate.
+        Must be a valid trim_id belonging to the referenced candidate.
+        Export uses this to determine final clip_in and clip_out.
+
+    exclusion_choice_ids:
+      type: array
+      items: string
+      description: >
+        References to exclusion_choices within the selected candidate.
+        Empty array means no exclusions. Each must be a valid exclusion_id
+        belonging to the referenced candidate.
+        Export renders exclusions as mid-clip cuts or speed adjustments.
+
+  optional_fields:
+    notes:
+      type: string
+      description: >
+        Per-segment editorial note. Becomes a marker comment in XML.
+        Should be specific enough for an editor to understand intent.
+
+    clip_group_ref:
+      type: string
+      description: >
+        Reference to a clip_group from discovery_pass.yaml.
+        Documents which editorial relationship this selection honors.
+
+# ============================================================
+# TRACK STRUCTURE: V1-ONLY
+# ============================================================
+#
+# Arrangement v4 targets a single video track (V1).
+# All segments are rendered sequentially: chapter_001.segments[0],
+# chapter_001.segments[1], ..., chapter_002.segments[0], etc.
+#
+# No multi-track layout. No A/B roll. No picture-in-picture.
+# The V1-only constraint keeps export deterministic:
+#   - One clip follows the next
+#   - BREATHING_MARGIN (80ms) applied per clip side
+#   - No overlap resolution needed
+#
+# Audio follows video: each clip's sync audio renders on A1/A2.
+# Multiple audio sources (dual-system) resolved by export using
+# library.yaml sync_audio mappings.
+#
+# B-roll, titles, transitions, and SFX are represented as MARKERS
+# on the timeline, not as additional tracks. The remote editor
+# executes these markers manually.
+
+# ============================================================
+# ARRANGEMENT VALIDATION RULES
+# ============================================================
+
+validation:
+  structural:
+    - version must be "4"
+    - thesis_id must reference a valid thesis in discovery_pass.yaml
+    - chapters must be non-empty array
+    - Every chapter must have non-empty segments array
+    - chapter.id values must be unique and sequential
+    - Every segment_selection.cand_id must reference a valid candidate in editorial_candidates.yaml
+    - Every segment_selection.trim_choice_id must be a valid trim_id within the referenced candidate
+    - Every exclusion_choice_id must be a valid exclusion_id within the referenced candidate
+    - No cand_id may appear more than once across all chapters (no duplicate selections)
+
+  semantic:
+    - Selected trim_choice must have content_preserved=true (or null if Phase B hasn't run)
+    - Selected trim_choice should have mechanical_boundary_safe=true (warn if false)
+    - If candidate belongs to an alternate_takes cluster, at most ONE candidate from that cluster should appear
+    - All exclusion_choices referenced must have mechanical_boundary_safe=true (warn if false)
+
+  advisory:
+    - Total estimated duration should be within ±30s of thesis target duration
+    - Chapters should follow a narrative arc (not validated mechanically — LLM responsibility)
+    - throughline_honoring should document all throughlines from discovery_pass (warn on missing)
+    - unused_candidate_audit should account for all non-selected candidates (warn on gaps)
+
+  exit_codes:
+    0: all valid
+    1: structural errors (missing fields, broken references, duplicates)
+    2: semantic warnings (boundary safety, content preservation, cluster violations)
+    3: data errors (invalid version, thesis not found)
+
+# ============================================================
+# EXPORT RESOLUTION
+# ============================================================
+#
+# export_arrangement_xml.rb resolves arrangement v4 as follows:
+#
+# For each segment_selection:
+#   1. Look up cand_id in editorial_candidates.yaml
+#   2. From the candidate, get: source, seg_id
+#   3. Look up trim_choice_id within the candidate's trim_choices
+#   4. From the trim_choice, get: t (clip_in), e (clip_out)
+#   5. Look up each exclusion_choice_id within the candidate's exclusion_choices
+#   6. From each exclusion_choice, get: ranges (mid-clip cuts)
+#   7. Resolve source → video file path from library.yaml
+#   8. Resolve source → sync audio WAV + offset from library.yaml
+#   9. Apply BREATHING_MARGIN (80ms per side) to clip_in/clip_out
+#  10. Render clip on V1 timeline at current cursor position
+#  11. Render sync audio on A1/A2
+#  12. Advance cursor by clip duration
+#  13. Generate markers from chapter titles and segment notes
+#
+# No timeline math, no timestamps, no source paths appear in the arrangement.
+# The arrangement is a pure editorial decision document.
+
+# ============================================================
+# EXAMPLE: MINIMAL VALID ARRANGEMENT
+# ============================================================
+
+example_minimal_valid_arrangement:
+  version: "4"
+  thesis_id: thesis_004
+  input_fingerprint: "a1b2c3d4e5f6..."
+  generated_at: "2026-05-25T14:35:28Z"
+  model: "claude-opus-4-6"
+
+  arrangement_reasoning: |
+    Thesis 004 is a counterintuitive insight piece: overthinking kills businesses.
+    Arc: diagnosis (smart=paralysis) → contrast (dumb plan worked) → proof (ugly strategy) → reframe → CTA.
+    7 chapters, 26 atoms, estimated 6:45 raw runtime.
+
+  chapters:
+    - id: chapter_001
+      title: "The Smart Trap"
+      segments:
+        - cand_id: cand_001
+          trim_choice_id: trim_001_full
+          exclusion_choice_ids: []
+          notes: "Hook — smartest friend planned for 3 years, never started"
+        - cand_id: cand_002
+          trim_choice_id: trim_002_tight
+          exclusion_choice_ids: [excl_002_stutter]
+          notes: "Punchline — being smart made it worse"
+
+    - id: chapter_002
+      title: "Copy the Dumb Plan"
+      segments:
+        - cand_id: cand_015
+          trim_choice_id: trim_015_full
+          exclusion_choice_ids: []
+          notes: "Realization — dumb people focus on what leads to the result"
+          clip_group_ref: cg_010
+
+  throughline_honoring:
+    - throughline_id: tl_003
+      open_chapter: null
+      middle_chapters: [chapter_002]
+      close_chapter: null
+      notes: "Middle segments used for proof, not first-dollar arc."
+
+  unused_candidate_audit:
+    cut_by_thesis: [cand_008, cand_012]
+    alternate_take_not_chosen: [cand_019]
+    cut_for_pacing: [cand_025]
+    bridge_dropped: []
