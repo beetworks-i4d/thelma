@@ -182,7 +182,7 @@ candidate:
           type: integer
         pitch_trend:
           type: string
-          enum: [rising, falling, level, varied]
+          enum: [rising, falling, flat, level, varied]
 
   optional_fields:
     edit_notes:

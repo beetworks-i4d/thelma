@@ -680,3 +680,48 @@ RSpec.describe 'candidate_builder Phase C' do
     end
   end
 end
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Real Probe — session6_real_probe fixture
+# ═══════════════════════════════════════════════════════════════════════════════
+
+REAL_PROBE_DIR = File.expand_path('../fixtures/session6_real_probe', __dir__)
+REAL_PROBE_GENERATED = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log].freeze
+
+RSpec.describe 'candidate_builder real probe' do
+  after(:all) do
+    REAL_PROBE_GENERATED.each do |f|
+      path = File.join(REAL_PROBE_DIR, f)
+      File.delete(path) if File.exist?(path)
+    end
+  end
+
+  describe 'Phase ABC on real material' do
+    let(:result) { run_phase_abc(REAL_PROBE_DIR) }
+    let(:candidates) { result[:editorial]['candidates'] }
+
+    it 'exits 0 (no Phase C errors)' do
+      expect(result[:exit_code]).to eq(0), "Expected exit 0, got #{result[:exit_code]}.\nstderr: #{result[:stderr]}"
+    end
+
+    it 'produces candidates' do
+      expect(candidates.size).to be >= 1
+    end
+
+    it 'accepts flat pitch_trend without error' do
+      flat_candidates = candidates.select { |c| c['prosody']['pitch_trend'] == 'flat' }
+      expect(flat_candidates).not_to be_empty, 'Expected at least one candidate with flat pitch_trend'
+      expect(result[:exit_code]).to eq(0)
+    end
+
+    it 'all candidates have valid Phase B fields' do
+      candidates.each do |c|
+        expect(c['states']).to be_a(Array)
+        expect(c['states']).not_to be_empty
+        expect(c['distillation']).to be_a(String)
+        expect(c['summary']).to be_a(String)
+        expect(c['usability']).not_to be_nil
+      end
+    end
+  end
+end
