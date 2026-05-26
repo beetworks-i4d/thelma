@@ -481,6 +481,191 @@ RSpec.describe 'candidate_builder Phase B (mock)' do
 end
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Phase B — Semantic Labeling Quality (Session 7C)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+EMPHATIC_RANT_DIR = File.expand_path('../fixtures/session6_probe_emphatic_rant', __dir__) unless defined?(EMPHATIC_RANT_DIR)
+PAUSE_HEAVY_DIR   = File.expand_path('../fixtures/session6_probe_pause_heavy_transition', __dir__) unless defined?(PAUSE_HEAVY_DIR)
+LOW_ENERGY_DIR    = File.expand_path('../fixtures/session6_probe_low_energy_reflective', __dir__) unless defined?(LOW_ENERGY_DIR)
+EXPLAINER_DIR     = File.expand_path('../fixtures/session6_probe_explainer_rapid', __dir__) unless defined?(EXPLAINER_DIR)
+REAL_PROBE_DIR    = File.expand_path('../fixtures/session6_real_probe', __dir__) unless defined?(REAL_PROBE_DIR)
+
+PROBE_GENERATED_FILES = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log].freeze unless defined?(PROBE_GENERATED_FILES)
+
+def run_probe_abc(dir)
+  stdout, stderr, status = Open3.capture3('ruby', BUILDER_SCRIPT, '--fixture', dir, '--phase', 'abc')
+  editorial_path = File.join(dir, 'editorial_candidates.yaml')
+  {
+    stdout: stdout,
+    stderr: stderr,
+    exit_code: status.exitstatus,
+    editorial: File.exist?(editorial_path) ? YAML.safe_load(File.read(editorial_path), permitted_classes: [Date]) : nil
+  }
+end
+
+RSpec.describe 'Phase B semantic labeling quality' do
+  after(:all) do
+    [EMPHATIC_RANT_DIR, PAUSE_HEAVY_DIR, LOW_ENERGY_DIR, EXPLAINER_DIR, REAL_PROBE_DIR].each do |dir|
+      PROBE_GENERATED_FILES.each do |f|
+        path = File.join(dir, f)
+        File.delete(path) if File.exist?(path)
+      end
+    end
+  end
+
+  describe 'role diversity' do
+    it 'aside does not dominate emphatic_rant roles' do
+      result = run_probe_abc(EMPHATIC_RANT_DIR)
+      roles = result[:editorial]['candidates'].flat_map { |c| c['suggested_narrative_roles'].map { |r| r['role'] } }
+      aside_count = roles.count('aside')
+      expect(aside_count).to be <= 2, "aside appears #{aside_count} times, expected <= 2"
+    end
+
+    it 'pause_heavy has at least 3 distinct role types' do
+      result = run_probe_abc(PAUSE_HEAVY_DIR)
+      roles = result[:editorial]['candidates'].flat_map { |c| c['suggested_narrative_roles'].map { |r| r['role'] } }
+      unique_roles = roles.uniq
+      expect(unique_roles.size).to be >= 3, "Only #{unique_roles.size} role types: #{unique_roles}"
+    end
+
+    it 'pause_heavy is not all aside/transition' do
+      result = run_probe_abc(PAUSE_HEAVY_DIR)
+      roles = result[:editorial]['candidates'].flat_map { |c| c['suggested_narrative_roles'].map { |r| r['role'] } }
+      aside_transition = roles.count { |r| r == 'aside' || r == 'transition' }
+      expect(aside_transition).to be < roles.size, "All roles are aside/transition"
+    end
+  end
+
+  describe 'emphatic declarative candidates become claims/hooks' do
+    it 'cand_003 in emphatic_rant has claim or hook as top role' do
+      result = run_probe_abc(EMPHATIC_RANT_DIR)
+      cand = result[:editorial]['candidates'].find { |c| c['id'] == 'cand_003' }
+      top_role = cand['suggested_narrative_roles'].first['role']
+      expect(%w[claim hook]).to include(top_role), "cand_003 top role is #{top_role}, expected claim or hook"
+    end
+
+    it 'cand_001 in low_energy has claim or hook as top role (counterintuitive claim)' do
+      result = run_probe_abc(LOW_ENERGY_DIR)
+      cand = result[:editorial]['candidates'].find { |c| c['id'] == 'cand_001' }
+      top_role = cand['suggested_narrative_roles'].first['role']
+      expect(%w[claim hook]).to include(top_role), "cand_001 top role is #{top_role}, expected claim or hook"
+    end
+  end
+
+  describe 'evidence-heavy candidates become evidence' do
+    it 'personal narrative candidates get evidence role' do
+      result = run_probe_abc(REAL_PROBE_DIR)
+      cand = result[:editorial]['candidates'].find { |c| c['id'] == 'cand_001' }
+      roles = cand['suggested_narrative_roles'].map { |r| r['role'] }
+      expect(roles).to include('evidence'), "cand_001 roles #{roles} missing evidence"
+    end
+
+    it 'number-heavy candidates get evidence role' do
+      result = run_probe_abc(REAL_PROBE_DIR)
+      cand = result[:editorial]['candidates'].find { |c| c['id'] == 'cand_002' }
+      roles = cand['suggested_narrative_roles'].map { |r| r['role'] }
+      expect(roles).to include('evidence'), "cand_002 roles #{roles} missing evidence"
+    end
+  end
+
+  describe 'transition detection' do
+    it 'short bridge text gets transition role' do
+      result = run_probe_abc(EMPHATIC_RANT_DIR)
+      # cand_006 "But let me ask you something." - 1.34s bridge
+      cand = result[:editorial]['candidates'].find { |c| c['id'] == 'cand_006' }
+      roles = cand['suggested_narrative_roles'].map { |r| r['role'] }
+      expect(roles).to include('transition'), "cand_006 roles #{roles} missing transition"
+    end
+  end
+
+  describe 'state diversity' do
+    it 'pause_heavy has more than just amusement' do
+      result = run_probe_abc(PAUSE_HEAVY_DIR)
+      all_states = result[:editorial]['candidates'].flat_map { |c| c['states'] }
+      unique_states = all_states.uniq
+      expect(unique_states.size).to be >= 3, "Only #{unique_states.size} state types: #{unique_states}"
+      expect(unique_states).not_to eq(['amusement']), "All states are amusement"
+    end
+
+    it 'emphatic_rant has vindication' do
+      result = run_probe_abc(EMPHATIC_RANT_DIR)
+      all_states = result[:editorial]['candidates'].flat_map { |c| c['states'] }
+      expect(all_states).to include('vindication')
+    end
+
+    it 'low_energy_reflective has calm or catharsis' do
+      result = run_probe_abc(LOW_ENERGY_DIR)
+      all_states = result[:editorial]['candidates'].flat_map { |c| c['states'] }
+      expect(all_states.any? { |s| %w[calm catharsis].include?(s) }).to be(true),
+        "States #{all_states.uniq} contain neither calm nor catharsis"
+    end
+
+    it 'system critique text gets outrage state' do
+      result = run_probe_abc(PAUSE_HEAVY_DIR)
+      # cand_005 "the system that we're thrown into from birth trains us to wait"
+      cand = result[:editorial]['candidates'].find { |c| c['id'] == 'cand_005' }
+      expect(cand['states']).to include('outrage'), "cand_005 states #{cand['states']} missing outrage"
+    end
+  end
+
+  describe 'priority distribution' do
+    it 'pause_heavy has at least 1 primary candidate' do
+      result = run_probe_abc(PAUSE_HEAVY_DIR)
+      primaries = result[:editorial]['candidates'].count { |c| c['candidate_priority'] == 'primary' }
+      expect(primaries).to be >= 1, "pause_heavy has #{primaries} primary candidates, expected >= 1"
+    end
+
+    it 'low_energy has at least 2 primary candidates' do
+      result = run_probe_abc(LOW_ENERGY_DIR)
+      primaries = result[:editorial]['candidates'].count { |c| c['candidate_priority'] == 'primary' }
+      expect(primaries).to be >= 2, "low_energy has #{primaries} primary candidates, expected >= 2"
+    end
+  end
+
+  describe 'durability calibration' do
+    it 'not all candidates are spike durability' do
+      result = run_probe_abc(PAUSE_HEAVY_DIR)
+      all_dur = result[:editorial]['candidates'].map { |c| c['durability'] }
+      expect(all_dur.uniq.size).to be >= 2, "All durability is #{all_dur.first}"
+    end
+
+    it 'empowerment text gets mood or identity durability' do
+      result = run_probe_abc(PAUSE_HEAVY_DIR)
+      # cand_006 "The people that get results are those that just take action"
+      cand = result[:editorial]['candidates'].find { |c| c['id'] == 'cand_006' }
+      expect(%w[mood identity]).to include(cand['durability']),
+        "cand_006 durability is #{cand['durability']}, expected mood or identity"
+    end
+  end
+
+  describe 'confidence calibration' do
+    it 'not all candidates get high confidence' do
+      result = run_probe_abc(PAUSE_HEAVY_DIR)
+      all_conf = result[:editorial]['candidates'].map { |c| c['confidence'] }
+      expect(all_conf.uniq.size).to be >= 2, "All confidence is #{all_conf.first}"
+    end
+
+    it 'short ambiguous fragments get medium or low confidence' do
+      result = run_probe_abc(EMPHATIC_RANT_DIR)
+      # cand_006 "But let me ask you something." - 1.34s
+      cand = result[:editorial]['candidates'].find { |c| c['id'] == 'cand_006' }
+      expect(%w[medium low]).to include(cand['confidence']),
+        "cand_006 confidence is #{cand['confidence']}, expected medium or low"
+    end
+  end
+
+  describe 'determinism' do
+    it 'produces identical labels on consecutive runs' do
+      run_probe_abc(EMPHATIC_RANT_DIR)
+      first = File.read(File.join(EMPHATIC_RANT_DIR, 'editorial_candidates.yaml'))
+      run_probe_abc(EMPHATIC_RANT_DIR)
+      second = File.read(File.join(EMPHATIC_RANT_DIR, 'editorial_candidates.yaml'))
+      expect(first).to eq(second)
+    end
+  end
+end
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Phase C — Deterministic Validation
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -685,8 +870,8 @@ end
 # Real Probe — session6_real_probe fixture
 # ═══════════════════════════════════════════════════════════════════════════════
 
-REAL_PROBE_DIR = File.expand_path('../fixtures/session6_real_probe', __dir__)
-REAL_PROBE_GENERATED = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log].freeze
+REAL_PROBE_DIR = File.expand_path('../fixtures/session6_real_probe', __dir__) unless defined?(REAL_PROBE_DIR)
+REAL_PROBE_GENERATED = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log].freeze unless defined?(REAL_PROBE_GENERATED)
 
 RSpec.describe 'candidate_builder real probe' do
   after(:all) do
@@ -730,13 +915,13 @@ end
 # V2 Boundary Heuristic — multi-probe validation
 # ═══════════════════════════════════════════════════════════════════════════════
 
-EXPLAINER_RAPID_DIR = File.expand_path('../fixtures/session6_probe_explainer_rapid', __dir__)
-EMPHATIC_RANT_DIR   = File.expand_path('../fixtures/session6_probe_emphatic_rant', __dir__)
-LOW_ENERGY_DIR      = File.expand_path('../fixtures/session6_probe_low_energy_reflective', __dir__)
-PAUSE_HEAVY_DIR     = File.expand_path('../fixtures/session6_probe_pause_heavy_transition', __dir__)
-DEAD_AIR_DIR        = File.expand_path('../fixtures/session6_probe_dead_air_setup', __dir__)
+EXPLAINER_RAPID_DIR = File.expand_path('../fixtures/session6_probe_explainer_rapid', __dir__) unless defined?(EXPLAINER_RAPID_DIR)
+EMPHATIC_RANT_DIR   = File.expand_path('../fixtures/session6_probe_emphatic_rant', __dir__) unless defined?(EMPHATIC_RANT_DIR)
+LOW_ENERGY_DIR      = File.expand_path('../fixtures/session6_probe_low_energy_reflective', __dir__) unless defined?(LOW_ENERGY_DIR)
+PAUSE_HEAVY_DIR     = File.expand_path('../fixtures/session6_probe_pause_heavy_transition', __dir__) unless defined?(PAUSE_HEAVY_DIR)
+DEAD_AIR_DIR        = File.expand_path('../fixtures/session6_probe_dead_air_setup', __dir__) unless defined?(DEAD_AIR_DIR)
 
-PROBE_GENERATED = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log].freeze
+PROBE_GENERATED = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log].freeze unless defined?(PROBE_GENERATED)
 
 RSpec.describe 'V2 boundary heuristic' do
   after(:all) do

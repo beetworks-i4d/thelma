@@ -27,9 +27,9 @@ candidates:
   candidate_priority: primary
   suggested_narrative_roles:
   - role: claim
-    confidence: high
-  - role: hook
-    confidence: medium
+    confidence: low
+  - role: continuation
+    confidence: low
   states:
   - vindication
   - competence
@@ -42,7 +42,7 @@ candidates:
     stumble_count: 0
     max_pause_ms: 280
     pitch_trend: falling
-  edit_notes: 'Mock labeling: emphatic/high'
+  edit_notes: 'Semantic labeling: emphatic/high, vindication+competence [mood]'
 - id: cand_002
   source: fake_interview.mov
   segment_ids:
@@ -70,8 +70,8 @@ candidates:
   usability: fine
   candidate_priority: tertiary
   suggested_narrative_roles:
-  - role: setup
-    confidence: medium
+  - role: continuation
+    confidence: low
   states:
   - calm
   durability: mood
@@ -83,7 +83,7 @@ candidates:
     stumble_count: 0
     max_pause_ms: 1800
     pitch_trend: falling
-  edit_notes: 'Mock labeling: reflective/low'
+  edit_notes: 'Semantic labeling: reflective/low, calm [mood]'
 - id: cand_003
   source: fake_interview.mov
   segment_ids:
@@ -105,12 +105,12 @@ candidates:
   usability: fine
   candidate_priority: secondary
   suggested_narrative_roles:
-  - role: setup
+  - role: continuation
     confidence: medium
   states:
   - calm
   durability: mood
-  confidence: high
+  confidence: medium
   cluster: building_important_picking
   prosody:
     audio_profile: reflective
@@ -118,7 +118,7 @@ candidates:
     stumble_count: 0
     max_pause_ms: 320
     pitch_trend: level
-  edit_notes: 'Mock labeling: reflective/medium'
+  edit_notes: 'Semantic labeling: reflective/medium, calm [mood]'
 - id: cand_004
   source: fake_interview.mov
   segment_ids:
@@ -147,14 +147,14 @@ candidates:
   usability: fine
   candidate_priority: secondary
   suggested_narrative_roles:
-  - role: aside
-    confidence: medium
-  - role: transition
+  - role: evidence
+    confidence: low
+  - role: continuation
     confidence: low
   states:
   - amusement
   durability: spike
-  confidence: high
+  confidence: medium
   cluster:
   prosody:
     audio_profile: casual
@@ -162,4 +162,4 @@ candidates:
     stumble_count: 0
     max_pause_ms: 250
     pitch_trend: rising
-  edit_notes: 'Mock labeling: casual/medium'
+  edit_notes: 'Semantic labeling: casual/medium, amusement'

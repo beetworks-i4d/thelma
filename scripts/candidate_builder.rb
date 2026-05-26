@@ -112,6 +112,99 @@ PROFILE_ROLE_MAP = {
   'authoritative' => [{ 'role' => 'claim', 'confidence' => 'high' }]
 }.freeze
 
+# Phase B text analysis: lexical cue patterns for multi-signal classification
+CLAIM_PATTERNS = [
+  /\bhere'?s how\b/i,
+  /\bthe (thing|truth|reality|point|problem|stuff|key) is\b/i,
+  /\byou (don'?t need|need to|have to)\b/i,
+  /\bthat'?s (just|exactly|why)\b/i,
+  /\bevery time you\b/i,
+  /\bthe people (that|who) (get|do|make)\b/i,
+  /\byou don'?t need .{1,30}\. you need\b/i
+].freeze
+
+AUDIENCE_QUESTION_PATTERNS = [
+  /\bhave you (been|ever)\b/i,
+  /\bwhat do you\b/i,
+  /\bdo you (know|think|realize)\b/i
+].freeze
+
+PERSONAL_NARRATIVE_PATTERNS_B = [
+  /\bI (tried|used to|was |did |realized|figured)\b/i,
+  /\bI didn'?t (really )?(know|have|understand)\b/i,
+  /\bfor me\b/i,
+  /\bI paid\b/i,
+  /\bI show up\b/i,
+  /\bonce I realized\b/i,
+  /\bin the beginning\b/i,
+  /\bI could take\b/i
+].freeze
+
+EVIDENCE_PATTERNS_B = [
+  /\b\d+[%$kK]?\s/,
+  /\bfor example\b/i,
+  /\blet me (walk|show|explain)\b/i,
+  /\beven if\b/i,
+  /\blet'?s say\b/i
+].freeze
+
+SYSTEM_CRITIQUE_PATTERNS_B = [
+  /\bnobody tells\b/i,
+  /\bthe system\b/i,
+  /\bfrom birth\b/i,
+  /\bgrowing up\b/i,
+  /\b(trains|conditions|taught|told) us\b/i,
+  /\bconditioning\b/i,
+  /\ba world that doesn'?t exist\b/i
+].freeze
+
+EMPOWERMENT_PATTERNS_B = [
+  /\bmakes you (rich|dangerous|strong)\b/i,
+  /\byou have (total |enough |the )\b/i,
+  /\bgive (yourself|themselves) permission\b/i,
+  /\byou become\b/i,
+  /\byou have total control\b/i,
+  /\btake action\b/i,
+  /\btake those .{1,20} skills\b/i
+].freeze
+
+TRANSITION_PATTERNS_B = [
+  /\Aso let me\b/i,
+  /\Abut let me\b/i,
+  /\Anow /i,
+  /\Aok[. ,]/i,
+  /\Aso the /i
+].freeze
+
+REFRAME_PATTERNS_B = [
+  /you don'?t need .{1,40}you need\b/i,
+  /\bwasn'?t a (weakness|problem)\b/i,
+  /\bexactly what makes\b/i,
+  /\bgot you in trouble .{1,30} makes you dangerous\b/i
+].freeze
+
+CONCLUSION_PATTERNS_B = [
+  /\band that'?s (just|when|why|exactly)\b/i,
+  /\bthat'?s just the reality\b/i,
+  /\bthe (point|truth|reality) is\b/i,
+  /\bwhat matters\b/i,
+  /\bsame person.{1,10}different\b/i
+].freeze
+
+SELF_DEPRECATION_PATTERNS_B = [
+  /\bI did the same\b/i,
+  /\bit (really )?cost me\b/i,
+  /\bI used to think I was\b/i,
+  /\bin the beginning.{0,20}didn'?t/i
+].freeze
+
+LIST_FRAMEWORK_PATTERNS = [
+  /\b(six|five|four|three|two) things\b/i,
+  /\b(first|second|third|finally)\b/i,
+  /\bprofit margin\b/i,
+  /\bstartup costs\b/i
+].freeze
+
 # ─── Shared helpers ───────────────────────────────────────────────────────────
 
 def tokenize(text)
@@ -176,6 +269,241 @@ def count_merge_signals(prev_seg, next_seg, pauses)
   signals += 1 if lexical_overlap?(prev_seg, next_seg)
   signals += 1 unless gap_has_long_pause?(prev_seg, next_seg, pauses, VAD_PAUSE_SOFT_MS)
   signals
+end
+
+# ─── Phase B Semantic Classifiers ────────────────────────────────────────────
+#
+# Multi-signal heuristics that use transcript text, punctuation, rhetorical
+# markers, prosody, duration, and position to classify candidates.
+# Replaces the simple profile→label mapping with text-aware analysis.
+
+def text_matches_any?(text, patterns)
+  patterns.any? { |p| text.match?(p) }
+end
+
+def has_question?(text)
+  text.include?('?')
+end
+
+def has_audience_address?(text)
+  text.downcase.match?(/\byou\b/)
+end
+
+def classify_priority(text, profile, energy, duration)
+  primary_score = 0
+
+  # Prosody signals
+  primary_score += 2 if %w[emphatic authoritative].include?(profile)
+  primary_score += 1 if energy == 'high'
+
+  # Text signals
+  primary_score += 2 if text_matches_any?(text, CLAIM_PATTERNS)
+  primary_score += 2 if text_matches_any?(text, REFRAME_PATTERNS_B)
+  primary_score += 1 if text_matches_any?(text, CONCLUSION_PATTERNS_B)
+  primary_score += 1 if has_question?(text) && has_audience_address?(text) && duration < 8.0
+  # Short punchy statement with claim language
+  primary_score += 1 if duration < 6.0 && text.split.size <= 20 && text_matches_any?(text, CLAIM_PATTERNS)
+
+  # Tertiary signals
+  tertiary_score = 0
+  tertiary_score += 1 if energy == 'low' && duration < 3.0
+  tertiary_score += 1 if text.split.size < 8 && !text_matches_any?(text, CLAIM_PATTERNS) && !text_matches_any?(text, CONCLUSION_PATTERNS_B)
+  tertiary_score += 1 if text.strip.match?(/\A(and |so |but )?(ok|um|uh)\b/i)
+
+  if primary_score >= 3
+    'primary'
+  elsif primary_score >= 2 && energy != 'low'
+    'primary'
+  elsif tertiary_score >= 2
+    'tertiary'
+  elsif energy == 'low' && primary_score == 0
+    'tertiary'
+  else
+    'secondary'
+  end
+end
+
+def classify_states(text, profile, energy, duration)
+  scores = Hash.new(0)
+
+  # Vindication: counterintuitive claims, reframes, "I was right" patterns
+  scores['vindication'] += 2 if text_matches_any?(text, REFRAME_PATTERNS_B)
+  scores['vindication'] += 1 if text_matches_any?(text, CONCLUSION_PATTERNS_B)
+  scores['vindication'] += 1 if profile == 'emphatic' && text_matches_any?(text, CLAIM_PATTERNS)
+  scores['vindication'] += 1 if text.downcase.match?(/\b(reality|exactly|right)\b/) && text_matches_any?(text, CLAIM_PATTERNS)
+
+  # Competence: frameworks, teaching, evaluation, how-to
+  scores['competence'] += 2 if text_matches_any?(text, LIST_FRAMEWORK_PATTERNS)
+  scores['competence'] += 2 if text.downcase.match?(/\bhow I evaluate\b/)
+  scores['competence'] += 1 if text_matches_any?(text, EVIDENCE_PATTERNS_B)
+  scores['competence'] += 1 if text.downcase.match?(/\blet me (walk|show)\b/)
+  scores['competence'] += 1 if profile == 'authoritative'
+  scores['competence'] += 1 if text.downcase.match?(/\bI (sell|deliver|generate)\b/)
+
+  # Curiosity: questions, open loops
+  scores['curiosity'] += 2 if has_question?(text) && has_audience_address?(text)
+  scores['curiosity'] += 1 if has_question?(text) && !has_audience_address?(text)
+  scores['curiosity'] += 1 if text.downcase.match?(/\bwhat (do|if|would)\b/)
+  scores['curiosity'] += 1 if text.downcase.match?(/\bsaving .{1,20} for last\b/)
+
+  # Aspiration: empowerment, possibility, "you can"
+  scores['aspiration'] += 2 if text_matches_any?(text, EMPOWERMENT_PATTERNS_B)
+  scores['aspiration'] += 1 if text.downcase.match?(/\b(dangerous|rich|results|control)\b/) && has_audience_address?(text)
+  scores['aspiration'] += 1 if text.downcase.match?(/\bpermission\b/) && has_audience_address?(text)
+
+  # Outrage: system critique, injustice framing
+  scores['outrage'] += 2 if text_matches_any?(text, SYSTEM_CRITIQUE_PATTERNS_B)
+  scores['outrage'] += 1 if text.downcase.match?(/\bnever (give|do|get)\b/) && text.downcase.match?(/\bpermission\b/)
+  scores['outrage'] += 1 if text.downcase.match?(/\bno (way out|idea how)\b/)
+  scores['outrage'] += 1 if text.downcase.match?(/\badvice was right for a world\b/)
+
+  # Catharsis: personal revelation, realization moment
+  scores['catharsis'] += 2 if text_matches_any?(text, PERSONAL_NARRATIVE_PATTERNS_B) && text_matches_any?(text, REFRAME_PATTERNS_B)
+  scores['catharsis'] += 1 if text.downcase.match?(/\bfigured out\b/) || text.downcase.match?(/\brealized\b/)
+  scores['catharsis'] += 1 if text_matches_any?(text, SELF_DEPRECATION_PATTERNS_B)
+  scores['catharsis'] += 1 if text.downcase.match?(/\bI used to think\b/)
+
+  # Calm: reflective delivery, introspection
+  scores['calm'] += 2 if profile == 'reflective'
+  scores['calm'] += 1 if energy == 'low' && text_matches_any?(text, PERSONAL_NARRATIVE_PATTERNS_B)
+  scores['calm'] += 1 if profile == 'landing' && energy == 'low'
+
+  # Fear: warnings, consequences, dread
+  scores['fear'] += 2 if text.downcase.match?(/\bif you don'?t\b/)
+  scores['fear'] += 1 if text.downcase.match?(/\b(worry|worrying|afraid)\b/)
+  scores['fear'] += 1 if text.downcase.match?(/\bnever give\b/) && text.downcase.match?(/\bsit there\b/)
+  scores['fear'] += 1 if text.downcase.match?(/\bno (way out|idea how)\b/)
+  scores['fear'] += 1 if text.downcase.match?(/\bhit 40\b/)
+
+  # Amusement: self-deprecation with humor, irony
+  scores['amusement'] += 2 if text_matches_any?(text, SELF_DEPRECATION_PATTERNS_B) && !text_matches_any?(text, REFRAME_PATTERNS_B)
+  scores['amusement'] += 1 if text.downcase.match?(/\blook(ed|s)? (really )?(easy|simple)\b/)
+  scores['amusement'] += 1 if text.downcase.match?(/\b(boring|funny)\b/)
+
+  # Belonging: shared identity, "have you been told", "I have too"
+  scores['belonging'] += 2 if text_matches_any?(text, AUDIENCE_QUESTION_PATTERNS) && text.downcase.match?(/\bbecause I have\b/)
+  scores['belonging'] += 1 if text.downcase.match?(/\bI was that way\b/)
+
+  # Take top-scoring states
+  sorted = scores.select { |_, v| v > 0 }.sort_by { |_, v| -v }
+
+  if sorted.empty?
+    states = (PROFILE_STATE_MAP[profile] || ['curiosity']).dup
+  else
+    states = sorted.first(3).map(&:first)
+  end
+
+  # Remove incompatible pairs (keep first, drop second)
+  INCOMPATIBLE_STATE_PAIRS.each do |a, b|
+    states.delete(b) if states.include?(a) && states.include?(b)
+  end
+
+  states = states.first(3)
+  states = ['curiosity'] if states.empty?
+  states
+end
+
+def classify_roles(text, profile, energy, duration, candidate_index, total_candidates)
+  all_scores = Hash.new(0)
+
+  # Hook: audience question, reframe, provocative short statement
+  all_scores['hook'] += 2 if has_question?(text) && has_audience_address?(text) && duration < 8.0
+  all_scores['hook'] += 2 if text_matches_any?(text, REFRAME_PATTERNS_B) && duration < 8.0
+  all_scores['hook'] += 1 if profile == 'emphatic' && text_matches_any?(text, CLAIM_PATTERNS)
+  all_scores['hook'] += 1 if text.downcase.match?(/\bhere'?s how\b/)
+
+  # Claim: declarative statements, assertions
+  all_scores['claim'] += 2 if text_matches_any?(text, CLAIM_PATTERNS)
+  all_scores['claim'] += 1 if %w[emphatic authoritative].include?(profile)
+  all_scores['claim'] += 1 if duration < 8.0 && !has_question?(text) && text_matches_any?(text, CLAIM_PATTERNS)
+
+  # Evidence: personal stories, numbers, examples
+  all_scores['evidence'] += 2 if text_matches_any?(text, PERSONAL_NARRATIVE_PATTERNS_B) && duration > 6.0
+  all_scores['evidence'] += 2 if text_matches_any?(text, EVIDENCE_PATTERNS_B) && duration > 5.0
+  all_scores['evidence'] += 1 if duration > 10.0 && !text_matches_any?(text, CLAIM_PATTERNS)
+  all_scores['evidence'] += 1 if text_matches_any?(text, LIST_FRAMEWORK_PATTERNS)
+
+  # Setup: context-setting, system critique without claim
+  all_scores['setup'] += 2 if text_matches_any?(text, SYSTEM_CRITIQUE_PATTERNS_B) && !text_matches_any?(text, CLAIM_PATTERNS)
+  all_scores['setup'] += 1 if candidate_index <= 1 && text_matches_any?(text, PERSONAL_NARRATIVE_PATTERNS_B) && !text_matches_any?(text, CLAIM_PATTERNS)
+  all_scores['setup'] += 1 if text.downcase.match?(/\bthe (information|ai) age\b/)
+
+  # Transition: bridge language, "let me"
+  all_scores['transition'] += 3 if text_matches_any?(text, TRANSITION_PATTERNS_B) && duration < 5.0
+  all_scores['transition'] += 1 if text.strip.match?(/\A(so|and|but)\b/i) && duration < 3.0 && text.split.size < 10
+
+  # Payoff: conclusions, reframes at end, aphorisms
+  all_scores['payoff'] += 2 if text_matches_any?(text, CONCLUSION_PATTERNS_B)
+  all_scores['payoff'] += 1 if profile == 'landing'
+  all_scores['payoff'] += 1 if candidate_index >= total_candidates - 2 && text_matches_any?(text, CLAIM_PATTERNS)
+
+  # Continuation: connective, elaborating
+  all_scores['continuation'] += 1 if text.strip.match?(/\A(and|so|because)\b/i) && !text_matches_any?(text, CLAIM_PATTERNS)
+  all_scores['continuation'] += 1 if duration > 5.0 && (all_scores.values.max || 0) <= 1
+
+  # Aside: only true tangents — self-deprecation without reframe, humor
+  all_scores['aside'] += 1 if text_matches_any?(text, SELF_DEPRECATION_PATTERNS_B) && duration < 5.0 && !text_matches_any?(text, REFRAME_PATTERNS_B)
+  all_scores['aside'] += 1 if text.downcase.match?(/\b(boring|funny|honestly)\b/)
+
+  sorted = all_scores.select { |_, v| v > 0 }.sort_by { |_, v| -v }
+
+  roles = []
+  if sorted.empty?
+    roles = [{ 'role' => 'continuation', 'confidence' => 'medium' }]
+  else
+    sorted.first(2).each do |role, score|
+      conf = if score >= 3 then 'high'
+             elsif score >= 2 then 'medium'
+             else 'low'
+             end
+      roles << { 'role' => role, 'confidence' => conf }
+    end
+  end
+
+  # Deduplicate roles
+  seen = Set.new
+  roles.select! { |r| seen.add?(r['role']) }
+  roles
+end
+
+def classify_durability(states, text)
+  # Identity: self-concept language, frameworks, lasting change
+  if (states.include?('competence') || states.include?('aspiration') || states.include?('belonging')) &&
+     (text.downcase.match?(/\b(who you are|the kind of|I sell|framework|evaluate)\b/) ||
+      text_matches_any?(text, LIST_FRAMEWORK_PATTERNS) ||
+      text_matches_any?(text, EMPOWERMENT_PATTERNS_B))
+    return 'identity'
+  end
+
+  # Mood: vindication, catharsis, calm, fear, realizations
+  if states.include?('vindication') || states.include?('catharsis') ||
+     states.include?('calm') || states.include?('fear') || states.include?('awe')
+    return 'mood'
+  end
+
+  # Fallback to state-based map
+  STATE_DURABILITY_MAP[states.first] || 'spike'
+end
+
+def classify_confidence(text, profile, energy, duration, states, priority)
+  strong = 0
+  strong += 1 if %w[emphatic authoritative].include?(profile) && text_matches_any?(text, CLAIM_PATTERNS)
+  strong += 1 if text_matches_any?(text, PERSONAL_NARRATIVE_PATTERNS_B) && duration > 6.0
+  strong += 1 if states.size >= 2
+  strong += 1 if priority == 'primary'
+
+  weak = 0
+  weak += 1 if duration < 2.0
+  weak += 1 if text.split.size < 8 && !text_matches_any?(text, CLAIM_PATTERNS)
+  weak += 1 if energy == 'low' && !text_matches_any?(text, CLAIM_PATTERNS) && !text_matches_any?(text, PERSONAL_NARRATIVE_PATTERNS_B)
+
+  if weak >= 2
+    'low'
+  elsif strong >= 2
+    'high'
+  else
+    'medium'
+  end
 end
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
@@ -575,17 +903,22 @@ if phase.include?('b')
   b_candidates = substrate['candidates'] || []
   abort "No candidates in substrate" if b_candidates.empty?
 
-  labeled = b_candidates.map do |c|
+  labeled = b_candidates.each_with_index.map do |c, ci|
     profile = c['prosody']['audio_profile']
     energy  = c['prosody']['energy']
+    text    = c['text']
+    duration = c['e'] - c['t']
 
-    # summary: first sentence, max 25 words
-    first_sentence = c['text'].split(/(?<=\.)\s+/).first || c['text']
-    summary_words = first_sentence.split
+    # summary: most informative sentence, max 25 words
+    sentences = text.split(/(?<=[.!?])\s+/)
+    best_sentence = sentences.find { |s| text_matches_any?(s, CLAIM_PATTERNS + CONCLUSION_PATTERNS_B + REFRAME_PATTERNS_B) } || sentences.first || text
+    summary_words = best_sentence.split
     summary = summary_words.first(25).join(' ')
 
-    # distillation: first 5 non-stop content words
-    distillation = tokenize(c['text']).first(5).join(' ')
+    # distillation: 5 semantically distinctive content words
+    content_tokens = tokenize(text)
+    distinctive = content_tokens.reject { |w| %w[got get just really things like going way].include?(w) }
+    distillation = (distinctive.any? ? distinctive : content_tokens).first(5).join(' ')
 
     # usability from stumble_count
     stumbles = c['prosody']['stumble_count'] || 0
@@ -594,32 +927,20 @@ if phase.include?('b')
                 else 'fine'
                 end
 
-    # candidate_priority from energy
-    priority = case energy
-               when 'high' then 'primary'
-               when 'low'  then 'tertiary'
-               else 'secondary'
-               end
+    # candidate_priority via multi-signal classifier
+    priority = classify_priority(text, profile, energy, duration)
 
-    # states from audio_profile
-    states = (PROFILE_STATE_MAP[profile] || ['curiosity']).dup
-    # Remove incompatible pairs (keep first, drop second)
-    INCOMPATIBLE_STATE_PAIRS.each do |a, b|
-      states.delete(b) if states.include?(a) && states.include?(b)
-    end
-    states = states.first(3)
+    # states via multi-signal classifier
+    states = classify_states(text, profile, energy, duration)
 
-    # durability from primary state
-    durability = STATE_DURABILITY_MAP[states.first] || 'spike'
+    # durability via state + text signals
+    durability = classify_durability(states, text)
 
-    # confidence
-    confidence = if usability == 'unusable' then 'low'
-                 elsif usability == 'fine' && energy != 'low' then 'high'
-                 else 'medium'
-                 end
+    # confidence via signal strength
+    confidence = classify_confidence(text, profile, energy, duration, states, priority)
 
-    # suggested_narrative_roles
-    roles = (PROFILE_ROLE_MAP[profile] || [{ 'role' => 'continuation', 'confidence' => 'medium' }]).map(&:dup)
+    # suggested_narrative_roles via multi-signal classifier
+    roles = classify_roles(text, profile, energy, duration, ci, b_candidates.size)
 
     # content_preserved per trim_choice
     updated_trims = c['trim_choices'].map do |tc|
@@ -627,14 +948,14 @@ if phase.include?('b')
       if tc['label'] == 'full_clean'
         tc['content_preserved'] = true
       else
-        duration = c['e'] - c['t']
+        d = c['e'] - c['t']
         trim_duration = tc['out'] - tc['in']
-        tc['content_preserved'] = duration > 0 ? (trim_duration / duration) >= 0.8 : true
+        tc['content_preserved'] = d > 0 ? (trim_duration / d) >= 0.8 : true
       end
       tc
     end
 
-    edit_notes = "Mock labeling: #{profile}/#{energy}"
+    edit_notes = "Semantic labeling: #{profile}/#{energy}, #{states.join('+')}#{durability != 'spike' ? " [#{durability}]" : ''}"
 
     # Build candidate in canonical schema field order
     {
