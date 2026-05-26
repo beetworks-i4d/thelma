@@ -1,0 +1,170 @@
+---
+version: '1.2'
+input_fingerprint: 5b35e03bdd2411554437aa273c184fa44e78cbf327b461d79009ec7416404c4d
+generated_at: deterministic
+candidate_count: 6
+candidates:
+- id: cand_001
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_023
+  t: 404.64
+  e: 415.87
+  text: And I was that way as well. In the beginning, I didn't really know what to
+    do. And because I didn't have that knowledge, I questioned every little thing
+    about building online business. And that stopped me from acting
+  trim_choices:
+  - id: trim_001
+    in: 404.64
+    out: 415.87
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 100
+    pitch_trend: flat
+- id: cand_002
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_024
+  t: 418.54
+  e: 431.73
+  text: And what changed everything for me wasn't some secret tactic or strategy.
+    I paid $2,000 to a coach and they didn't really teach me anything new, but what
+    they did teach me is the only person that can do it is me.
+  trim_choices:
+  - id: trim_002
+    in: 418.54
+    out: 431.73
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 215
+    pitch_trend: flat
+- id: cand_003
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_025
+  t: 441.16
+  e: 448.78
+  text: At a certain point, you have enough information to get results. You just need
+    to give yourself permission to take the actions that lead to the results.
+  trim_choices:
+  - id: trim_003
+    in: 441.16
+    out: 448.78
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  - id: trim_004
+    in: 441.16
+    out: 444.66
+    label: tighter_end
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 120
+    pitch_trend: flat
+- id: cand_004
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_026
+  - seg_027
+  t: 453.75
+  e: 478.56
+  text: And the problem is that most people never do. We never give ourselves that
+    permission. We wait for it externally and we wait to feel it internally as if
+    we're going to have all the right information, have all the knowledge so we can
+    finally act. where the reality is you don't need all the information right now.
+    You just need to take action, give yourself permission to act, gather enough information
+    to take action on, and then just learn as you go and you'll solve it along the
+    way.
+  trim_choices:
+  - id: trim_005
+    in: 453.75
+    out: 478.56
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: low
+    stumble_count: 0
+    max_pause_ms: 161
+    pitch_trend: varied
+- id: cand_005
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_028
+  t: 490.02
+  e: 504.97
+  text: So the system that we're thrown into from birth trains us to wait for permission.
+    When the reality is we had it the entire time, the permission we need is just
+    to act and start focusing on things that lead to the result we want and do, and
+    by trial and error, you'll figure it out.
+  trim_choices:
+  - id: trim_006
+    in: 490.02
+    out: 504.97
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 160
+    pitch_trend: flat
+- id: cand_006
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_029
+  - seg_030
+  t: 515.94
+  e: 532.93
+  text: The people that get results are those that just take action, implement right
+    away and give themselves permission. But most people, most people will never give
+    themselves permission and they just sit there thinking and worrying about all
+    the things that could potentially happen rather than just going into the ring
+    and getting punched in the face.
+  trim_choices:
+  - id: trim_007
+    in: 515.94
+    out: 532.93
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices:
+  - id: ex_001
+    start: 523.01
+    end: 525.89
+    type: pacing
+    reason: long_pause
+    recommended: true
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: low
+    stumble_count: 0
+    max_pause_ms: 340
+    pitch_trend: varied

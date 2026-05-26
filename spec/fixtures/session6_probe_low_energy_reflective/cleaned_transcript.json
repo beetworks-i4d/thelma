@@ -1,0 +1,940 @@
+{
+  "segments": [
+    {
+      "start": 216.63,
+      "end": 220.62,
+      "text": "You don't need a bigger plan. You need a worse plan that you actually do something with.",
+      "words": [
+        {
+          "word": "You",
+          "start": 216.633,
+          "end": 216.753,
+          "score": 0.967
+        },
+        {
+          "word": "don't",
+          "start": 216.794,
+          "end": 216.974,
+          "score": 0.636
+        },
+        {
+          "word": "need",
+          "start": 216.994,
+          "end": 217.134,
+          "score": 0.865
+        },
+        {
+          "word": "a",
+          "start": 217.154,
+          "end": 217.174,
+          "score": 0.993
+        },
+        {
+          "word": "bigger",
+          "start": 217.214,
+          "end": 217.394,
+          "score": 0.382
+        },
+        {
+          "word": "plan.",
+          "start": 217.414,
+          "end": 217.774,
+          "score": 0.725
+        },
+        {
+          "word": "You",
+          "start": 218.014,
+          "end": 218.154,
+          "score": 0.916
+        },
+        {
+          "word": "need",
+          "start": 218.174,
+          "end": 218.314,
+          "score": 0.904
+        },
+        {
+          "word": "a",
+          "start": 218.374,
+          "end": 218.414,
+          "score": 0.491
+        },
+        {
+          "word": "worse",
+          "start": 218.454,
+          "end": 218.734,
+          "score": 0.732
+        },
+        {
+          "word": "plan",
+          "start": 218.794,
+          "end": 219.114,
+          "score": 0.664
+        },
+        {
+          "word": "that",
+          "start": 219.134,
+          "end": 219.434,
+          "score": 0.761
+        },
+        {
+          "word": "you",
+          "start": 219.454,
+          "end": 219.534,
+          "score": 0.936
+        },
+        {
+          "word": "actually",
+          "start": 219.574,
+          "end": 219.854,
+          "score": 0.854
+        },
+        {
+          "word": "do",
+          "start": 219.914,
+          "end": 220.074,
+          "score": 0.878
+        },
+        {
+          "word": "something",
+          "start": 220.135,
+          "end": 220.415,
+          "score": 0.867
+        },
+        {
+          "word": "with.",
+          "start": 220.455,
+          "end": 220.615,
+          "score": 0.903
+        }
+      ]
+    },
+    {
+      "start": 223.86,
+      "end": 238.0,
+      "text": "So I used to think I was lazy. I show up to work with zero energy, zero motivation, counting the hours until I could leave. Then I go home and spend four hours building something on my laptop without looking at the clock a single time.",
+      "words": [
+        {
+          "word": "So",
+          "start": 223.856,
+          "end": 224.036,
+          "score": 0.726
+        },
+        {
+          "word": "I",
+          "start": 224.116,
+          "end": 224.196,
+          "score": 0.617
+        },
+        {
+          "word": "used",
+          "start": 224.276,
+          "end": 224.436,
+          "score": 0.585
+        },
+        {
+          "word": "to",
+          "start": 224.456,
+          "end": 224.516,
+          "score": 0.749
+        },
+        {
+          "word": "think",
+          "start": 224.556,
+          "end": 224.716,
+          "score": 0.833
+        },
+        {
+          "word": "I",
+          "start": 224.756,
+          "end": 224.816,
+          "score": 0.957
+        },
+        {
+          "word": "was",
+          "start": 224.856,
+          "end": 224.976,
+          "score": 0.821
+        },
+        {
+          "word": "lazy.",
+          "start": 225.036,
+          "end": 225.596,
+          "score": 0.771
+        },
+        {
+          "word": "I",
+          "start": 225.896,
+          "end": 225.976,
+          "score": 0.887
+        },
+        {
+          "word": "show",
+          "start": 226.016,
+          "end": 226.236,
+          "score": 0.89
+        },
+        {
+          "word": "up",
+          "start": 226.276,
+          "end": 226.376,
+          "score": 0.732
+        },
+        {
+          "word": "to",
+          "start": 226.396,
+          "end": 226.476,
+          "score": 0.648
+        },
+        {
+          "word": "work",
+          "start": 226.496,
+          "end": 226.737,
+          "score": 0.786
+        },
+        {
+          "word": "with",
+          "start": 226.777,
+          "end": 226.877,
+          "score": 0.317
+        },
+        {
+          "word": "zero",
+          "start": 226.917,
+          "end": 227.277,
+          "score": 0.968
+        },
+        {
+          "word": "energy,",
+          "start": 227.337,
+          "end": 227.917,
+          "score": 0.598
+        },
+        {
+          "word": "zero",
+          "start": 228.177,
+          "end": 228.517,
+          "score": 0.95
+        },
+        {
+          "word": "motivation,",
+          "start": 228.537,
+          "end": 229.277,
+          "score": 0.708
+        },
+        {
+          "word": "counting",
+          "start": 229.557,
+          "end": 229.877,
+          "score": 0.866
+        },
+        {
+          "word": "the",
+          "start": 229.897,
+          "end": 229.997,
+          "score": 0.182
+        },
+        {
+          "word": "hours",
+          "start": 230.037,
+          "end": 230.418,
+          "score": 0.843
+        },
+        {
+          "word": "until",
+          "start": 230.658,
+          "end": 230.878,
+          "score": 0.824
+        },
+        {
+          "word": "I",
+          "start": 230.918,
+          "end": 230.958,
+          "score": 0.786
+        },
+        {
+          "word": "could",
+          "start": 230.998,
+          "end": 231.138,
+          "score": 0.803
+        },
+        {
+          "word": "leave.",
+          "start": 231.178,
+          "end": 231.398,
+          "score": 0.755
+        },
+        {
+          "word": "Then",
+          "start": 231.698,
+          "end": 231.918,
+          "score": 0.919
+        },
+        {
+          "word": "I",
+          "start": 232.038,
+          "end": 232.158,
+          "score": 0.833
+        },
+        {
+          "word": "go",
+          "start": 232.178,
+          "end": 232.358,
+          "score": 0.843
+        },
+        {
+          "word": "home",
+          "start": 232.458,
+          "end": 232.698,
+          "score": 0.765
+        },
+        {
+          "word": "and",
+          "start": 233.058,
+          "end": 233.158,
+          "score": 0.813
+        },
+        {
+          "word": "spend",
+          "start": 233.238,
+          "end": 233.559,
+          "score": 0.846
+        },
+        {
+          "word": "four",
+          "start": 233.619,
+          "end": 233.799,
+          "score": 0.821
+        },
+        {
+          "word": "hours",
+          "start": 233.839,
+          "end": 234.159,
+          "score": 0.812
+        },
+        {
+          "word": "building",
+          "start": 234.259,
+          "end": 234.579,
+          "score": 0.682
+        },
+        {
+          "word": "something",
+          "start": 234.639,
+          "end": 234.919,
+          "score": 0.951
+        },
+        {
+          "word": "on",
+          "start": 235.039,
+          "end": 235.159,
+          "score": 0.378
+        },
+        {
+          "word": "my",
+          "start": 235.179,
+          "end": 235.279,
+          "score": 0.993
+        },
+        {
+          "word": "laptop",
+          "start": 235.299,
+          "end": 235.819,
+          "score": 0.649
+        },
+        {
+          "word": "without",
+          "start": 236.079,
+          "end": 236.399,
+          "score": 0.79
+        },
+        {
+          "word": "looking",
+          "start": 236.479,
+          "end": 236.78,
+          "score": 0.811
+        },
+        {
+          "word": "at",
+          "start": 236.82,
+          "end": 236.88,
+          "score": 0.745
+        },
+        {
+          "word": "the",
+          "start": 236.9,
+          "end": 236.98,
+          "score": 0.762
+        },
+        {
+          "word": "clock",
+          "start": 237.04,
+          "end": 237.32,
+          "score": 0.922
+        },
+        {
+          "word": "a",
+          "start": 237.34,
+          "end": 237.36,
+          "score": 0.684
+        },
+        {
+          "word": "single",
+          "start": 237.44,
+          "end": 237.7,
+          "score": 0.871
+        },
+        {
+          "word": "time.",
+          "start": 237.74,
+          "end": 238.0,
+          "score": 0.943
+        }
+      ]
+    },
+    {
+      "start": 245.05,
+      "end": 249.4,
+      "text": "Same person, completely different output. And that's when I figured out the problem was never me.",
+      "words": [
+        {
+          "word": "Same",
+          "start": 245.052,
+          "end": 245.313,
+          "score": 0.851
+        },
+        {
+          "word": "person,",
+          "start": 245.353,
+          "end": 245.773,
+          "score": 0.851
+        },
+        {
+          "word": "completely",
+          "start": 246.033,
+          "end": 246.454,
+          "score": 0.646
+        },
+        {
+          "word": "different",
+          "start": 246.474,
+          "end": 246.694,
+          "score": 0.604
+        },
+        {
+          "word": "output.",
+          "start": 246.754,
+          "end": 247.114,
+          "score": 0.613
+        },
+        {
+          "word": "And",
+          "start": 247.394,
+          "end": 247.495,
+          "score": 0.801
+        },
+        {
+          "word": "that's",
+          "start": 247.535,
+          "end": 247.715,
+          "score": 0.917
+        },
+        {
+          "word": "when",
+          "start": 247.735,
+          "end": 247.855,
+          "score": 0.798
+        },
+        {
+          "word": "I",
+          "start": 247.895,
+          "end": 247.955,
+          "score": 0.593
+        },
+        {
+          "word": "figured",
+          "start": 247.975,
+          "end": 248.175,
+          "score": 0.203
+        },
+        {
+          "word": "out",
+          "start": 248.195,
+          "end": 248.275,
+          "score": 0.145
+        },
+        {
+          "word": "the",
+          "start": 248.295,
+          "end": 248.395,
+          "score": 0.857
+        },
+        {
+          "word": "problem",
+          "start": 248.415,
+          "end": 248.736,
+          "score": 0.845
+        },
+        {
+          "word": "was",
+          "start": 248.756,
+          "end": 248.876,
+          "score": 0.579
+        },
+        {
+          "word": "never",
+          "start": 248.896,
+          "end": 249.116,
+          "score": 0.648
+        },
+        {
+          "word": "me.",
+          "start": 249.176,
+          "end": 249.396,
+          "score": 0.955
+        }
+      ]
+    },
+    {
+      "start": 252.58,
+      "end": 255.7,
+      "text": "You don't need more discipline. You need work that doesn't require it.",
+      "words": [
+        {
+          "word": "You",
+          "start": 252.579,
+          "end": 252.679,
+          "score": 0.904
+        },
+        {
+          "word": "don't",
+          "start": 252.719,
+          "end": 252.919,
+          "score": 0.691
+        },
+        {
+          "word": "need",
+          "start": 252.999,
+          "end": 253.2,
+          "score": 0.878
+        },
+        {
+          "word": "more",
+          "start": 253.22,
+          "end": 253.36,
+          "score": 0.843
+        },
+        {
+          "word": "discipline.",
+          "start": 253.4,
+          "end": 253.9,
+          "score": 0.739
+        },
+        {
+          "word": "You",
+          "start": 254.12,
+          "end": 254.2,
+          "score": 0.995
+        },
+        {
+          "word": "need",
+          "start": 254.241,
+          "end": 254.421,
+          "score": 0.857
+        },
+        {
+          "word": "work",
+          "start": 254.461,
+          "end": 254.661,
+          "score": 0.837
+        },
+        {
+          "word": "that",
+          "start": 254.681,
+          "end": 254.801,
+          "score": 0.79
+        },
+        {
+          "word": "doesn't",
+          "start": 254.821,
+          "end": 255.061,
+          "score": 0.852
+        },
+        {
+          "word": "require",
+          "start": 255.101,
+          "end": 255.622,
+          "score": 0.883
+        },
+        {
+          "word": "it.",
+          "start": 255.642,
+          "end": 255.702,
+          "score": 0.296
+        }
+      ]
+    },
+    {
+      "start": 327.66,
+      "end": 337.74,
+      "text": "the thing is that that conditioning runs so deep because from birth, we're essentially told to go a certain path, do certain things and do what we tell you and you'll get a certain result.",
+      "words": [
+        {
+          "word": "the",
+          "start": 327.656,
+          "end": 327.776,
+          "score": 0.764
+        },
+        {
+          "word": "thing",
+          "start": 327.816,
+          "end": 327.996,
+          "score": 0.904
+        },
+        {
+          "word": "is",
+          "start": 328.056,
+          "end": 328.136,
+          "score": 0.73
+        },
+        {
+          "word": "that",
+          "start": 328.337,
+          "end": 328.497,
+          "score": 0.725
+        },
+        {
+          "word": "conditioning",
+          "start": 328.517,
+          "end": 328.957,
+          "score": 0.68
+        },
+        {
+          "word": "runs",
+          "start": 329.037,
+          "end": 329.237,
+          "score": 0.656
+        },
+        {
+          "word": "so",
+          "start": 329.337,
+          "end": 329.597,
+          "score": 0.894
+        },
+        {
+          "word": "deep",
+          "start": 329.657,
+          "end": 329.937,
+          "score": 0.905
+        },
+        {
+          "word": "because",
+          "start": 330.258,
+          "end": 330.538,
+          "score": 0.874
+        },
+        {
+          "word": "from",
+          "start": 330.618,
+          "end": 330.838,
+          "score": 0.876
+        },
+        {
+          "word": "birth,",
+          "start": 330.898,
+          "end": 331.298,
+          "score": 0.865
+        },
+        {
+          "word": "we're",
+          "start": 331.538,
+          "end": 331.678,
+          "score": 0.705
+        },
+        {
+          "word": "essentially",
+          "start": 331.698,
+          "end": 332.139,
+          "score": 0.907
+        },
+        {
+          "word": "told",
+          "start": 332.219,
+          "end": 332.539,
+          "score": 0.822
+        },
+        {
+          "word": "to",
+          "start": 332.619,
+          "end": 332.739,
+          "score": 0.957
+        },
+        {
+          "word": "go",
+          "start": 332.799,
+          "end": 332.999,
+          "score": 0.84
+        },
+        {
+          "word": "a",
+          "start": 333.079,
+          "end": 333.119,
+          "score": 0.811
+        },
+        {
+          "word": "certain",
+          "start": 333.159,
+          "end": 333.459,
+          "score": 0.896
+        },
+        {
+          "word": "path,",
+          "start": 333.519,
+          "end": 333.899,
+          "score": 0.987
+        },
+        {
+          "word": "do",
+          "start": 334.16,
+          "end": 334.38,
+          "score": 0.818
+        },
+        {
+          "word": "certain",
+          "start": 334.4,
+          "end": 334.68,
+          "score": 0.895
+        },
+        {
+          "word": "things",
+          "start": 334.72,
+          "end": 335.02,
+          "score": 0.744
+        },
+        {
+          "word": "and",
+          "start": 335.12,
+          "end": 335.22,
+          "score": 0.827
+        },
+        {
+          "word": "do",
+          "start": 335.26,
+          "end": 335.38,
+          "score": 0.973
+        },
+        {
+          "word": "what",
+          "start": 335.4,
+          "end": 335.54,
+          "score": 0.763
+        },
+        {
+          "word": "we",
+          "start": 335.58,
+          "end": 335.7,
+          "score": 0.9
+        },
+        {
+          "word": "tell",
+          "start": 335.74,
+          "end": 336.001,
+          "score": 0.764
+        },
+        {
+          "word": "you",
+          "start": 336.061,
+          "end": 336.221,
+          "score": 0.785
+        },
+        {
+          "word": "and",
+          "start": 336.541,
+          "end": 336.601,
+          "score": 0.995
+        },
+        {
+          "word": "you'll",
+          "start": 336.641,
+          "end": 336.821,
+          "score": 0.84
+        },
+        {
+          "word": "get",
+          "start": 336.841,
+          "end": 336.961,
+          "score": 0.868
+        },
+        {
+          "word": "a",
+          "start": 337.001,
+          "end": 337.041,
+          "score": 0.545
+        },
+        {
+          "word": "certain",
+          "start": 337.061,
+          "end": 337.341,
+          "score": 0.548
+        },
+        {
+          "word": "result.",
+          "start": 337.361,
+          "end": 337.742,
+          "score": 0.855
+        }
+      ]
+    },
+    {
+      "start": 340.34,
+      "end": 346.79,
+      "text": "when you turn 18, you become an adult. The only person that can do it is you. You have total control over your life",
+      "words": [
+        {
+          "word": "when",
+          "start": 340.343,
+          "end": 340.483,
+          "score": 0.773
+        },
+        {
+          "word": "you",
+          "start": 340.503,
+          "end": 340.623,
+          "score": 0.908
+        },
+        {
+          "word": "turn",
+          "start": 340.643,
+          "end": 340.863,
+          "score": 0.804
+        },
+        {
+          "word": "18,",
+          "start": 340.883,
+          "end": 341.343,
+          "score": 0.734
+        },
+        {
+          "word": "you",
+          "start": 341.363,
+          "end": 341.504,
+          "score": 0.93
+        },
+        {
+          "word": "become",
+          "start": 341.524,
+          "end": 341.764,
+          "score": 0.791
+        },
+        {
+          "word": "an",
+          "start": 341.784,
+          "end": 341.864,
+          "score": 0.196
+        },
+        {
+          "word": "adult.",
+          "start": 341.904,
+          "end": 342.264,
+          "score": 0.827
+        },
+        {
+          "word": "The",
+          "start": 342.564,
+          "end": 342.664,
+          "score": 0.948
+        },
+        {
+          "word": "only",
+          "start": 342.744,
+          "end": 342.904,
+          "score": 0.793
+        },
+        {
+          "word": "person",
+          "start": 342.964,
+          "end": 343.325,
+          "score": 0.9
+        },
+        {
+          "word": "that",
+          "start": 343.345,
+          "end": 343.485,
+          "score": 0.754
+        },
+        {
+          "word": "can",
+          "start": 343.505,
+          "end": 343.645,
+          "score": 0.784
+        },
+        {
+          "word": "do",
+          "start": 343.685,
+          "end": 343.865,
+          "score": 0.904
+        },
+        {
+          "word": "it",
+          "start": 343.905,
+          "end": 343.965,
+          "score": 0.74
+        },
+        {
+          "word": "is",
+          "start": 344.105,
+          "end": 344.205,
+          "score": 0.722
+        },
+        {
+          "word": "you.",
+          "start": 344.265,
+          "end": 344.485,
+          "score": 0.988
+        },
+        {
+          "word": "You",
+          "start": 344.765,
+          "end": 344.885,
+          "score": 0.818
+        },
+        {
+          "word": "have",
+          "start": 344.905,
+          "end": 345.045,
+          "score": 0.788
+        },
+        {
+          "word": "total",
+          "start": 345.105,
+          "end": 345.406,
+          "score": 0.894
+        },
+        {
+          "word": "control",
+          "start": 345.446,
+          "end": 345.906,
+          "score": 0.761
+        },
+        {
+          "word": "over",
+          "start": 346.146,
+          "end": 346.306,
+          "score": 0.971
+        },
+        {
+          "word": "your",
+          "start": 346.346,
+          "end": 346.486,
+          "score": 0.787
+        },
+        {
+          "word": "life",
+          "start": 346.526,
+          "end": 346.786,
+          "score": 0.751
+        }
+      ]
+    }
+  ]
+}

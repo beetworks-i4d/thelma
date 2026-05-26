@@ -1,0 +1,1116 @@
+{
+  "segments": [
+    {
+      "start": 98.02,
+      "end": 104.08,
+      "text": "getting good at your job makes your boss's boss rich and getting good at and getting good at running something makes you rich.",
+      "words": [
+        {
+          "word": "getting",
+          "start": 102.101,
+          "end": 102.321,
+          "score": 0.882
+        },
+        {
+          "word": "good",
+          "start": 102.341,
+          "end": 102.481,
+          "score": 0.92
+        },
+        {
+          "word": "at",
+          "start": 102.521,
+          "end": 102.561,
+          "score": 0.884
+        },
+        {
+          "word": "running",
+          "start": 102.621,
+          "end": 102.881,
+          "score": 0.731
+        },
+        {
+          "word": "something",
+          "start": 102.921,
+          "end": 103.261,
+          "score": 0.882
+        },
+        {
+          "word": "makes",
+          "start": 103.321,
+          "end": 103.561,
+          "score": 0.798
+        },
+        {
+          "word": "you",
+          "start": 103.621,
+          "end": 103.782,
+          "score": 0.825
+        },
+        {
+          "word": "rich.",
+          "start": 103.842,
+          "end": 104.082,
+          "score": 0.655
+        }
+      ]
+    },
+    {
+      "start": 106.18,
+      "end": 121.57,
+      "text": "Have you been told you ask too many questions? You don't follow the process that you can't just leave things alone because I have. And it took me way too long to realize that wasn't a weakness. That was basically a job description for something entirely different.",
+      "words": [
+        {
+          "word": "Have",
+          "start": 106.183,
+          "end": 106.303,
+          "score": 0.887
+        },
+        {
+          "word": "you",
+          "start": 106.343,
+          "end": 106.503,
+          "score": 0.652
+        },
+        {
+          "word": "been",
+          "start": 106.583,
+          "end": 106.723,
+          "score": 0.876
+        },
+        {
+          "word": "told",
+          "start": 106.763,
+          "end": 107.043,
+          "score": 0.828
+        },
+        {
+          "word": "you",
+          "start": 107.083,
+          "end": 107.204,
+          "score": 0.73
+        },
+        {
+          "word": "ask",
+          "start": 107.304,
+          "end": 107.564,
+          "score": 0.853
+        },
+        {
+          "word": "too",
+          "start": 107.664,
+          "end": 107.864,
+          "score": 0.786
+        },
+        {
+          "word": "many",
+          "start": 107.904,
+          "end": 108.064,
+          "score": 0.931
+        },
+        {
+          "word": "questions?",
+          "start": 108.144,
+          "end": 108.804,
+          "score": 0.857
+        },
+        {
+          "word": "You",
+          "start": 109.045,
+          "end": 109.145,
+          "score": 0.989
+        },
+        {
+          "word": "don't",
+          "start": 109.185,
+          "end": 109.385,
+          "score": 0.791
+        },
+        {
+          "word": "follow",
+          "start": 109.465,
+          "end": 109.765,
+          "score": 0.908
+        },
+        {
+          "word": "the",
+          "start": 109.785,
+          "end": 109.885,
+          "score": 0.655
+        },
+        {
+          "word": "process",
+          "start": 109.965,
+          "end": 110.626,
+          "score": 0.892
+        },
+        {
+          "word": "that",
+          "start": 111.006,
+          "end": 111.226,
+          "score": 0.868
+        },
+        {
+          "word": "you",
+          "start": 111.326,
+          "end": 111.446,
+          "score": 0.888
+        },
+        {
+          "word": "can't",
+          "start": 111.486,
+          "end": 111.686,
+          "score": 0.871
+        },
+        {
+          "word": "just",
+          "start": 111.726,
+          "end": 111.906,
+          "score": 0.773
+        },
+        {
+          "word": "leave",
+          "start": 111.986,
+          "end": 112.206,
+          "score": 0.86
+        },
+        {
+          "word": "things",
+          "start": 112.246,
+          "end": 112.447,
+          "score": 0.852
+        },
+        {
+          "word": "alone",
+          "start": 112.527,
+          "end": 112.807,
+          "score": 0.545
+        },
+        {
+          "word": "because",
+          "start": 112.847,
+          "end": 113.127,
+          "score": 0.82
+        },
+        {
+          "word": "I",
+          "start": 113.387,
+          "end": 113.467,
+          "score": 0.889
+        },
+        {
+          "word": "have.",
+          "start": 113.507,
+          "end": 113.727,
+          "score": 0.9
+        },
+        {
+          "word": "And",
+          "start": 113.947,
+          "end": 114.068,
+          "score": 0.815
+        },
+        {
+          "word": "it",
+          "start": 114.388,
+          "end": 114.448,
+          "score": 0.761
+        },
+        {
+          "word": "took",
+          "start": 114.468,
+          "end": 114.608,
+          "score": 0.896
+        },
+        {
+          "word": "me",
+          "start": 114.648,
+          "end": 114.748,
+          "score": 0.845
+        },
+        {
+          "word": "way",
+          "start": 114.828,
+          "end": 114.988,
+          "score": 0.976
+        },
+        {
+          "word": "too",
+          "start": 115.028,
+          "end": 115.128,
+          "score": 0.802
+        },
+        {
+          "word": "long",
+          "start": 115.168,
+          "end": 115.308,
+          "score": 0.634
+        },
+        {
+          "word": "to",
+          "start": 115.348,
+          "end": 115.408,
+          "score": 0.959
+        },
+        {
+          "word": "realize",
+          "start": 115.468,
+          "end": 115.889,
+          "score": 0.849
+        },
+        {
+          "word": "that",
+          "start": 115.929,
+          "end": 116.109,
+          "score": 0.761
+        },
+        {
+          "word": "wasn't",
+          "start": 116.169,
+          "end": 116.409,
+          "score": 0.784
+        },
+        {
+          "word": "a",
+          "start": 116.429,
+          "end": 116.449,
+          "score": 0.804
+        },
+        {
+          "word": "weakness.",
+          "start": 116.509,
+          "end": 117.109,
+          "score": 0.939
+        }
+      ]
+    },
+    {
+      "start": 127.88,
+      "end": 132.27,
+      "text": "The stuff that got you in trouble at work is exactly what makes you dangerous on your own.",
+      "words": [
+        {
+          "word": "The",
+          "start": 127.877,
+          "end": 127.997,
+          "score": 0.976
+        },
+        {
+          "word": "stuff",
+          "start": 128.077,
+          "end": 128.378,
+          "score": 0.941
+        },
+        {
+          "word": "that",
+          "start": 128.398,
+          "end": 128.539,
+          "score": 0.867
+        },
+        {
+          "word": "got",
+          "start": 128.559,
+          "end": 128.699,
+          "score": 0.533
+        },
+        {
+          "word": "you",
+          "start": 128.719,
+          "end": 128.819,
+          "score": 0.64
+        },
+        {
+          "word": "in",
+          "start": 128.839,
+          "end": 128.92,
+          "score": 0.882
+        },
+        {
+          "word": "trouble",
+          "start": 128.94,
+          "end": 129.2,
+          "score": 0.882
+        },
+        {
+          "word": "at",
+          "start": 129.26,
+          "end": 129.321,
+          "score": 0.354
+        },
+        {
+          "word": "work",
+          "start": 129.361,
+          "end": 129.681,
+          "score": 0.954
+        },
+        {
+          "word": "is",
+          "start": 130.002,
+          "end": 130.102,
+          "score": 0.772
+        },
+        {
+          "word": "exactly",
+          "start": 130.163,
+          "end": 130.684,
+          "score": 0.819
+        },
+        {
+          "word": "what",
+          "start": 130.724,
+          "end": 130.864,
+          "score": 0.912
+        },
+        {
+          "word": "makes",
+          "start": 130.884,
+          "end": 131.065,
+          "score": 0.889
+        },
+        {
+          "word": "you",
+          "start": 131.105,
+          "end": 131.185,
+          "score": 0.985
+        },
+        {
+          "word": "dangerous",
+          "start": 131.225,
+          "end": 131.626,
+          "score": 0.845
+        },
+        {
+          "word": "on",
+          "start": 131.767,
+          "end": 131.847,
+          "score": 0.876
+        },
+        {
+          "word": "your",
+          "start": 131.867,
+          "end": 132.027,
+          "score": 0.871
+        },
+        {
+          "word": "own.",
+          "start": 132.127,
+          "end": 132.268,
+          "score": 0.798
+        }
+      ]
+    },
+    {
+      "start": 134.41,
+      "end": 157.34,
+      "text": "Nobody tells you this, but nobody tells you this growing up because the people raising you don't know it either. Get a degree, get a stable job, work hard, retire at 60. That advice made your parents feel safe giving it. It's also the reason a lot of people hit 40 with no way out and no idea how they got there. Their advice was right for a world that doesn't exist anymore.",
+      "words": [
+        {
+          "word": "nobody",
+          "start": 136.573,
+          "end": 136.874,
+          "score": 0.86
+        },
+        {
+          "word": "tells",
+          "start": 136.914,
+          "end": 137.114,
+          "score": 0.874
+        },
+        {
+          "word": "you",
+          "start": 137.134,
+          "end": 137.234,
+          "score": 0.865
+        },
+        {
+          "word": "this",
+          "start": 137.254,
+          "end": 137.394,
+          "score": 0.887
+        },
+        {
+          "word": "growing",
+          "start": 137.414,
+          "end": 137.714,
+          "score": 0.929
+        },
+        {
+          "word": "up",
+          "start": 137.814,
+          "end": 137.914,
+          "score": 0.74
+        },
+        {
+          "word": "because",
+          "start": 137.994,
+          "end": 138.254,
+          "score": 0.854
+        },
+        {
+          "word": "the",
+          "start": 138.534,
+          "end": 138.634,
+          "score": 0.985
+        },
+        {
+          "word": "people",
+          "start": 138.694,
+          "end": 139.054,
+          "score": 0.84
+        },
+        {
+          "word": "raising",
+          "start": 139.114,
+          "end": 139.454,
+          "score": 0.866
+        },
+        {
+          "word": "you",
+          "start": 139.494,
+          "end": 139.614,
+          "score": 0.667
+        },
+        {
+          "word": "don't",
+          "start": 139.694,
+          "end": 139.954,
+          "score": 0.656
+        },
+        {
+          "word": "know",
+          "start": 139.974,
+          "end": 140.074,
+          "score": 0.12
+        },
+        {
+          "word": "it",
+          "start": 140.094,
+          "end": 140.194,
+          "score": 0.562
+        },
+        {
+          "word": "either.",
+          "start": 140.254,
+          "end": 140.554,
+          "score": 0.544
+        },
+        {
+          "word": "Get",
+          "start": 140.874,
+          "end": 141.074,
+          "score": 0.939
+        },
+        {
+          "word": "a",
+          "start": 141.114,
+          "end": 141.154,
+          "score": 0.624
+        },
+        {
+          "word": "degree,",
+          "start": 141.194,
+          "end": 141.735,
+          "score": 0.836
+        },
+        {
+          "word": "get",
+          "start": 141.975,
+          "end": 142.115,
+          "score": 0.911
+        },
+        {
+          "word": "a",
+          "start": 142.175,
+          "end": 142.215,
+          "score": 0.908
+        },
+        {
+          "word": "stable",
+          "start": 142.255,
+          "end": 142.695,
+          "score": 0.685
+        },
+        {
+          "word": "job,",
+          "start": 142.715,
+          "end": 143.115,
+          "score": 0.772
+        },
+        {
+          "word": "work",
+          "start": 143.415,
+          "end": 143.715,
+          "score": 0.791
+        },
+        {
+          "word": "hard,",
+          "start": 143.795,
+          "end": 144.175,
+          "score": 0.971
+        },
+        {
+          "word": "retire",
+          "start": 144.215,
+          "end": 144.695,
+          "score": 0.954
+        },
+        {
+          "word": "at",
+          "start": 144.715,
+          "end": 144.755,
+          "score": 0.001
+        },
+        {
+          "word": "60.",
+          "start": 144.895,
+          "end": 145.235,
+          "score": 0.875
+        },
+        {
+          "word": "That",
+          "start": 145.575,
+          "end": 145.735,
+          "score": 0.667
+        },
+        {
+          "word": "advice",
+          "start": 145.795,
+          "end": 146.196,
+          "score": 0.788
+        },
+        {
+          "word": "made",
+          "start": 146.256,
+          "end": 146.396,
+          "score": 0.722
+        },
+        {
+          "word": "your",
+          "start": 146.416,
+          "end": 146.516,
+          "score": 0.78
+        },
+        {
+          "word": "parents",
+          "start": 146.556,
+          "end": 146.836,
+          "score": 0.891
+        },
+        {
+          "word": "feel",
+          "start": 146.876,
+          "end": 147.096,
+          "score": 0.871
+        },
+        {
+          "word": "safe",
+          "start": 147.156,
+          "end": 147.396,
+          "score": 0.898
+        },
+        {
+          "word": "giving",
+          "start": 147.476,
+          "end": 147.736,
+          "score": 0.9
+        },
+        {
+          "word": "it.",
+          "start": 147.816,
+          "end": 147.916,
+          "score": 0.821
+        },
+        {
+          "word": "It's",
+          "start": 148.196,
+          "end": 148.316,
+          "score": 0.888
+        },
+        {
+          "word": "also",
+          "start": 148.376,
+          "end": 148.676,
+          "score": 0.892
+        },
+        {
+          "word": "the",
+          "start": 148.736,
+          "end": 148.836,
+          "score": 0.842
+        },
+        {
+          "word": "reason",
+          "start": 148.876,
+          "end": 149.216,
+          "score": 0.879
+        },
+        {
+          "word": "a",
+          "start": 149.236,
+          "end": 149.256,
+          "score": 0.0
+        },
+        {
+          "word": "lot",
+          "start": 149.276,
+          "end": 149.336,
+          "score": 0.312
+        },
+        {
+          "word": "of",
+          "start": 149.536,
+          "end": 149.596,
+          "score": 0.004
+        },
+        {
+          "word": "people",
+          "start": 149.636,
+          "end": 149.896,
+          "score": 0.802
+        },
+        {
+          "word": "hit",
+          "start": 149.936,
+          "end": 150.076,
+          "score": 0.58
+        },
+        {
+          "word": "40",
+          "start": 150.156,
+          "end": 150.577,
+          "score": 0.748
+        },
+        {
+          "word": "with",
+          "start": 150.897,
+          "end": 151.057,
+          "score": 0.882
+        },
+        {
+          "word": "no",
+          "start": 151.137,
+          "end": 151.337,
+          "score": 0.974
+        },
+        {
+          "word": "way",
+          "start": 151.357,
+          "end": 151.537,
+          "score": 0.7
+        },
+        {
+          "word": "out",
+          "start": 151.697,
+          "end": 151.837,
+          "score": 0.583
+        },
+        {
+          "word": "and",
+          "start": 152.197,
+          "end": 152.317,
+          "score": 0.827
+        },
+        {
+          "word": "no",
+          "start": 152.437,
+          "end": 152.597,
+          "score": 0.925
+        },
+        {
+          "word": "idea",
+          "start": 152.677,
+          "end": 152.977,
+          "score": 0.915
+        },
+        {
+          "word": "how",
+          "start": 153.037,
+          "end": 153.157,
+          "score": 0.835
+        },
+        {
+          "word": "they",
+          "start": 153.177,
+          "end": 153.277,
+          "score": 0.26
+        },
+        {
+          "word": "got",
+          "start": 153.297,
+          "end": 153.517,
+          "score": 0.862
+        },
+        {
+          "word": "there.",
+          "start": 153.537,
+          "end": 153.717,
+          "score": 0.506
+        },
+        {
+          "word": "Their",
+          "start": 153.997,
+          "end": 154.137,
+          "score": 0.878
+        },
+        {
+          "word": "advice",
+          "start": 154.157,
+          "end": 154.477,
+          "score": 0.922
+        },
+        {
+          "word": "was",
+          "start": 154.517,
+          "end": 154.657,
+          "score": 0.818
+        },
+        {
+          "word": "right",
+          "start": 154.737,
+          "end": 155.097,
+          "score": 0.742
+        },
+        {
+          "word": "for",
+          "start": 155.458,
+          "end": 155.598,
+          "score": 0.872
+        },
+        {
+          "word": "a",
+          "start": 155.618,
+          "end": 155.638,
+          "score": 0.607
+        },
+        {
+          "word": "world",
+          "start": 155.698,
+          "end": 155.958,
+          "score": 0.655
+        },
+        {
+          "word": "that",
+          "start": 156.018,
+          "end": 156.218,
+          "score": 0.848
+        },
+        {
+          "word": "doesn't",
+          "start": 156.318,
+          "end": 156.598,
+          "score": 0.795
+        },
+        {
+          "word": "exist",
+          "start": 156.658,
+          "end": 156.938,
+          "score": 0.878
+        },
+        {
+          "word": "anymore.",
+          "start": 156.958,
+          "end": 157.338,
+          "score": 0.641
+        }
+      ]
+    },
+    {
+      "start": 159.73,
+      "end": 165.4,
+      "text": "Every time you say, I'm not a business person, you're giving yourself permission to stay exactly where you are now.",
+      "words": [
+        {
+          "word": "Every",
+          "start": 159.732,
+          "end": 159.932,
+          "score": 0.674
+        },
+        {
+          "word": "time",
+          "start": 159.952,
+          "end": 160.112,
+          "score": 0.869
+        },
+        {
+          "word": "you",
+          "start": 160.152,
+          "end": 160.273,
+          "score": 0.85
+        },
+        {
+          "word": "say,",
+          "start": 160.313,
+          "end": 160.573,
+          "score": 0.776
+        },
+        {
+          "word": "I'm",
+          "start": 160.593,
+          "end": 160.813,
+          "score": 0.665
+        },
+        {
+          "word": "not",
+          "start": 160.853,
+          "end": 160.993,
+          "score": 0.827
+        },
+        {
+          "word": "a",
+          "start": 161.033,
+          "end": 161.073,
+          "score": 0.498
+        },
+        {
+          "word": "business",
+          "start": 161.113,
+          "end": 161.434,
+          "score": 0.876
+        },
+        {
+          "word": "person,",
+          "start": 161.474,
+          "end": 161.934,
+          "score": 0.873
+        },
+        {
+          "word": "you're",
+          "start": 162.214,
+          "end": 162.354,
+          "score": 0.688
+        },
+        {
+          "word": "giving",
+          "start": 162.374,
+          "end": 162.555,
+          "score": 0.616
+        },
+        {
+          "word": "yourself",
+          "start": 162.575,
+          "end": 162.935,
+          "score": 0.862
+        },
+        {
+          "word": "permission",
+          "start": 162.995,
+          "end": 163.455,
+          "score": 0.845
+        },
+        {
+          "word": "to",
+          "start": 163.736,
+          "end": 163.836,
+          "score": 0.632
+        },
+        {
+          "word": "stay",
+          "start": 163.896,
+          "end": 164.056,
+          "score": 0.87
+        },
+        {
+          "word": "exactly",
+          "start": 164.136,
+          "end": 164.657,
+          "score": 0.864
+        },
+        {
+          "word": "where",
+          "start": 164.697,
+          "end": 164.837,
+          "score": 0.748
+        },
+        {
+          "word": "you",
+          "start": 164.857,
+          "end": 164.957,
+          "score": 0.807
+        },
+        {
+          "word": "are",
+          "start": 165.037,
+          "end": 165.137,
+          "score": 0.892
+        },
+        {
+          "word": "now.",
+          "start": 165.197,
+          "end": 165.397,
+          "score": 0.932
+        }
+      ]
+    },
+    {
+      "start": 165.82,
+      "end": 167.16,
+      "text": "But let me ask you something.",
+      "words": [
+
+      ]
+    },
+    {
+      "start": 174.75,
+      "end": 181.09,
+      "text": "What do you actually think a business person does all day? Because I can tell you right now, it's a lot more boring than you're picturing.",
+      "words": [
+        {
+          "word": "What",
+          "start": 174.746,
+          "end": 174.926,
+          "score": 0.796
+        },
+        {
+          "word": "do",
+          "start": 174.966,
+          "end": 175.046,
+          "score": 0.853
+        },
+        {
+          "word": "you",
+          "start": 175.086,
+          "end": 175.186,
+          "score": 0.794
+        },
+        {
+          "word": "actually",
+          "start": 175.246,
+          "end": 175.546,
+          "score": 0.835
+        },
+        {
+          "word": "think",
+          "start": 175.586,
+          "end": 175.747,
+          "score": 0.809
+        },
+        {
+          "word": "a",
+          "start": 175.787,
+          "end": 175.847,
+          "score": 0.031
+        },
+        {
+          "word": "business",
+          "start": 175.887,
+          "end": 176.167,
+          "score": 0.835
+        },
+        {
+          "word": "person",
+          "start": 176.187,
+          "end": 176.527,
+          "score": 0.756
+        },
+        {
+          "word": "does",
+          "start": 176.567,
+          "end": 176.748,
+          "score": 0.807
+        },
+        {
+          "word": "all",
+          "start": 176.788,
+          "end": 176.908,
+          "score": 0.943
+        },
+        {
+          "word": "day?",
+          "start": 176.948,
+          "end": 177.128,
+          "score": 0.96
+        },
+        {
+          "word": "Because",
+          "start": 177.248,
+          "end": 177.488,
+          "score": 0.863
+        },
+        {
+          "word": "I",
+          "start": 177.788,
+          "end": 177.849,
+          "score": 0.826
+        },
+        {
+          "word": "can",
+          "start": 177.889,
+          "end": 178.009,
+          "score": 0.937
+        },
+        {
+          "word": "tell",
+          "start": 178.049,
+          "end": 178.209,
+          "score": 0.874
+        },
+        {
+          "word": "you",
+          "start": 178.229,
+          "end": 178.329,
+          "score": 0.777
+        },
+        {
+          "word": "right",
+          "start": 178.369,
+          "end": 178.569,
+          "score": 0.785
+        },
+        {
+          "word": "now,",
+          "start": 178.609,
+          "end": 178.869,
+          "score": 0.861
+        },
+        {
+          "word": "it's",
+          "start": 179.17,
+          "end": 179.29,
+          "score": 0.863
+        },
+        {
+          "word": "a",
+          "start": 179.33,
+          "end": 179.39,
+          "score": 0.388
+        },
+        {
+          "word": "lot",
+          "start": 179.45,
+          "end": 179.67,
+          "score": 0.714
+        },
+        {
+          "word": "more",
+          "start": 179.75,
+          "end": 179.93,
+          "score": 0.507
+        },
+        {
+          "word": "boring",
+          "start": 179.97,
+          "end": 180.331,
+          "score": 0.784
+        },
+        {
+          "word": "than",
+          "start": 180.351,
+          "end": 180.451,
+          "score": 0.16
+        },
+        {
+          "word": "you're",
+          "start": 180.471,
+          "end": 180.631,
+          "score": 0.729
+        },
+        {
+          "word": "picturing.",
+          "start": 180.651,
+          "end": 181.091,
+          "score": 0.898
+        }
+      ]
+    }
+  ]
+}

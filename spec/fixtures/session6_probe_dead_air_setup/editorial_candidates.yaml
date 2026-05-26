@@ -1,0 +1,187 @@
+---
+version: '1.2'
+input_fingerprint: bbaa468b93bd4b1f1efa33facb7034abb1c3890265af78affe01c965500c12b7
+generated_at: deterministic
+candidate_count: 5
+candidates:
+- id: cand_001
+  source: 002 I tried every laptop job.MP4
+  segment_ids:
+  - seg_001
+  - seg_002
+  t: 11.41
+  e: 20.51
+  text: Okay, recording audio one holds. Recording audio two.
+  trim_choices:
+  - id: trim_001
+    in: 11.41
+    out: 20.51
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices:
+  - id: ex_001
+    start: 13.95
+    end: 19.04
+    type: pacing
+    reason: long_pause
+    recommended: true
+  summary: Okay, recording audio one holds.
+  distillation: okay recording audio one holds
+  usability: fine
+  candidate_priority: tertiary
+  suggested_narrative_roles:
+  - role: payoff
+    confidence: high
+  states:
+  - catharsis
+  durability: mood
+  confidence: medium
+  cluster:
+  prosody:
+    audio_profile: landing
+    energy: low
+    stumble_count: 0
+    max_pause_ms: 180
+    pitch_trend: varied
+  edit_notes: 'Mock labeling: landing/low'
+- id: cand_002
+  source: 002 I tried every laptop job.MP4
+  segment_ids:
+  - seg_003
+  t: 33.64
+  e: 34.76
+  text: Video recording.
+  trim_choices:
+  - id: trim_002
+    in: 33.64
+    out: 34.76
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: Video recording.
+  distillation: video recording
+  usability: fine
+  candidate_priority: secondary
+  suggested_narrative_roles:
+  - role: aside
+    confidence: medium
+  - role: transition
+    confidence: low
+  states:
+  - amusement
+  durability: spike
+  confidence: high
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 0
+    pitch_trend: rising
+  edit_notes: 'Mock labeling: casual/medium'
+- id: cand_003
+  source: 002 I tried every laptop job.MP4
+  segment_ids:
+  - seg_004
+  t: 78.66
+  e: 79.95
+  text: Oh, come on, come on.
+  trim_choices:
+  - id: trim_003
+    in: 78.66
+    out: 79.95
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: Oh, come on, come on.
+  distillation: oh come come
+  usability: fine
+  candidate_priority: tertiary
+  suggested_narrative_roles:
+  - role: aside
+    confidence: medium
+  - role: transition
+    confidence: low
+  states:
+  - amusement
+  durability: spike
+  confidence: medium
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: low
+    stumble_count: 0
+    max_pause_ms: 41
+    pitch_trend: rising
+  edit_notes: 'Mock labeling: casual/low'
+- id: cand_004
+  source: 002 I tried every laptop job.MP4
+  segment_ids:
+  - seg_005
+  t: 94.53
+  e: 95.29
+  text: Seven months.
+  trim_choices:
+  - id: trim_004
+    in: 94.53
+    out: 95.29
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: Seven months.
+  distillation: seven months
+  usability: fine
+  candidate_priority: primary
+  suggested_narrative_roles:
+  - role: payoff
+    confidence: high
+  states:
+  - catharsis
+  durability: mood
+  confidence: high
+  cluster: months_seven
+  prosody:
+    audio_profile: landing
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 0
+    pitch_trend: falling
+  edit_notes: 'Mock labeling: landing/high'
+- id: cand_005
+  source: 002 I tried every laptop job.MP4
+  segment_ids:
+  - seg_006
+  t: 98.24
+  e: 98.92
+  text: Seven months.
+  trim_choices:
+  - id: trim_005
+    in: 98.24
+    out: 98.92
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: Seven months.
+  distillation: seven months
+  usability: fine
+  candidate_priority: primary
+  suggested_narrative_roles:
+  - role: payoff
+    confidence: high
+  states:
+  - catharsis
+  durability: mood
+  confidence: high
+  cluster: months_seven
+  prosody:
+    audio_profile: landing
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 0
+    pitch_trend: falling
+  edit_notes: 'Mock labeling: landing/high'

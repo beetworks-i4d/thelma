@@ -1,0 +1,173 @@
+---
+version: '1.2'
+input_fingerprint: f5b7addadf691ac0311ca3913db8a14f9d6fdb4bb2424dab8b01f9cb664d1cde
+generated_at: deterministic
+candidate_count: 4
+candidates:
+- id: cand_001
+  source: 002 I tried every laptop job.MP4
+  segment_ids:
+  - seg_036
+  - seg_037
+  - seg_038
+  - seg_039
+  - seg_040
+  - seg_041
+  - seg_042
+  - seg_043
+  - seg_044
+  - seg_045
+  - seg_046
+  t: 274.56
+  e: 319.27
+  text: Here's how I evaluate any business model. Now six things profit margin startup
+    costs how long it takes to get going complexity once it's running demand and scalability.
+    These matter differently depending on your situation. So if you've got a job startup
+    costs don't bother you as much but time does. If you've got no job you've got
+    plenty of time but no budget right. So you have to know which of these actually
+    matters for you where you are right now. And most people don't even think about
+    that. They just pick a model because it sounds exciting or because someone on
+    YouTube made it look really easy. And I did the same thing at the start and it
+    really cost me months. OK. So let me walk you through every model that I tried
+    and how it actually went.
+  trim_choices:
+  - id: trim_001
+    in: 274.56
+    out: 319.27
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: Here's how I evaluate any business model.
+  distillation: heres how evaluate any business
+  usability: fine
+  candidate_priority: secondary
+  suggested_narrative_roles:
+  - role: aside
+    confidence: medium
+  - role: transition
+    confidence: low
+  states:
+  - amusement
+  durability: spike
+  confidence: high
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 421
+    pitch_trend: falling
+  edit_notes: 'Mock labeling: casual/medium'
+- id: cand_002
+  source: 002 I tried every laptop job.MP4
+  segment_ids:
+  - seg_047
+  t: 321.1
+  e: 323.5
+  text: And I'm saving the best one for last to stick.
+  trim_choices:
+  - id: trim_002
+    in: 321.1
+    out: 323.5
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: And I'm saving the best one for last to stick.
+  distillation: im saving best one last
+  usability: fine
+  candidate_priority: primary
+  suggested_narrative_roles:
+  - role: claim
+    confidence: high
+  - role: hook
+    confidence: medium
+  states:
+  - vindication
+  - competence
+  durability: mood
+  confidence: high
+  cluster: im_last_one
+  prosody:
+    audio_profile: emphatic
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 101
+    pitch_trend: falling
+  edit_notes: 'Mock labeling: emphatic/high'
+- id: cand_003
+  source: 002 I tried every laptop job.MP4
+  segment_ids:
+  - seg_048
+  t: 324.84
+  e: 325.76
+  text: And how it actually went.
+  trim_choices:
+  - id: trim_003
+    in: 324.84
+    out: 325.76
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: And how it actually went.
+  distillation: how actually went
+  usability: fine
+  candidate_priority: primary
+  suggested_narrative_roles:
+  - role: claim
+    confidence: high
+  - role: hook
+    confidence: medium
+  states:
+  - vindication
+  - competence
+  durability: mood
+  confidence: high
+  cluster:
+  prosody:
+    audio_profile: emphatic
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 80
+    pitch_trend: falling
+  edit_notes: 'Mock labeling: emphatic/high'
+- id: cand_004
+  source: 002 I tried every laptop job.MP4
+  segment_ids:
+  - seg_049
+  - seg_050
+  - seg_051
+  - seg_052
+  t: 327.46
+  e: 334.96
+  text: and I'm saving the one that worked for last. So stick around. Affiliate marketing
+    was my first attempt. You sell someone else's product and get a commission.
+  trim_choices:
+  - id: trim_004
+    in: 327.46
+    out: 334.96
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  exclusion_choices: []
+  summary: and I'm saving the one that worked for last.
+  distillation: im saving one worked last
+  usability: fine
+  candidate_priority: secondary
+  suggested_narrative_roles:
+  - role: payoff
+    confidence: high
+  states:
+  - catharsis
+  durability: mood
+  confidence: high
+  cluster: im_last_one
+  prosody:
+    audio_profile: landing
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 181
+    pitch_trend: falling
+  edit_notes: 'Mock labeling: landing/medium'

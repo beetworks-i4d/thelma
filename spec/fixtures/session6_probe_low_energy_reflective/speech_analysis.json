@@ -1,0 +1,64 @@
+{
+  "source_file": "Dylan Shorts 1.MP4 (probe extract: low_energy_reflective)",
+  "sample_rate": 16000,
+  "speech_segments": [
+
+  ],
+  "long_pauses": [
+    {
+      "start": 228.03,
+      "end": 230.05,
+      "duration": 2.02
+    },
+    {
+      "start": 234.366,
+      "end": 234.914,
+      "duration": 0.548
+    },
+    {
+      "start": 245.694,
+      "end": 248.994,
+      "duration": 3.3
+    },
+    {
+      "start": 250.302,
+      "end": 259.138,
+      "duration": 8.836
+    },
+    {
+      "start": 259.518,
+      "end": 311.682,
+      "duration": 52.164
+    },
+    {
+      "start": 313.502,
+      "end": 313.826,
+      "duration": 0.324
+    },
+    {
+      "start": 314.398,
+      "end": 317.57,
+      "duration": 3.172
+    },
+    {
+      "start": 337.534,
+      "end": 339.17,
+      "duration": 1.636
+    },
+    {
+      "start": 339.742,
+      "end": 341.218,
+      "duration": 1.476
+    },
+    {
+      "start": 341.63,
+      "end": 342.242,
+      "duration": 0.612
+    },
+    {
+      "start": 346.078,
+      "end": 347.33,
+      "duration": 1.252
+    }
+  ]
+}

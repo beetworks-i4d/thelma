@@ -1,0 +1,1221 @@
+{
+  "segments": [
+    {
+      "start": 274.56,
+      "end": 276.45,
+      "text": "Here's how I evaluate any business model.",
+      "words": [
+        {
+          "word": "Here's",
+          "start": 274.563,
+          "end": 274.723,
+          "score": 0.221
+        },
+        {
+          "word": "how",
+          "start": 274.763,
+          "end": 274.923,
+          "score": 0.502
+        },
+        {
+          "word": "I",
+          "start": 274.943,
+          "end": 274.963,
+          "score": 0.0
+        },
+        {
+          "word": "evaluate",
+          "start": 274.983,
+          "end": 275.444,
+          "score": 0.499
+        },
+        {
+          "word": "any",
+          "start": 275.724,
+          "end": 275.884,
+          "score": 0.939
+        },
+        {
+          "word": "business",
+          "start": 275.924,
+          "end": 276.205,
+          "score": 0.816
+        },
+        {
+          "word": "model.",
+          "start": 276.225,
+          "end": 276.445,
+          "score": 0.63
+        }
+      ]
+    },
+    {
+      "start": 276.47,
+      "end": 285.05,
+      "text": "Now six things profit margin startup costs how long it takes to get going complexity once it's running demand and scalability.",
+      "words": [
+        {
+          "word": "Now",
+          "start": 276.465,
+          "end": 276.605,
+          "score": 0.989
+        },
+        {
+          "word": "six",
+          "start": 277.126,
+          "end": 277.386,
+          "score": 0.996
+        },
+        {
+          "word": "things",
+          "start": 277.466,
+          "end": 277.786,
+          "score": 0.896
+        },
+        {
+          "word": "profit",
+          "start": 278.207,
+          "end": 278.547,
+          "score": 0.676
+        },
+        {
+          "word": "margin",
+          "start": 278.567,
+          "end": 278.988,
+          "score": 0.892
+        },
+        {
+          "word": "startup",
+          "start": 279.088,
+          "end": 279.488,
+          "score": 0.942
+        },
+        {
+          "word": "costs",
+          "start": 279.528,
+          "end": 279.828,
+          "score": 0.616
+        },
+        {
+          "word": "how",
+          "start": 280.149,
+          "end": 280.269,
+          "score": 0.996
+        },
+        {
+          "word": "long",
+          "start": 280.309,
+          "end": 280.429,
+          "score": 0.988
+        },
+        {
+          "word": "it",
+          "start": 280.489,
+          "end": 280.529,
+          "score": 0.986
+        },
+        {
+          "word": "takes",
+          "start": 280.569,
+          "end": 280.769,
+          "score": 0.85
+        },
+        {
+          "word": "to",
+          "start": 280.789,
+          "end": 280.869,
+          "score": 0.647
+        },
+        {
+          "word": "get",
+          "start": 280.889,
+          "end": 281.03,
+          "score": 0.817
+        },
+        {
+          "word": "going",
+          "start": 281.07,
+          "end": 281.37,
+          "score": 0.871
+        },
+        {
+          "word": "complexity",
+          "start": 281.67,
+          "end": 282.491,
+          "score": 0.899
+        },
+        {
+          "word": "once",
+          "start": 282.611,
+          "end": 282.771,
+          "score": 0.395
+        },
+        {
+          "word": "it's",
+          "start": 282.811,
+          "end": 282.932,
+          "score": 0.549
+        },
+        {
+          "word": "running",
+          "start": 282.992,
+          "end": 283.292,
+          "score": 0.87
+        },
+        {
+          "word": "demand",
+          "start": 283.592,
+          "end": 284.173,
+          "score": 0.866
+        },
+        {
+          "word": "and",
+          "start": 284.293,
+          "end": 284.373,
+          "score": 0.877
+        },
+        {
+          "word": "scalability.",
+          "start": 284.433,
+          "end": 285.054,
+          "score": 0.894
+        }
+      ]
+    },
+    {
+      "start": 285.51,
+      "end": 288.0,
+      "text": "These matter differently depending on your situation.",
+      "words": [
+        {
+          "word": "These",
+          "start": 285.514,
+          "end": 285.754,
+          "score": 0.75
+        },
+        {
+          "word": "matter",
+          "start": 285.814,
+          "end": 286.075,
+          "score": 0.684
+        },
+        {
+          "word": "differently",
+          "start": 286.115,
+          "end": 286.495,
+          "score": 0.889
+        },
+        {
+          "word": "depending",
+          "start": 286.555,
+          "end": 287.116,
+          "score": 0.899
+        },
+        {
+          "word": "on",
+          "start": 287.176,
+          "end": 287.216,
+          "score": 0.999
+        },
+        {
+          "word": "your",
+          "start": 287.236,
+          "end": 287.356,
+          "score": 0.914
+        },
+        {
+          "word": "situation.",
+          "start": 287.376,
+          "end": 287.997,
+          "score": 0.862
+        }
+      ]
+    },
+    {
+      "start": 288.1,
+      "end": 293.06,
+      "text": "So if you've got a job startup costs don't bother you as much but time does.",
+      "words": [
+        {
+          "word": "So",
+          "start": 288.097,
+          "end": 288.277,
+          "score": 0.923
+        },
+        {
+          "word": "if",
+          "start": 288.657,
+          "end": 288.697,
+          "score": 0.984
+        },
+        {
+          "word": "you've",
+          "start": 288.737,
+          "end": 288.858,
+          "score": 0.525
+        },
+        {
+          "word": "got",
+          "start": 288.878,
+          "end": 288.978,
+          "score": 0.815
+        },
+        {
+          "word": "a",
+          "start": 289.018,
+          "end": 289.058,
+          "score": 0.53
+        },
+        {
+          "word": "job",
+          "start": 289.118,
+          "end": 289.578,
+          "score": 0.923
+        },
+        {
+          "word": "startup",
+          "start": 289.959,
+          "end": 290.359,
+          "score": 0.914
+        },
+        {
+          "word": "costs",
+          "start": 290.379,
+          "end": 290.719,
+          "score": 0.622
+        },
+        {
+          "word": "don't",
+          "start": 290.86,
+          "end": 291.08,
+          "score": 0.761
+        },
+        {
+          "word": "bother",
+          "start": 291.22,
+          "end": 291.46,
+          "score": 0.889
+        },
+        {
+          "word": "you",
+          "start": 291.5,
+          "end": 291.6,
+          "score": 0.743
+        },
+        {
+          "word": "as",
+          "start": 291.8,
+          "end": 291.881,
+          "score": 0.79
+        },
+        {
+          "word": "much",
+          "start": 291.981,
+          "end": 292.201,
+          "score": 0.837
+        },
+        {
+          "word": "but",
+          "start": 292.261,
+          "end": 292.401,
+          "score": 0.885
+        },
+        {
+          "word": "time",
+          "start": 292.481,
+          "end": 292.781,
+          "score": 0.782
+        },
+        {
+          "word": "does.",
+          "start": 292.822,
+          "end": 293.062,
+          "score": 0.823
+        }
+      ]
+    },
+    {
+      "start": 293.42,
+      "end": 297.48,
+      "text": "If you've got no job you've got plenty of time but no budget right.",
+      "words": [
+        {
+          "word": "If",
+          "start": 293.422,
+          "end": 293.482,
+          "score": 0.994
+        },
+        {
+          "word": "you've",
+          "start": 293.502,
+          "end": 293.642,
+          "score": 0.776
+        },
+        {
+          "word": "got",
+          "start": 293.662,
+          "end": 293.782,
+          "score": 0.709
+        },
+        {
+          "word": "no",
+          "start": 293.842,
+          "end": 294.022,
+          "score": 0.86
+        },
+        {
+          "word": "job",
+          "start": 294.082,
+          "end": 294.422,
+          "score": 0.989
+        },
+        {
+          "word": "you've",
+          "start": 294.742,
+          "end": 294.922,
+          "score": 0.861
+        },
+        {
+          "word": "got",
+          "start": 294.942,
+          "end": 295.103,
+          "score": 0.594
+        },
+        {
+          "word": "plenty",
+          "start": 295.243,
+          "end": 295.503,
+          "score": 0.868
+        },
+        {
+          "word": "of",
+          "start": 295.543,
+          "end": 295.583,
+          "score": 0.99
+        },
+        {
+          "word": "time",
+          "start": 295.643,
+          "end": 296.063,
+          "score": 0.704
+        },
+        {
+          "word": "but",
+          "start": 296.423,
+          "end": 296.583,
+          "score": 0.874
+        },
+        {
+          "word": "no",
+          "start": 296.663,
+          "end": 296.823,
+          "score": 0.752
+        },
+        {
+          "word": "budget",
+          "start": 296.863,
+          "end": 297.203,
+          "score": 0.855
+        },
+        {
+          "word": "right.",
+          "start": 297.223,
+          "end": 297.483,
+          "score": 0.31
+        }
+      ]
+    },
+    {
+      "start": 297.62,
+      "end": 301.75,
+      "text": "So you have to know which of these actually matters for you where you are right now.",
+      "words": [
+        {
+          "word": "So",
+          "start": 297.623,
+          "end": 297.763,
+          "score": 0.89
+        },
+        {
+          "word": "you",
+          "start": 298.043,
+          "end": 298.223,
+          "score": 0.772
+        },
+        {
+          "word": "have",
+          "start": 298.263,
+          "end": 298.404,
+          "score": 0.978
+        },
+        {
+          "word": "to",
+          "start": 298.444,
+          "end": 298.504,
+          "score": 0.752
+        },
+        {
+          "word": "know",
+          "start": 298.544,
+          "end": 298.664,
+          "score": 0.846
+        },
+        {
+          "word": "which",
+          "start": 298.704,
+          "end": 298.864,
+          "score": 0.893
+        },
+        {
+          "word": "of",
+          "start": 298.904,
+          "end": 298.944,
+          "score": 0.986
+        },
+        {
+          "word": "these",
+          "start": 298.984,
+          "end": 299.144,
+          "score": 0.87
+        },
+        {
+          "word": "actually",
+          "start": 299.244,
+          "end": 299.544,
+          "score": 0.835
+        },
+        {
+          "word": "matters",
+          "start": 299.664,
+          "end": 299.984,
+          "score": 0.811
+        },
+        {
+          "word": "for",
+          "start": 300.024,
+          "end": 300.144,
+          "score": 0.994
+        },
+        {
+          "word": "you",
+          "start": 300.184,
+          "end": 300.404,
+          "score": 0.919
+        },
+        {
+          "word": "where",
+          "start": 300.804,
+          "end": 300.984,
+          "score": 0.669
+        },
+        {
+          "word": "you",
+          "start": 301.004,
+          "end": 301.064,
+          "score": 0.061
+        },
+        {
+          "word": "are",
+          "start": 301.164,
+          "end": 301.284,
+          "score": 0.7
+        },
+        {
+          "word": "right",
+          "start": 301.324,
+          "end": 301.524,
+          "score": 0.729
+        },
+        {
+          "word": "now.",
+          "start": 301.564,
+          "end": 301.745,
+          "score": 0.851
+        }
+      ]
+    },
+    {
+      "start": 302.19,
+      "end": 303.81,
+      "text": "And most people don't even think about that.",
+      "words": [
+        {
+          "word": "And",
+          "start": 302.185,
+          "end": 302.305,
+          "score": 0.93
+        },
+        {
+          "word": "most",
+          "start": 302.485,
+          "end": 302.665,
+          "score": 0.762
+        },
+        {
+          "word": "people",
+          "start": 302.685,
+          "end": 302.885,
+          "score": 0.831
+        },
+        {
+          "word": "don't",
+          "start": 302.905,
+          "end": 303.005,
+          "score": 0.616
+        },
+        {
+          "word": "even",
+          "start": 303.025,
+          "end": 303.165,
+          "score": 0.957
+        },
+        {
+          "word": "think",
+          "start": 303.185,
+          "end": 303.345,
+          "score": 0.931
+        },
+        {
+          "word": "about",
+          "start": 303.385,
+          "end": 303.565,
+          "score": 0.975
+        },
+        {
+          "word": "that.",
+          "start": 303.605,
+          "end": 303.805,
+          "score": 0.822
+        }
+      ]
+    },
+    {
+      "start": 304.07,
+      "end": 309.89,
+      "text": "They just pick a model because it sounds exciting or because someone on YouTube made it look really easy.",
+      "words": [
+        {
+          "word": "They",
+          "start": 304.065,
+          "end": 304.205,
+          "score": 0.874
+        },
+        {
+          "word": "just",
+          "start": 304.245,
+          "end": 304.385,
+          "score": 0.882
+        },
+        {
+          "word": "pick",
+          "start": 304.525,
+          "end": 304.725,
+          "score": 0.863
+        },
+        {
+          "word": "a",
+          "start": 304.765,
+          "end": 304.805,
+          "score": 0.661
+        },
+        {
+          "word": "model",
+          "start": 304.845,
+          "end": 305.266,
+          "score": 0.799
+        },
+        {
+          "word": "because",
+          "start": 305.386,
+          "end": 305.586,
+          "score": 0.928
+        },
+        {
+          "word": "it",
+          "start": 305.626,
+          "end": 305.666,
+          "score": 0.995
+        },
+        {
+          "word": "sounds",
+          "start": 305.746,
+          "end": 306.026,
+          "score": 0.91
+        },
+        {
+          "word": "exciting",
+          "start": 306.086,
+          "end": 306.706,
+          "score": 0.89
+        },
+        {
+          "word": "or",
+          "start": 306.926,
+          "end": 306.986,
+          "score": 0.998
+        },
+        {
+          "word": "because",
+          "start": 307.246,
+          "end": 307.466,
+          "score": 0.81
+        },
+        {
+          "word": "someone",
+          "start": 307.506,
+          "end": 307.726,
+          "score": 0.937
+        },
+        {
+          "word": "on",
+          "start": 307.746,
+          "end": 307.826,
+          "score": 0.804
+        },
+        {
+          "word": "YouTube",
+          "start": 307.866,
+          "end": 308.326,
+          "score": 0.605
+        },
+        {
+          "word": "made",
+          "start": 308.386,
+          "end": 308.547,
+          "score": 0.907
+        },
+        {
+          "word": "it",
+          "start": 308.587,
+          "end": 308.687,
+          "score": 0.742
+        },
+        {
+          "word": "look",
+          "start": 308.927,
+          "end": 309.187,
+          "score": 0.839
+        },
+        {
+          "word": "really",
+          "start": 309.287,
+          "end": 309.507,
+          "score": 0.776
+        },
+        {
+          "word": "easy.",
+          "start": 309.607,
+          "end": 309.887,
+          "score": 0.949
+        }
+      ]
+    },
+    {
+      "start": 310.39,
+      "end": 314.39,
+      "text": "And I did the same thing at the start and it really cost me months.",
+      "words": [
+        {
+          "word": "And",
+          "start": 310.387,
+          "end": 310.527,
+          "score": 0.708
+        },
+        {
+          "word": "I",
+          "start": 310.787,
+          "end": 310.867,
+          "score": 0.946
+        },
+        {
+          "word": "did",
+          "start": 310.907,
+          "end": 311.027,
+          "score": 0.844
+        },
+        {
+          "word": "the",
+          "start": 311.067,
+          "end": 311.147,
+          "score": 0.836
+        },
+        {
+          "word": "same",
+          "start": 311.187,
+          "end": 311.387,
+          "score": 0.765
+        },
+        {
+          "word": "thing",
+          "start": 311.427,
+          "end": 311.647,
+          "score": 0.734
+        },
+        {
+          "word": "at",
+          "start": 311.808,
+          "end": 311.868,
+          "score": 0.916
+        },
+        {
+          "word": "the",
+          "start": 311.888,
+          "end": 311.988,
+          "score": 0.739
+        },
+        {
+          "word": "start",
+          "start": 312.008,
+          "end": 312.268,
+          "score": 0.984
+        },
+        {
+          "word": "and",
+          "start": 312.668,
+          "end": 312.788,
+          "score": 0.849
+        },
+        {
+          "word": "it",
+          "start": 312.848,
+          "end": 312.908,
+          "score": 0.867
+        },
+        {
+          "word": "really",
+          "start": 312.948,
+          "end": 313.168,
+          "score": 0.944
+        },
+        {
+          "word": "cost",
+          "start": 313.268,
+          "end": 313.548,
+          "score": 0.883
+        },
+        {
+          "word": "me",
+          "start": 313.608,
+          "end": 313.788,
+          "score": 0.839
+        },
+        {
+          "word": "months.",
+          "start": 314.088,
+          "end": 314.388,
+          "score": 0.856
+        }
+      ]
+    },
+    {
+      "start": 314.69,
+      "end": 314.95,
+      "text": "OK.",
+      "words": [
+        {
+          "word": "OK.",
+          "start": 314.688,
+          "end": 314.948,
+          "score": 0.644
+        }
+      ]
+    },
+    {
+      "start": 315.27,
+      "end": 319.27,
+      "text": "So let me walk you through every model that I tried and how it actually went.",
+      "words": [
+        {
+          "word": "So",
+          "start": 315.269,
+          "end": 315.409,
+          "score": 0.721
+        },
+        {
+          "word": "let",
+          "start": 315.749,
+          "end": 315.909,
+          "score": 0.665
+        },
+        {
+          "word": "me",
+          "start": 315.949,
+          "end": 316.009,
+          "score": 0.996
+        },
+        {
+          "word": "walk",
+          "start": 316.049,
+          "end": 316.209,
+          "score": 0.978
+        },
+        {
+          "word": "you",
+          "start": 316.249,
+          "end": 316.329,
+          "score": 0.895
+        },
+        {
+          "word": "through",
+          "start": 316.349,
+          "end": 316.549,
+          "score": 0.853
+        },
+        {
+          "word": "every",
+          "start": 316.689,
+          "end": 316.869,
+          "score": 0.927
+        },
+        {
+          "word": "model",
+          "start": 316.909,
+          "end": 317.149,
+          "score": 0.76
+        },
+        {
+          "word": "that",
+          "start": 317.189,
+          "end": 317.329,
+          "score": 0.969
+        },
+        {
+          "word": "I",
+          "start": 317.509,
+          "end": 317.609,
+          "score": 0.798
+        },
+        {
+          "word": "tried",
+          "start": 317.649,
+          "end": 317.969,
+          "score": 0.796
+        },
+        {
+          "word": "and",
+          "start": 318.289,
+          "end": 318.389,
+          "score": 0.915
+        },
+        {
+          "word": "how",
+          "start": 318.449,
+          "end": 318.57,
+          "score": 0.896
+        },
+        {
+          "word": "it",
+          "start": 318.65,
+          "end": 318.73,
+          "score": 0.486
+        },
+        {
+          "word": "actually",
+          "start": 318.77,
+          "end": 319.05,
+          "score": 0.897
+        },
+        {
+          "word": "went.",
+          "start": 319.09,
+          "end": 319.27,
+          "score": 0.932
+        }
+      ]
+    },
+    {
+      "start": 321.1,
+      "end": 323.5,
+      "text": "And I'm saving the best one for last to stick.",
+      "words": [
+        {
+          "word": "And",
+          "start": 321.097,
+          "end": 321.217,
+          "score": 0.685
+        },
+        {
+          "word": "I'm",
+          "start": 321.337,
+          "end": 321.457,
+          "score": 0.982
+        },
+        {
+          "word": "saving",
+          "start": 321.537,
+          "end": 321.957,
+          "score": 0.775
+        },
+        {
+          "word": "the",
+          "start": 322.058,
+          "end": 322.138,
+          "score": 0.988
+        },
+        {
+          "word": "best",
+          "start": 322.178,
+          "end": 322.378,
+          "score": 0.956
+        },
+        {
+          "word": "one",
+          "start": 322.478,
+          "end": 322.598,
+          "score": 0.93
+        },
+        {
+          "word": "for",
+          "start": 322.638,
+          "end": 322.758,
+          "score": 0.796
+        },
+        {
+          "word": "last",
+          "start": 322.778,
+          "end": 323.078,
+          "score": 0.87
+        },
+        {
+          "word": "to",
+          "start": 323.098,
+          "end": 323.198,
+          "score": 0.867
+        },
+        {
+          "word": "stick.",
+          "start": 323.238,
+          "end": 323.498,
+          "score": 0.926
+        }
+      ]
+    },
+    {
+      "start": 324.84,
+      "end": 325.76,
+      "text": "And how it actually went.",
+      "words": [
+        {
+          "word": "And",
+          "start": 324.839,
+          "end": 324.919,
+          "score": 0.953
+        },
+        {
+          "word": "how",
+          "start": 324.979,
+          "end": 325.079,
+          "score": 0.996
+        },
+        {
+          "word": "it",
+          "start": 325.159,
+          "end": 325.219,
+          "score": 0.713
+        },
+        {
+          "word": "actually",
+          "start": 325.259,
+          "end": 325.519,
+          "score": 0.927
+        },
+        {
+          "word": "went.",
+          "start": 325.559,
+          "end": 325.759,
+          "score": 0.851
+        }
+      ]
+    },
+    {
+      "start": 327.46,
+      "end": 329.14,
+      "text": "and I'm saving the one that worked for last.",
+      "words": [
+        {
+          "word": "and",
+          "start": 327.46,
+          "end": 327.56,
+          "score": 0.698
+        },
+        {
+          "word": "I'm",
+          "start": 327.6,
+          "end": 327.72,
+          "score": 0.742
+        },
+        {
+          "word": "saving",
+          "start": 327.78,
+          "end": 328.081,
+          "score": 0.86
+        },
+        {
+          "word": "the",
+          "start": 328.101,
+          "end": 328.161,
+          "score": 0.994
+        },
+        {
+          "word": "one",
+          "start": 328.221,
+          "end": 328.301,
+          "score": 0.836
+        },
+        {
+          "word": "that",
+          "start": 328.341,
+          "end": 328.441,
+          "score": 0.917
+        },
+        {
+          "word": "worked",
+          "start": 328.461,
+          "end": 328.681,
+          "score": 0.894
+        },
+        {
+          "word": "for",
+          "start": 328.721,
+          "end": 328.821,
+          "score": 0.888
+        },
+        {
+          "word": "last.",
+          "start": 328.861,
+          "end": 329.141,
+          "score": 0.729
+        }
+      ]
+    },
+    {
+      "start": 329.16,
+      "end": 329.92,
+      "text": "So stick around.",
+      "words": [
+        {
+          "word": "So",
+          "start": 329.161,
+          "end": 329.301,
+          "score": 0.648
+        },
+        {
+          "word": "stick",
+          "start": 329.341,
+          "end": 329.561,
+          "score": 0.849
+        },
+        {
+          "word": "around.",
+          "start": 329.601,
+          "end": 329.921,
+          "score": 0.752
+        }
+      ]
+    },
+    {
+      "start": 330.24,
+      "end": 332.12,
+      "text": "Affiliate marketing was my first attempt.",
+      "words": [
+        {
+          "word": "Affiliate",
+          "start": 330.242,
+          "end": 330.702,
+          "score": 0.672
+        },
+        {
+          "word": "marketing",
+          "start": 330.742,
+          "end": 331.122,
+          "score": 0.868
+        },
+        {
+          "word": "was",
+          "start": 331.142,
+          "end": 331.262,
+          "score": 0.779
+        },
+        {
+          "word": "my",
+          "start": 331.302,
+          "end": 331.402,
+          "score": 0.949
+        },
+        {
+          "word": "first",
+          "start": 331.462,
+          "end": 331.722,
+          "score": 0.859
+        },
+        {
+          "word": "attempt.",
+          "start": 331.782,
+          "end": 332.123,
+          "score": 0.892
+        }
+      ]
+    },
+    {
+      "start": 332.44,
+      "end": 334.96,
+      "text": "You sell someone else's product and get a commission.",
+      "words": [
+        {
+          "word": "You",
+          "start": 332.443,
+          "end": 332.663,
+          "score": 0.971
+        },
+        {
+          "word": "sell",
+          "start": 332.743,
+          "end": 332.983,
+          "score": 0.915
+        },
+        {
+          "word": "someone",
+          "start": 333.023,
+          "end": 333.263,
+          "score": 0.889
+        },
+        {
+          "word": "else's",
+          "start": 333.283,
+          "end": 333.563,
+          "score": 0.829
+        },
+        {
+          "word": "product",
+          "start": 333.623,
+          "end": 334.023,
+          "score": 0.949
+        },
+        {
+          "word": "and",
+          "start": 334.204,
+          "end": 334.304,
+          "score": 0.872
+        },
+        {
+          "word": "get",
+          "start": 334.344,
+          "end": 334.464,
+          "score": 0.924
+        },
+        {
+          "word": "a",
+          "start": 334.504,
+          "end": 334.524,
+          "score": 0.989
+        },
+        {
+          "word": "commission.",
+          "start": 334.564,
+          "end": 334.964,
+          "score": 0.927
+        }
+      ]
+    }
+  ]
+}

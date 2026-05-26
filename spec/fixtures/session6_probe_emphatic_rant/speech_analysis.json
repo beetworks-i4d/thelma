@@ -1,0 +1,54 @@
+{
+  "source_file": "Dylan Shorts 1.MP4 (probe extract: emphatic_rant)",
+  "sample_rate": 16000,
+  "speech_segments": [
+
+  ],
+  "long_pauses": [
+    {
+      "start": 111.55,
+      "end": 114.178,
+      "duration": 2.628
+    },
+    {
+      "start": 122.27,
+      "end": 124.29,
+      "duration": 2.02
+    },
+    {
+      "start": 147.358,
+      "end": 149.57,
+      "duration": 2.212
+    },
+    {
+      "start": 157.15,
+      "end": 158.786,
+      "duration": 1.636
+    },
+    {
+      "start": 160.094,
+      "end": 161.378,
+      "duration": 1.284
+    },
+    {
+      "start": 161.79,
+      "end": 162.114,
+      "duration": 0.324
+    },
+    {
+      "start": 162.622,
+      "end": 163.138,
+      "duration": 0.516
+    },
+    {
+      "start": 172.67,
+      "end": 173.154,
+      "duration": 0.484
+    },
+    {
+      "start": 180.382,
+      "end": 182.626,
+      "duration": 2.244
+    }
+  ]
+}

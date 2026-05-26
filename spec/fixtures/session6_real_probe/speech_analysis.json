@@ -1,0 +1,44 @@
+{
+  "source_file": "MVI_5119.MP4 (domain-converted from ZOOM0019.WAV, offset -10.246188)",
+  "sample_rate": 16000,
+  "speech_segments": [
+
+  ],
+  "long_pauses": [
+    {
+      "start": 875.575812,
+      "end": 877.083812,
+      "duration": 1.508
+    },
+    {
+      "start": 894.135812,
+      "end": 894.811812,
+      "duration": 0.676
+    },
+    {
+      "start": 896.823812,
+      "end": 897.467812,
+      "duration": 0.644
+    },
+    {
+      "start": 903.255812,
+      "end": 929.787812,
+      "duration": 26.532
+    },
+    {
+      "start": 931.959812,
+      "end": 932.283812,
+      "duration": 0.324
+    },
+    {
+      "start": 933.559812,
+      "end": 944.219812,
+      "duration": 10.66
+    },
+    {
+      "start": 971.383812,
+      "end": 978.843812,
+      "duration": 7.46
+    }
+  ]
+}

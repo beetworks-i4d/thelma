@@ -1,0 +1,160 @@
+{
+  "segments": [
+    {
+      "start": 11.41,
+      "end": 13.65,
+      "text": "Okay, recording audio one holds.",
+      "words": [
+        {
+          "word": "Okay,",
+          "start": 11.405,
+          "end": 11.745,
+          "score": 0.691
+        },
+        {
+          "word": "recording",
+          "start": 11.765,
+          "end": 12.306,
+          "score": 0.824
+        },
+        {
+          "word": "audio",
+          "start": 12.406,
+          "end": 12.726,
+          "score": 0.67
+        },
+        {
+          "word": "one",
+          "start": 12.906,
+          "end": 13.066,
+          "score": 0.859
+        },
+        {
+          "word": "holds.",
+          "start": 13.166,
+          "end": 13.647,
+          "score": 0.813
+        }
+      ]
+    },
+    {
+      "start": 13.67,
+      "end": 20.51,
+      "text": "Recording audio two.",
+      "words": [
+        {
+          "word": "Recording",
+          "start": 13.667,
+          "end": 19.37,
+          "score": 0.858
+        },
+        {
+          "word": "audio",
+          "start": 19.471,
+          "end": 19.871,
+          "score": 0.776
+        },
+        {
+          "word": "two.",
+          "start": 20.051,
+          "end": 20.511,
+          "score": 0.932
+        }
+      ]
+    },
+    {
+      "start": 33.64,
+      "end": 34.76,
+      "text": "Video recording.",
+      "words": [
+        {
+          "word": "Video",
+          "start": 33.64,
+          "end": 34.08,
+          "score": 0.718
+        },
+        {
+          "word": "recording.",
+          "start": 34.201,
+          "end": 34.761,
+          "score": 0.939
+        }
+      ]
+    },
+    {
+      "start": 78.66,
+      "end": 79.95,
+      "text": "Oh, come on, come on.",
+      "words": [
+        {
+          "word": "Oh,",
+          "start": 78.661,
+          "end": 79.106,
+          "score": 0.676
+        },
+        {
+          "word": "come",
+          "start": 79.146,
+          "end": 79.348,
+          "score": 0.512
+        },
+        {
+          "word": "on,",
+          "start": 79.368,
+          "end": 79.489,
+          "score": 0.658
+        },
+        {
+          "word": "come",
+          "start": 79.53,
+          "end": 79.792,
+          "score": 0.593
+        },
+        {
+          "word": "on.",
+          "start": 79.893,
+          "end": 79.953,
+          "score": 0.295
+        }
+      ]
+    },
+    {
+      "start": 94.53,
+      "end": 95.29,
+      "text": "Seven months.",
+      "words": [
+        {
+          "word": "Seven",
+          "start": 94.533,
+          "end": 94.853,
+          "score": 0.843
+        },
+        {
+          "word": "months.",
+          "start": 94.913,
+          "end": 95.294,
+          "score": 0.82
+        }
+      ]
+    },
+    {
+      "start": 98.24,
+      "end": 98.92,
+      "text": "Seven months.",
+      "words": [
+        {
+          "word": "Seven",
+          "start": 98.236,
+          "end": 98.536,
+          "score": 0.881
+        },
+        {
+          "word": "months.",
+          "start": 98.596,
+          "end": 98.916,
+          "score": 0.878
+        }
+      ]
+    }
+  ]
+}

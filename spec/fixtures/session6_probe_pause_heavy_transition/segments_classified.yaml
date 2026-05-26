@@ -1,0 +1,214 @@
+---
+version: 1
+input_fingerprint: probe_pause_heavy_transition
+generated_at: '2026-05-24T23:57:22+02:00'
+segments:
+- id: seg_023
+  t: 404.64
+  e: 415.87
+  text: And I was that way as well. In the beginning, I didn't really know what to
+    do. And because I didn't have that knowledge, I questioned every little thing
+    about building online business. And that stopped me from acting
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 1.042
+  audio_energy_variance: 0.003227
+  audio_pitch_mean: 172.7
+  audio_pitch_range: 159.7
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.027
+  audio_spectral_centroid: 0.99
+  acoustic_pattern: builds to emphasis late
+  stumble_count: 0
+  mid_word_break_count: 33
+  mean_trailing_pause_ms: 9972
+  max_within_segment_pause_ms: 100
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_024
+  t: 418.54
+  e: 431.73
+  text: And what changed everything for me wasn't some secret tactic or strategy.
+    I paid $2,000 to a coach and they didn't really teach me anything new, but what
+    they did teach me is the only person that can do it is me.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 0.924
+  audio_energy_variance: 0.002876
+  audio_pitch_mean: 163.3
+  audio_pitch_range: 177.4
+  audio_pitch_trend: flat
+  audio_speaking_rate: 0.941
+  audio_spectral_centroid: 1.04
+  acoustic_pattern: opens flat peaks mid ends flat
+  stumble_count: 0
+  mid_word_break_count: 45
+  mean_trailing_pause_ms: 12274
+  max_within_segment_pause_ms: 215
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_025
+  t: 441.16
+  e: 448.78
+  text: At a certain point, you have enough information to get results. You just need
+    to give yourself permission to take the actions that lead to the results.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 0.892
+  audio_energy_variance: 0.002354
+  audio_pitch_mean: 164.4
+  audio_pitch_range: 146.7
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.048
+  audio_spectral_centroid: 0.944
+  acoustic_pattern: opens flat peaks mid ends flat
+  stumble_count: 0
+  mid_word_break_count: 34
+  mean_trailing_pause_ms: 8508
+  max_within_segment_pause_ms: 120
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_026
+  t: 453.75
+  e: 466.49
+  text: And the problem is that most people never do. We never give ourselves that
+    permission. We wait for it externally and we wait to feel it internally as if
+    we're going to have all the right information, have all the knowledge so we can
+    finally act.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 1.076
+  audio_energy_variance: 0.003745
+  audio_pitch_mean: 155.5
+  audio_pitch_range: 140.2
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.067
+  audio_spectral_centroid: 0.974
+  acoustic_pattern: even and measured
+  stumble_count: 0
+  mid_word_break_count: 27
+  mean_trailing_pause_ms: 6485
+  max_within_segment_pause_ms: 161
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_027
+  t: 466.83
+  e: 478.56
+  text: where the reality is you don't need all the information right now. You just
+    need to take action, give yourself permission to act, gather enough information
+    to take action on, and then just learn as you go and you'll solve it along the
+    way.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 0.164
+  audio_energy_variance: 0.001075
+  audio_pitch_mean: 132.1
+  audio_pitch_range: 51.5
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.109
+  audio_spectral_centroid: 1.171
+  acoustic_pattern: winding down
+  stumble_count: 0
+  mid_word_break_count: 65
+  mean_trailing_pause_ms: 3682
+  max_within_segment_pause_ms: 104
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_028
+  t: 490.02
+  e: 504.97
+  text: So the system that we're thrown into from birth trains us to wait for permission.
+    When the reality is we had it the entire time, the permission we need is just
+    to act and start focusing on things that lead to the result we want and do, and
+    by trial and error, you'll figure it out.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 1.008
+  audio_energy_variance: 0.004504
+  audio_pitch_mean: 161.4
+  audio_pitch_range: 161.3
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.107
+  audio_spectral_centroid: 0.891
+  acoustic_pattern: fades out late
+  stumble_count: 0
+  mid_word_break_count: 15
+  mean_trailing_pause_ms: 629
+  max_within_segment_pause_ms: 160
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_029
+  t: 515.94
+  e: 520.68
+  text: The people that get results are those that just take action, implement right
+    away and give themselves permission.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 1.01
+  audio_energy_variance: 0.003956
+  audio_pitch_mean: 140.3
+  audio_pitch_range: 53.5
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.123
+  audio_spectral_centroid: 0.83
+  acoustic_pattern: fades out late
+  stumble_count: 0
+  mid_word_break_count: 21
+  mean_trailing_pause_ms: 1433
+  max_within_segment_pause_ms: 340
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_030
+  t: 520.78
+  e: 532.93
+  text: But most people, most people will never give themselves permission and they
+    just sit there thinking and worrying about all the things that could potentially
+    happen rather than just going into the ring and getting punched in the face.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 0.271
+  audio_energy_variance: 0.001137
+  audio_pitch_mean: 133.0
+  audio_pitch_range: 103.2
+  audio_pitch_trend: rising
+  audio_speaking_rate: 0.949
+  audio_spectral_centroid: 1.137
+  acoustic_pattern: fades out late
+  stumble_count: 0
+  mid_word_break_count: 38
+  mean_trailing_pause_ms: 7348
+  max_within_segment_pause_ms: 88
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:

@@ -1,0 +1,149 @@
+---
+version: 1
+input_fingerprint: probe_dead_air_setup
+generated_at: '2026-05-24T23:57:22+02:00'
+segments:
+- id: seg_001
+  t: 11.41
+  e: 13.65
+  text: Okay, recording audio one holds.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: landing
+  audio_energy: 1.087
+  audio_energy_variance: 0.003277
+  audio_pitch_mean: 160.1
+  audio_pitch_range: 97.9
+  audio_pitch_trend: rising
+  audio_speaking_rate: 0.691
+  audio_spectral_centroid: 0.796
+  acoustic_pattern: fades out late
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 5092
+  max_within_segment_pause_ms: 180
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_002
+  t: 13.67
+  e: 20.51
+  text: Recording audio two.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 0.104
+  audio_energy_variance: 0.000204
+  audio_pitch_mean: 143.2
+  audio_pitch_range: 41.5
+  audio_pitch_trend: flat
+  audio_speaking_rate: 0.136
+  audio_spectral_centroid: 1.496
+  acoustic_pattern: builds to emphasis late
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 12900
+  max_within_segment_pause_ms: 0
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_003
+  t: 33.64
+  e: 34.76
+  text: Video recording.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 0.822
+  audio_energy_variance: 0.000994
+  audio_pitch_mean: 147.8
+  audio_pitch_range: 35.5
+  audio_pitch_trend: rising
+  audio_speaking_rate: 0.553
+  audio_spectral_centroid: 0.731
+  acoustic_pattern: dips mid then recovers
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 43652
+  max_within_segment_pause_ms: 0
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_004
+  t: 78.66
+  e: 79.95
+  text: Oh, come on, come on.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 0.151
+  audio_energy_variance: 5.2e-05
+  audio_pitch_mean: 176.2
+  audio_pitch_range: 64.9
+  audio_pitch_trend: rising
+  audio_speaking_rate: 1.201
+  audio_spectral_centroid: 1.057
+  acoustic_pattern: winding down
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 132
+  max_within_segment_pause_ms: 41
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_005
+  t: 94.53
+  e: 95.29
+  text: Seven months.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: landing
+  audio_energy: 1.649
+  audio_energy_variance: 0.007126
+  audio_pitch_mean: 175.2
+  audio_pitch_range: 52.3
+  audio_pitch_trend: falling
+  audio_speaking_rate: 0.815
+  audio_spectral_centroid: 1.267
+  acoustic_pattern: emphatic-then-flat
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 132
+  max_within_segment_pause_ms: 0
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_006
+  t: 98.24
+  e: 98.92
+  text: Seven months.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: landing
+  audio_energy: 1.5
+  audio_energy_variance: 0.006412
+  audio_pitch_mean: 166.7
+  audio_pitch_range: 64.9
+  audio_pitch_trend: falling
+  audio_speaking_rate: 0.911
+  audio_spectral_centroid: 1.304
+  acoustic_pattern: emphatic-then-flat
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 132
+  max_within_segment_pause_ms: 0
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:

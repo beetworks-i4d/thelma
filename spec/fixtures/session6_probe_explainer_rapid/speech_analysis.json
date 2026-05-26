@@ -1,0 +1,24 @@
+{
+  "source_file": "002 I tried every laptop job.MP4 (probe extract: explainer_rapid)",
+  "sample_rate": 16000,
+  "speech_segments": [
+
+  ],
+  "long_pauses": [
+    {
+      "start": 274.078,
+      "end": 274.53,
+      "duration": 0.452
+    },
+    {
+      "start": 319.966,
+      "end": 320.994,
+      "duration": 1.028
+    },
+    {
+      "start": 323.646,
+      "end": 324.77,
+      "duration": 1.124
+    }
+  ]
+}

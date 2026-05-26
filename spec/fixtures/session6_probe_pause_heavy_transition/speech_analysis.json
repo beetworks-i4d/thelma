@@ -1,0 +1,39 @@
+{
+  "source_file": "Dylan Shorts 1.MP4 (probe extract: pause_heavy_transition)",
+  "sample_rate": 16000,
+  "speech_segments": [
+
+  ],
+  "long_pauses": [
+    {
+      "start": 438.974,
+      "end": 439.522,
+      "duration": 0.548
+    },
+    {
+      "start": 468.574,
+      "end": 479.906,
+      "duration": 11.332
+    },
+    {
+      "start": 500.862,
+      "end": 501.474,
+      "duration": 0.612
+    },
+    {
+      "start": 504.734,
+      "end": 505.826,
+      "duration": 1.092
+    },
+    {
+      "start": 512.19,
+      "end": 512.738,
+      "duration": 0.548
+    },
+    {
+      "start": 523.006,
+      "end": 525.89,
+      "duration": 2.884
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+---
+version: '1.2'
+input_fingerprint: 2581cee9a6fe89fbc4b0adbaf46bbc01e43cabfb8adfa7fc83b89c2c8b54ba69
+generated_at: deterministic
+candidate_count: 6
+candidates:
+- id: cand_001
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_015
+  t: 216.63
+  e: 220.62
+  text: You don't need a bigger plan. You need a worse plan that you actually do something
+    with.
+  trim_choices:
+  - id: trim_001
+    in: 216.63
+    out: 220.62
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: emphatic
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 40
+    pitch_trend: rising
+- id: cand_002
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_016
+  t: 223.86
+  e: 238.0
+  text: So I used to think I was lazy. I show up to work with zero energy, zero motivation,
+    counting the hours until I could leave. Then I go home and spend four hours building
+    something on my laptop without looking at the clock a single time.
+  trim_choices:
+  - id: trim_002
+    in: 223.86
+    out: 238.0
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices:
+  - id: ex_001
+    start: 228.03
+    end: 230.05
+    type: pacing
+    reason: long_pause
+    recommended: true
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 84
+    pitch_trend: flat
+- id: cand_003
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_017
+  t: 245.05
+  e: 249.4
+  text: Same person, completely different output. And that's when I figured out the
+    problem was never me.
+  trim_choices:
+  - id: trim_003
+    in: 245.05
+    out: 249.4
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices:
+  - id: ex_002
+    start: 245.69
+    end: 248.99
+    type: pacing
+    reason: long_pause
+    recommended: true
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: low
+    stumble_count: 0
+    max_pause_ms: 71
+    pitch_trend: falling
+- id: cand_004
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_018
+  t: 252.58
+  e: 255.7
+  text: You don't need more discipline. You need work that doesn't require it.
+  trim_choices:
+  - id: trim_004
+    in: 252.58
+    out: 255.7
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: low
+    stumble_count: 0
+    max_pause_ms: 158
+    pitch_trend: flat
+- id: cand_005
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_019
+  t: 327.66
+  e: 337.74
+  text: the thing is that that conditioning runs so deep because from birth, we're
+    essentially told to go a certain path, do certain things and do what we tell you
+    and you'll get a certain result.
+  trim_choices:
+  - id: trim_005
+    in: 327.66
+    out: 337.74
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 1
+    max_pause_ms: 312
+    pitch_trend: falling
+- id: cand_006
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_020
+  t: 340.34
+  e: 346.79
+  text: when you turn 18, you become an adult. The only person that can do it is you.
+    You have total control over your life
+  trim_choices:
+  - id: trim_006
+    in: 340.34
+    out: 346.79
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: low
+    stumble_count: 0
+    max_pause_ms: 121
+    pitch_trend: falling

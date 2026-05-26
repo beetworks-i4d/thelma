@@ -1,0 +1,156 @@
+---
+version: 1
+input_fingerprint: probe_low_energy_reflective
+generated_at: '2026-05-24T23:57:22+02:00'
+segments:
+- id: seg_015
+  t: 216.63
+  e: 220.62
+  text: You don't need a bigger plan. You need a worse plan that you actually do something
+    with.
+  source: Dylan Shorts 1.MP4
+  audio_profile: emphatic
+  audio_energy: 1.45
+  audio_energy_variance: 0.006446
+  audio_pitch_mean: 148.9
+  audio_pitch_range: 116.5
+  audio_pitch_trend: rising
+  audio_speaking_rate: 1.26
+  audio_spectral_centroid: 0.98
+  acoustic_pattern: emphatic mid-peak
+  stumble_count: 0
+  mid_word_break_count: 5
+  mean_trailing_pause_ms: 803
+  max_within_segment_pause_ms: 40
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_016
+  t: 223.86
+  e: 238.0
+  text: So I used to think I was lazy. I show up to work with zero energy, zero motivation,
+    counting the hours until I could leave. Then I go home and spend four hours building
+    something on my laptop without looking at the clock a single time.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 0.976
+  audio_energy_variance: 0.004844
+  audio_pitch_mean: 173.0
+  audio_pitch_range: 189.7
+  audio_pitch_trend: flat
+  audio_speaking_rate: 0.962
+  audio_spectral_centroid: 1.012
+  acoustic_pattern: dips mid then recovers
+  stumble_count: 0
+  mid_word_break_count: 30
+  mean_trailing_pause_ms: 560
+  max_within_segment_pause_ms: 84
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_017
+  t: 245.05
+  e: 249.4
+  text: Same person, completely different output. And that's when I figured out the
+    problem was never me.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 0.194
+  audio_energy_variance: 0.001082
+  audio_pitch_mean: 131.3
+  audio_pitch_range: 57.7
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.087
+  audio_spectral_centroid: 1.284
+  acoustic_pattern: winding down
+  stumble_count: 0
+  mid_word_break_count: 28
+  mean_trailing_pause_ms: 1257
+  max_within_segment_pause_ms: 71
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_018
+  t: 252.58
+  e: 255.7
+  text: You don't need more discipline. You need work that doesn't require it.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 0.014
+  audio_energy_variance: 3.0e-06
+  audio_pitch_mean: 155.9
+  audio_pitch_range: 0.0
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.137
+  audio_spectral_centroid: 1.373
+  acoustic_pattern: builds to emphasis late
+  stumble_count: 0
+  mid_word_break_count: 23
+  mean_trailing_pause_ms: 2879
+  max_within_segment_pause_ms: 158
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_019
+  t: 327.66
+  e: 337.74
+  text: the thing is that that conditioning runs so deep because from birth, we're
+    essentially told to go a certain path, do certain things and do what we tell you
+    and you'll get a certain result.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 1.177
+  audio_energy_variance: 0.004979
+  audio_pitch_mean: 176.3
+  audio_pitch_range: 158.4
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.027
+  audio_spectral_centroid: 0.901
+  acoustic_pattern: measured falling pitch
+  stumble_count: 1
+  mid_word_break_count: 14
+  mean_trailing_pause_ms: 998
+  max_within_segment_pause_ms: 312
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_020
+  t: 340.34
+  e: 346.79
+  text: when you turn 18, you become an adult. The only person that can do it is you.
+    You have total control over your life
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 0.534
+  audio_energy_variance: 0.001886
+  audio_pitch_mean: 141.6
+  audio_pitch_range: 131.9
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.1
+  audio_spectral_centroid: 0.948
+  acoustic_pattern: low-energy rising
+  stumble_count: 0
+  mid_word_break_count: 14
+  mean_trailing_pause_ms: 2462
+  max_within_segment_pause_ms: 121
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:

@@ -1,0 +1,416 @@
+---
+version: 1
+input_fingerprint: probe_explainer_rapid
+generated_at: '2026-05-24T23:57:22+02:00'
+segments:
+- id: seg_036
+  t: 274.56
+  e: 276.45
+  text: Here's how I evaluate any business model.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: emphatic
+  audio_energy: 1.65
+  audio_energy_variance: 0.005992
+  audio_pitch_mean: 181.5
+  audio_pitch_range: 91.2
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.147
+  audio_spectral_centroid: 0.826
+  acoustic_pattern: opens strong fades out
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 260
+  max_within_segment_pause_ms: 280
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_037
+  t: 276.47
+  e: 285.05
+  text: Now six things profit margin startup costs how long it takes to get going
+    complexity once it's running demand and scalability.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 1.068
+  audio_energy_variance: 0.007213
+  audio_pitch_mean: 176.3
+  audio_pitch_range: 341.7
+  audio_pitch_trend: falling
+  audio_speaking_rate: 0.758
+  audio_spectral_centroid: 1.179
+  acoustic_pattern: measured falling pitch
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 218
+  max_within_segment_pause_ms: 421
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_038
+  t: 285.51
+  e: 288.0
+  text: These matter differently depending on your situation.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: landing
+  audio_energy: 1.224
+  audio_energy_variance: 0.003714
+  audio_pitch_mean: 179.0
+  audio_pitch_range: 124.2
+  audio_pitch_trend: falling
+  audio_speaking_rate: 0.871
+  audio_spectral_centroid: 0.977
+  acoustic_pattern: trailing off
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 60
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_039
+  t: 288.1
+  e: 293.06
+  text: So if you've got a job startup costs don't bother you as much but time does.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 1.042
+  audio_energy_variance: 0.007469
+  audio_pitch_mean: 160.4
+  audio_pitch_range: 100.7
+  audio_pitch_trend: falling
+  audio_speaking_rate: 0.999
+  audio_spectral_centroid: 1.045
+  acoustic_pattern: trailing off
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 381
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_040
+  t: 293.42
+  e: 297.48
+  text: If you've got no job you've got plenty of time but no budget right.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 1.053
+  audio_energy_variance: 0.005199
+  audio_pitch_mean: 150.1
+  audio_pitch_range: 95.5
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.068
+  audio_spectral_centroid: 0.852
+  acoustic_pattern: trailing off
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 360
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_041
+  t: 297.62
+  e: 301.75
+  text: So you have to know which of these actually matters for you where you are
+    right now.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 1.021
+  audio_energy_variance: 0.003796
+  audio_pitch_mean: 171.0
+  audio_pitch_range: 135.8
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.275
+  audio_spectral_centroid: 1.055
+  acoustic_pattern: dips mid then recovers
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 400
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_042
+  t: 302.19
+  e: 303.81
+  text: And most people don't even think about that.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: emphatic
+  audio_energy: 1.59
+  audio_energy_variance: 0.003641
+  audio_pitch_mean: 194.1
+  audio_pitch_range: 120.2
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.53
+  audio_spectral_centroid: 0.764
+  acoustic_pattern: flat-then-emphatic
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 40
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_043
+  t: 304.07
+  e: 309.89
+  text: They just pick a model because it sounds exciting or because someone on YouTube
+    made it look really easy.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 1.154
+  audio_energy_variance: 0.005605
+  audio_pitch_mean: 170.2
+  audio_pitch_range: 104.2
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.011
+  audio_spectral_centroid: 0.983
+  acoustic_pattern: trailing off
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 260
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_044
+  t: 310.39
+  e: 314.39
+  text: And I did the same thing at the start and it really cost me months.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 1.064
+  audio_energy_variance: 0.004876
+  audio_pitch_mean: 173.7
+  audio_pitch_range: 149.8
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.162
+  audio_spectral_centroid: 0.973
+  acoustic_pattern: fades out late
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 114
+  max_within_segment_pause_ms: 400
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_045
+  t: 314.69
+  e: 314.95
+  text: OK.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: casual
+  audio_energy: 0.872
+  audio_energy_variance: 0.001108
+  audio_pitch_mean: 163.8
+  audio_pitch_range: 0.0
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.191
+  audio_spectral_centroid: 0.819
+  acoustic_pattern: building emphasis
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 0
+  max_within_segment_pause_ms: 0
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_046
+  t: 315.27
+  e: 319.27
+  text: So let me walk you through every model that I tried and how it actually went.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: emphatic
+  audio_energy: 1.455
+  audio_energy_variance: 0.006185
+  audio_pitch_mean: 182.5
+  audio_pitch_range: 143.8
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.239
+  audio_spectral_centroid: 0.849
+  acoustic_pattern: emphatic-then-flat
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 132
+  max_within_segment_pause_ms: 320
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_047
+  t: 321.1
+  e: 323.5
+  text: And I'm saving the best one for last to stick.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: emphatic
+  audio_energy: 1.392
+  audio_energy_variance: 0.005533
+  audio_pitch_mean: 171.8
+  audio_pitch_range: 75.7
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.291
+  audio_spectral_centroid: 1.205
+  acoustic_pattern: opens strong fades out
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 1124
+  max_within_segment_pause_ms: 101
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_048
+  t: 324.84
+  e: 325.76
+  text: And how it actually went.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: emphatic
+  audio_energy: 1.816
+  audio_energy_variance: 0.00628
+  audio_pitch_mean: 225.3
+  audio_pitch_range: 129.0
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.683
+  audio_spectral_centroid: 1.023
+  acoustic_pattern: high-energy steady
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 80
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_049
+  t: 327.46
+  e: 329.14
+  text: and I'm saving the one that worked for last.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: emphatic
+  audio_energy: 1.674
+  audio_energy_variance: 0.004222
+  audio_pitch_mean: 170.8
+  audio_pitch_range: 84.6
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.659
+  audio_spectral_centroid: 0.914
+  acoustic_pattern: high-energy steady
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 60
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_050
+  t: 329.16
+  e: 329.92
+  text: So stick around.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: building
+  audio_energy: 0.997
+  audio_energy_variance: 0.001652
+  audio_pitch_mean: 141.0
+  audio_pitch_range: 80.0
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.223
+  audio_spectral_centroid: 1.157
+  acoustic_pattern: building emphasis
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 40
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_051
+  t: 330.24
+  e: 332.12
+  text: Affiliate marketing was my first attempt.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: landing
+  audio_energy: 1.258
+  audio_energy_variance: 0.00652
+  audio_pitch_mean: 168.1
+  audio_pitch_range: 151.9
+  audio_pitch_trend: falling
+  audio_speaking_rate: 0.989
+  audio_spectral_centroid: 0.969
+  acoustic_pattern: opens strong fades out
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 60
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_052
+  t: 332.44
+  e: 334.96
+  text: You sell someone else's product and get a commission.
+  source: 002 I tried every laptop job.MP4
+  audio_profile: landing
+  audio_energy: 1.015
+  audio_energy_variance: 0.004449
+  audio_pitch_mean: 158.9
+  audio_pitch_range: 98.3
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.106
+  audio_spectral_centroid: 1.083
+  acoustic_pattern: trailing off
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 100
+  max_within_segment_pause_ms: 181
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:

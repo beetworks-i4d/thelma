@@ -1,0 +1,184 @@
+---
+version: 1
+input_fingerprint: probe_emphatic_rant
+generated_at: '2026-05-24T23:57:22+02:00'
+segments:
+- id: seg_005
+  t: 98.02
+  e: 104.08
+  text: getting good at your job makes your boss's boss rich and getting good at and
+    getting good at running something makes you rich.
+  source: Dylan Shorts 1.MP4
+  audio_profile: emphatic
+  audio_energy: 1.578
+  audio_energy_variance: 0.006967
+  audio_pitch_mean: 164.3
+  audio_pitch_range: 73.6
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.122
+  audio_spectral_centroid: 1.001
+  acoustic_pattern: high-energy steady
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 2052
+  max_within_segment_pause_ms: 162
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_006
+  t: 106.18
+  e: 121.57
+  text: Have you been told you ask too many questions? You don't follow the process
+    that you can't just leave things alone because I have. And it took me way too
+    long to realize that wasn't a weakness. That was basically a job description for
+    something entirely different.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 1.067
+  audio_energy_variance: 0.00504
+  audio_pitch_mean: 169.3
+  audio_pitch_range: 189.0
+  audio_pitch_trend: flat
+  audio_speaking_rate: 0.903
+  audio_spectral_centroid: 1.145
+  acoustic_pattern: builds to emphasis late
+  stumble_count: 0
+  mid_word_break_count: 33
+  mean_trailing_pause_ms: 909
+  max_within_segment_pause_ms: 190
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_007
+  t: 127.88
+  e: 132.27
+  text: The stuff that got you in trouble at work is exactly what makes you dangerous
+    on your own.
+  source: Dylan Shorts 1.MP4
+  audio_profile: emphatic
+  audio_energy: 1.499
+  audio_energy_variance: 0.00541
+  audio_pitch_mean: 166.5
+  audio_pitch_range: 121.5
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.212
+  audio_spectral_centroid: 0.935
+  acoustic_pattern: flat-then-emphatic
+  stumble_count: 0
+  mid_word_break_count: 10
+  mean_trailing_pause_ms: 1676
+  max_within_segment_pause_ms: 464
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_008
+  t: 134.41
+  e: 157.34
+  text: Nobody tells you this, but nobody tells you this growing up because the people
+    raising you don't know it either. Get a degree, get a stable job, work hard, retire
+    at 60. That advice made your parents feel safe giving it. It's also the reason
+    a lot of people hit 40 with no way out and no idea how they got there. Their advice
+    was right for a world that doesn't exist anymore.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 1.179
+  audio_energy_variance: 0.005539
+  audio_pitch_mean: 163.3
+  audio_pitch_range: 172.8
+  audio_pitch_trend: flat
+  audio_speaking_rate: 0.941
+  audio_spectral_centroid: 0.97
+  acoustic_pattern: dips mid then recovers
+  stumble_count: 0
+  mid_word_break_count: 30
+  mean_trailing_pause_ms: 2151
+  max_within_segment_pause_ms: 329
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_009
+  t: 159.73
+  e: 165.4
+  text: Every time you say, I'm not a business person, you're giving yourself permission
+    to stay exactly where you are now.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 0.924
+  audio_energy_variance: 0.009484
+  audio_pitch_mean: 203.3
+  audio_pitch_range: 427.2
+  audio_pitch_trend: rising
+  audio_speaking_rate: 1.043
+  audio_spectral_centroid: 0.977
+  acoustic_pattern: building emphasis
+  stumble_count: 0
+  mid_word_break_count: 22
+  mean_trailing_pause_ms: 580
+  max_within_segment_pause_ms: 80
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_010
+  t: 165.82
+  e: 167.16
+  text: But let me ask you something.
+  source: Dylan Shorts 1.MP4
+  audio_profile: emphatic
+  audio_energy: 1.431
+  audio_energy_variance: 0.004072
+  audio_pitch_mean: 145.3
+  audio_pitch_range: 69.6
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.324
+  audio_spectral_centroid: 0.856
+  acoustic_pattern: emphatic-then-flat
+  stumble_count: 0
+  mid_word_break_count: 0
+  mean_trailing_pause_ms: 385
+  max_within_segment_pause_ms: 41
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_011
+  t: 174.75
+  e: 181.09
+  text: What do you actually think a business person does all day? Because I can tell
+    you right now, it's a lot more boring than you're picturing.
+  source: Dylan Shorts 1.MP4
+  audio_profile: casual
+  audio_energy: 1.064
+  audio_energy_variance: 0.005294
+  audio_pitch_mean: 157.4
+  audio_pitch_range: 224.0
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.212
+  audio_spectral_centroid: 0.859
+  acoustic_pattern: trailing off
+  stumble_count: 0
+  mid_word_break_count: 6
+  mean_trailing_pause_ms: 1081
+  max_within_segment_pause_ms: 60
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:

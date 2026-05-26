@@ -1,0 +1,186 @@
+---
+version: '1.2'
+input_fingerprint: 48c1cb37c640d1ec3eef4ded7be5168826637938a371ca460e965aec580f50c1
+generated_at: deterministic
+candidate_count: 6
+candidates:
+- id: cand_001
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_005
+  t: 98.02
+  e: 104.08
+  text: getting good at your job makes your boss's boss rich and getting good at and
+    getting good at running something makes you rich.
+  trim_choices:
+  - id: trim_001
+    in: 98.02
+    out: 104.08
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  - id: trim_002
+    in: 102.02
+    out: 104.08
+    label: tighter_start
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: emphatic
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 162
+    pitch_trend: falling
+- id: cand_002
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_006
+  t: 106.18
+  e: 121.57
+  text: Have you been told you ask too many questions? You don't follow the process
+    that you can't just leave things alone because I have. And it took me way too
+    long to realize that wasn't a weakness. That was basically a job description for
+    something entirely different.
+  trim_choices:
+  - id: trim_003
+    in: 106.18
+    out: 121.57
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  - id: trim_004
+    in: 106.18
+    out: 117.19
+    label: tighter_end
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices:
+  - id: ex_001
+    start: 111.55
+    end: 114.18
+    type: pacing
+    reason: long_pause
+    recommended: true
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 190
+    pitch_trend: flat
+- id: cand_003
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_007
+  t: 127.88
+  e: 132.27
+  text: The stuff that got you in trouble at work is exactly what makes you dangerous
+    on your own.
+  trim_choices:
+  - id: trim_005
+    in: 127.88
+    out: 132.27
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: emphatic
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 464
+    pitch_trend: flat
+- id: cand_004
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_008
+  t: 134.41
+  e: 157.34
+  text: Nobody tells you this, but nobody tells you this growing up because the people
+    raising you don't know it either. Get a degree, get a stable job, work hard, retire
+    at 60. That advice made your parents feel safe giving it. It's also the reason
+    a lot of people hit 40 with no way out and no idea how they got there. Their advice
+    was right for a world that doesn't exist anymore.
+  trim_choices:
+  - id: trim_006
+    in: 134.41
+    out: 157.34
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  - id: trim_007
+    in: 136.49
+    out: 157.34
+    label: tighter_start
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices:
+  - id: ex_002
+    start: 147.36
+    end: 149.57
+    type: pacing
+    reason: long_pause
+    recommended: true
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 329
+    pitch_trend: flat
+- id: cand_005
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_009
+  - seg_010
+  t: 159.73
+  e: 167.16
+  text: Every time you say, I'm not a business person, you're giving yourself permission
+    to stay exactly where you are now. But let me ask you something.
+  trim_choices:
+  - id: trim_008
+    in: 159.73
+    out: 167.16
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  - id: trim_009
+    in: 159.73
+    out: 165.48
+    label: tighter_end
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 80
+    pitch_trend: varied
+- id: cand_006
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_011
+  t: 174.75
+  e: 181.09
+  text: What do you actually think a business person does all day? Because I can tell
+    you right now, it's a lot more boring than you're picturing.
+  trim_choices:
+  - id: trim_010
+    in: 174.75
+    out: 181.09
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved:
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 60
+    pitch_trend: falling

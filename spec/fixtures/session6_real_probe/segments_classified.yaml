@@ -1,0 +1,208 @@
+---
+version: 1
+input_fingerprint: real_probe_extract
+generated_at: '2026-05-24T23:57:22+02:00'
+segments:
+- id: seg_253
+  t: 863.2
+  e: 879.05
+  text: once I realized that I could take those same skills for generating all that
+    money for the company and go out there and build a little micro business generating
+    money for myself, I didn't need to generate that much because I was keeping a
+    much greater proportion of the money I was generating. for myself than I was at
+    that company.
+  source: MVI_5119.MP4
+  audio_profile: casual
+  audio_energy: 0.945
+  audio_energy_variance: 0.003706
+  audio_pitch_mean: 144.4
+  audio_pitch_range: 135.0
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.134
+  audio_spectral_centroid: 0.94
+  acoustic_pattern: trailing off
+  stumble_count: 0
+  mid_word_break_count: 44
+  mean_trailing_pause_ms: 26244
+  max_within_segment_pause_ms: 382
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_254
+  t: 879.31
+  e: 888.61
+  text: Yeah, I already had the skills to generate that amount of money, that 30K
+    per month. If I could generate that for myself, that would be massive, right?
+  source: MVI_5119.MP4
+  audio_profile: casual
+  audio_energy: 0.951
+  audio_energy_variance: 0.005311
+  audio_pitch_mean: 154.9
+  audio_pitch_range: 111.9
+  audio_pitch_trend: flat
+  audio_speaking_rate: 0.887
+  audio_spectral_centroid: 1.059
+  acoustic_pattern: trailing off
+  stumble_count: 0
+  mid_word_break_count: 8
+  mean_trailing_pause_ms: 5581
+  max_within_segment_pause_ms: 179
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_255
+  t: 888.69
+  e: 904.16
+  text: But even if I generated just 10% of that, let's say 3K, I would already be
+    making more than what the company was paying. So it just didn't make sense to
+    stay in that situation, earning that company all of that money when I could go
+    out there and build one of these little systems for myself.
+  source: MVI_5119.MP4
+  audio_profile: casual
+  audio_energy: 0.85
+  audio_energy_variance: 0.002926
+  audio_pitch_mean: 151.3
+  audio_pitch_range: 110.7
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.086
+  audio_spectral_centroid: 1.064
+  acoustic_pattern: dips mid then recovers
+  stumble_count: 0
+  mid_word_break_count: 53
+  mean_trailing_pause_ms: 4532
+  max_within_segment_pause_ms: 260
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_256
+  t: 905.09
+  e: 906.85
+  text: And that's just the reality we live in today.
+  source: MVI_5119.MP4
+  audio_profile: emphatic
+  audio_energy: 1.57
+  audio_energy_variance: 0.004346
+  audio_pitch_mean: 179.1
+  audio_pitch_range: 73.6
+  audio_pitch_trend: falling
+  audio_speaking_rate: 1.507
+  audio_spectral_centroid: 1.012
+  acoustic_pattern: rising emphasis throughout
+  stumble_count: 0
+  mid_word_break_count: 2
+  mean_trailing_pause_ms: 391
+  max_within_segment_pause_ms: 138
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_257
+  t: 906.87
+  e: 911.6
+  text: The information age, the AI age, it's here to stay. We have the tools.
+  source: MVI_5119.MP4
+  audio_profile: casual
+  audio_energy: 0.859
+  audio_energy_variance: 0.003919
+  audio_pitch_mean: 143.3
+  audio_pitch_range: 45.3
+  audio_pitch_trend: falling
+  audio_speaking_rate: 0.872
+  audio_spectral_centroid: 1.072
+  acoustic_pattern: building emphasis
+  stumble_count: 0
+  mid_word_break_count: 3
+  mean_trailing_pause_ms: 11487
+  max_within_segment_pause_ms: 120
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_259
+  t: 954.52
+  e: 964.19
+  text: So when someone asks me what I actually do, the honest answer is I sell services.
+    I don't say I deliver services. I just built a system that does this on autopilot.
+  source: MVI_5119.MP4
+  audio_profile: casual
+  audio_energy: 1.352
+  audio_energy_variance: 0.00596
+  audio_pitch_mean: 164.6
+  audio_pitch_range: 173.4
+  audio_pitch_trend: flat
+  audio_speaking_rate: 0.975
+  audio_spectral_centroid: 1.169
+  acoustic_pattern: opens strong fades out
+  stumble_count: 0
+  mid_word_break_count: 3
+  mean_trailing_pause_ms: 277
+  max_within_segment_pause_ms: 215
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_260
+  t: 964.51
+  e: 968.73
+  text: I have the delivery team who fulfills the service actually delivers the services.
+  source: MVI_5119.MP4
+  audio_profile: casual
+  audio_energy: 0.978
+  audio_energy_variance: 0.003224
+  audio_pitch_mean: 146.0
+  audio_pitch_range: 88.4
+  audio_pitch_trend: falling
+  audio_speaking_rate: 0.908
+  audio_spectral_centroid: 1.131
+  acoustic_pattern: trailing off
+  stumble_count: 0
+  mid_word_break_count: 1
+  mean_trailing_pause_ms: 2014
+  max_within_segment_pause_ms: 320
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
+- id: seg_263
+  t: 1005.67
+  e: 1015.02
+  text: and get all of this synchronized and working. That takes time. That takes
+    effort. And there's that unknown factor of it's actually going to work for you.
+    And that's scary. So that is a really difficult period.
+  source: MVI_5119.MP4
+  audio_profile: casual
+  audio_energy: 0.991
+  audio_energy_variance: 0.004024
+  audio_pitch_mean: 157.8
+  audio_pitch_range: 134.0
+  audio_pitch_trend: flat
+  audio_speaking_rate: 1.166
+  audio_spectral_centroid: 0.994
+  acoustic_pattern: trailing off
+  stumble_count: 1
+  mid_word_break_count: 37
+  mean_trailing_pause_ms: 2213
+  max_within_segment_pause_ms: 80
+  visual:
+    shot_type:
+    on_screen_elements: []
+    camera_movement:
+    is_broll:
+    visual_style_tag:
