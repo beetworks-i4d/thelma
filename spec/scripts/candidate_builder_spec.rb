@@ -725,3 +725,159 @@ RSpec.describe 'candidate_builder real probe' do
     end
   end
 end
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# V2 Boundary Heuristic — multi-probe validation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+EXPLAINER_RAPID_DIR = File.expand_path('../fixtures/session6_probe_explainer_rapid', __dir__)
+EMPHATIC_RANT_DIR   = File.expand_path('../fixtures/session6_probe_emphatic_rant', __dir__)
+LOW_ENERGY_DIR      = File.expand_path('../fixtures/session6_probe_low_energy_reflective', __dir__)
+PAUSE_HEAVY_DIR     = File.expand_path('../fixtures/session6_probe_pause_heavy_transition', __dir__)
+DEAD_AIR_DIR        = File.expand_path('../fixtures/session6_probe_dead_air_setup', __dir__)
+
+PROBE_GENERATED = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log].freeze
+
+RSpec.describe 'V2 boundary heuristic' do
+  after(:all) do
+    [EXPLAINER_RAPID_DIR, EMPHATIC_RANT_DIR, LOW_ENERGY_DIR, PAUSE_HEAVY_DIR, DEAD_AIR_DIR].each do |dir|
+      PROBE_GENERATED.each do |f|
+        path = File.join(dir, f)
+        File.delete(path) if File.exist?(path)
+      end
+    end
+  end
+
+  describe 'monster reduction (explainer_rapid)' do
+    let(:result) { run_phase_a(EXPLAINER_RAPID_DIR) }
+    let(:candidates) { result[:result]['candidates'] }
+
+    it 'passes Phase A' do
+      expect(result[:exit_code]).to eq(0)
+    end
+
+    it 'produces more candidates than v1 baseline (was 4)' do
+      expect(candidates.size).to be > 4
+    end
+
+    it 'max candidate duration under 15s' do
+      max_dur = candidates.map { |c| c['e'] - c['t'] }.max
+      expect(max_dur).to be < 15.0
+    end
+
+    it 'majority of candidates are single-atom' do
+      single = candidates.count { |c| c['segment_ids'].size == 1 }
+      expect(single).to be > candidates.size / 2
+    end
+
+    it 'passes full Phase ABC' do
+      abc = run_phase_abc(EXPLAINER_RAPID_DIR)
+      expect(abc[:exit_code]).to eq(0)
+    end
+  end
+
+  describe 'hard splits on rhetorical markers (explainer_rapid)' do
+    let(:result) { run_phase_a(EXPLAINER_RAPID_DIR) }
+    let(:candidates) { result[:result]['candidates'] }
+
+    it 'seg_039 (starts with "So") is not merged with prior segment' do
+      cand = candidates.find { |c| c['segment_ids'].include?('seg_039') }
+      expect(cand['segment_ids'].first).to eq('seg_039'),
+        "seg_039 should start a new candidate, not trail a prior one"
+    end
+
+    it 'seg_046 (starts with "So") is not merged with prior segment' do
+      cand = candidates.find { |c| c['segment_ids'].include?('seg_046') }
+      expect(cand['segment_ids'].first).to eq('seg_046')
+    end
+
+    it 'seg_036 (starts with "Here\'s") stands alone' do
+      cand = candidates.find { |c| c['segment_ids'].include?('seg_036') }
+      expect(cand['segment_ids']).to eq(['seg_036'])
+    end
+
+    it 'seg_037 (starts with "Now") starts a new candidate' do
+      cand = candidates.find { |c| c['segment_ids'].include?('seg_037') }
+      expect(cand['segment_ids'].first).to eq('seg_037')
+    end
+  end
+
+  describe 'reflective speech not over-split' do
+    let(:result) { run_phase_a(LOW_ENERGY_DIR) }
+    let(:candidates) { result[:result]['candidates'] }
+
+    it 'candidate count unchanged from v1 (6 segments -> 6 candidates)' do
+      expect(candidates.size).to eq(6)
+    end
+
+    it 'all candidates are single-atom (natural segment boundaries)' do
+      candidates.each do |c|
+        expect(c['segment_ids'].size).to eq(1)
+      end
+    end
+
+    it 'passes Phase ABC' do
+      abc = run_phase_abc(LOW_ENERGY_DIR)
+      expect(abc[:exit_code]).to eq(0)
+    end
+  end
+
+  describe 'profile incompatibility prevents merge (emphatic_rant)' do
+    let(:result) { run_phase_a(EMPHATIC_RANT_DIR) }
+    let(:candidates) { result[:result]['candidates'] }
+
+    it 'all candidates are single-atom' do
+      candidates.each do |c|
+        expect(c['segment_ids'].size).to eq(1),
+          "#{c['id']} has #{c['segment_ids'].size} segments, expected 1"
+      end
+    end
+
+    it 'passes Phase ABC' do
+      abc = run_phase_abc(EMPHATIC_RANT_DIR)
+      expect(abc[:exit_code]).to eq(0)
+    end
+  end
+
+  describe 'pause-heavy transitions' do
+    let(:result) { run_phase_a(PAUSE_HEAVY_DIR) }
+    let(:candidates) { result[:result]['candidates'] }
+
+    it 'passes Phase A' do
+      expect(result[:exit_code]).to eq(0)
+    end
+
+    it 'produces at least as many candidates as v1 (was 6)' do
+      expect(candidates.size).to be >= 6
+    end
+
+    it 'passes Phase ABC' do
+      abc = run_phase_abc(PAUSE_HEAVY_DIR)
+      expect(abc[:exit_code]).to eq(0)
+    end
+  end
+
+  describe 'dead air setup' do
+    let(:result) { run_phase_a(DEAD_AIR_DIR) }
+    let(:candidates) { result[:result]['candidates'] }
+
+    it 'passes Phase A' do
+      expect(result[:exit_code]).to eq(0)
+    end
+
+    it 'passes Phase ABC' do
+      abc = run_phase_abc(DEAD_AIR_DIR)
+      expect(abc[:exit_code]).to eq(0)
+    end
+  end
+
+  describe 'deterministic across all probes' do
+    it 'produces identical output on consecutive runs for explainer_rapid' do
+      run_phase_a(EXPLAINER_RAPID_DIR)
+      first = File.read(File.join(EXPLAINER_RAPID_DIR, 'candidate_substrate.yaml'))
+      run_phase_a(EXPLAINER_RAPID_DIR)
+      second = File.read(File.join(EXPLAINER_RAPID_DIR, 'candidate_substrate.yaml'))
+      expect(first).to eq(second)
+    end
+  end
+end

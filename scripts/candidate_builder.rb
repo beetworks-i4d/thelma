@@ -28,6 +28,22 @@ LONG_PAUSE_THRESHOLD_MS = 1500
 BOUNDARY_TOLERANCE_S = 0.02
 CLUSTER_JACCARD_THRESHOLD = 0.25
 
+# V2 Boundary Heuristic — atom-default with multi-signal merge
+MERGE_SIGNAL_THRESHOLD = 2
+VAD_PAUSE_SOFT_MS = 700
+
+STRONG_BOUNDARY_MARKERS = %w[but however so now another second third finally here's].freeze
+STRONG_BOUNDARY_PHRASES = ['the problem is', 'the point is', 'that said'].freeze
+
+COMPATIBLE_PROFILES = [
+  Set.new(%w[casual building]),
+  Set.new(%w[building emphatic]),
+  Set.new(%w[reflective casual]),
+  Set.new(%w[landing reflective]),
+  Set.new(%w[authoritative emphatic]),
+  Set.new(%w[urgent emphatic])
+].freeze
+
 STOP_WORDS = Set.new(%w[
   a an the and or but is are was were be been being
   in on at to for of with by from as into through
@@ -109,6 +125,59 @@ def jaccard(set_a, set_b)
   intersection.size.to_f / union.size
 end
 
+# ─── V2 Boundary Signal Helpers ─────────────────────────────────────────────
+
+def starts_with_boundary_marker?(text)
+  normalized = text.to_s.strip.downcase
+  STRONG_BOUNDARY_PHRASES.each do |phrase|
+    return true if normalized.start_with?(phrase)
+  end
+  first_word = normalized.split(/\s+/).first.to_s.gsub(/[^a-z']/, '')
+  STRONG_BOUNDARY_MARKERS.include?(first_word)
+end
+
+def prosody_compatible?(seg_a, seg_b)
+  pa = seg_a['audio_profile'].to_s
+  pb = seg_b['audio_profile'].to_s
+  return true if pa == pb
+  COMPATIBLE_PROFILES.any? { |pair| pair == Set.new([pa, pb]) }
+end
+
+def sentence_continues?(prev_seg, next_seg)
+  prev_text = prev_seg['text'].to_s.strip
+  next_text = next_seg['text'].to_s.strip
+  # Previous atom doesn't end with sentence-final punctuation
+  return true unless prev_text.match?(/[.!?]["']?\z/)
+  # Next atom starts lowercase (mid-sentence continuation)
+  next_text.match?(/\A[a-z]/) ? true : false
+end
+
+def lexical_overlap?(seg_a, seg_b)
+  tokens_a = Set.new(tokenize(seg_a['text']))
+  tokens_b = Set.new(tokenize(seg_b['text']))
+  return false if tokens_a.empty? || tokens_b.empty?
+  (tokens_a & tokens_b).any?
+end
+
+def gap_has_long_pause?(prev_seg, next_seg, pauses, threshold_ms)
+  gap_start = prev_seg['e'].to_f
+  gap_end = next_seg['t'].to_f
+  pauses.any? do |p|
+    p['start'] < gap_end + 0.05 &&
+    p['end'] > gap_start - 0.05 &&
+    p['duration_ms'] >= threshold_ms
+  end
+end
+
+def count_merge_signals(prev_seg, next_seg, pauses)
+  signals = 0
+  signals += 1 if prosody_compatible?(prev_seg, next_seg)
+  signals += 1 if sentence_continues?(prev_seg, next_seg)
+  signals += 1 if lexical_overlap?(prev_seg, next_seg)
+  signals += 1 unless gap_has_long_pause?(prev_seg, next_seg, pauses, VAD_PAUSE_SOFT_MS)
+  signals
+end
+
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
 library_name = nil
@@ -188,7 +257,15 @@ if phase.include?('a')
   seg_by_id = {}
   segments.each { |s| seg_by_id[s['id']] = s }
 
-  # Group contiguous same-source segments
+  # V2: Atom-default grouping with multi-signal merge.
+  # Each segment starts as its own candidate. Adjacent same-source segments
+  # merge only when no hard-split fires AND at least MERGE_SIGNAL_THRESHOLD
+  # continuity signals are positive.
+  #
+  # Hard splits: source change, gap > CONTIGUITY_GAP_S, strong rhetorical
+  #   marker at next atom start, VAD pause >= LONG_PAUSE_THRESHOLD_MS in gap.
+  # Merge signals (4): prosody compatibility, sentence continuation,
+  #   lexical overlap, pause continuity (no VAD pause >= VAD_PAUSE_SOFT_MS).
   groups = []
   current_group = [segments.first]
 
@@ -197,7 +274,15 @@ if phase.include?('a')
     same_source = seg['source'] == prev['source']
     gap = seg['t'].to_f - prev['e'].to_f
 
-    if same_source && gap <= CONTIGUITY_GAP_S
+    hard_split = !same_source ||
+                 gap > CONTIGUITY_GAP_S ||
+                 starts_with_boundary_marker?(seg['text']) ||
+                 gap_has_long_pause?(prev, seg, long_pauses, LONG_PAUSE_THRESHOLD_MS)
+
+    if hard_split
+      groups << current_group
+      current_group = [seg]
+    elsif count_merge_signals(prev, seg, long_pauses) >= MERGE_SIGNAL_THRESHOLD
       current_group << seg
     else
       groups << current_group
