@@ -16,6 +16,7 @@
 
 require 'yaml'
 require 'digest'
+require_relative 'arrangement_validator'
 require 'set'
 
 # ─── Constants ────────────────────────────────────────────────────────────────
@@ -225,82 +226,7 @@ end
 # ─── Validation ───────────────────────────────────────────────────────────────
 
 def validate_arrangement(arrangement, candidates_data)
-  errors = []
-  warnings = []
-  candidates_by_id = candidates_data['candidates'].each_with_object({}) { |c, h| h[c['id']] = c }
-
-  # Top-level structural
-  errors << 'version must be "4"' unless arrangement['version'] == '4'
-  errors << 'branch must be A, B, or D' unless %w[A B D].include?(arrangement['branch'])
-  errors << 'selected_thesis must be null for Branch A' if arrangement['branch'] == 'A' && !arrangement['selected_thesis'].nil?
-  errors << 'chapters must be non-empty array' if (arrangement['chapters'] || []).empty?
-  errors << 'input_fingerprint missing' unless arrangement['input_fingerprint'].is_a?(String) && !arrangement['input_fingerprint'].empty?
-  errors << 'generated_at missing' unless arrangement['generated_at'].is_a?(String) && !arrangement['generated_at'].empty?
-  errors << 'model missing' unless arrangement['model'].is_a?(String) && !arrangement['model'].empty?
-
-  used_cand_ids = Set.new
-  used_clusters = Set.new
-
-  (arrangement['chapters'] || []).each_with_index do |ch, ci|
-    expected_id = format('chapter_%03d', ci + 1)
-    errors << "chapter #{ci}: id must be #{expected_id}, got #{ch['id']}" unless ch['id'] == expected_id
-    errors << "chapter #{ch['id']}: missing title" unless ch['title'].is_a?(String) && !ch['title'].empty?
-    errors << "chapter #{ch['id']}: segments must be non-empty" if (ch['segments'] || []).empty?
-
-    (ch['segments'] || []).each do |seg|
-      cid = seg['candidate_id']
-      tid = seg['trim_choice_id']
-
-      # Candidate exists
-      cand = candidates_by_id[cid]
-      unless cand
-        errors << "#{cid}: candidate not found in editorial_candidates.yaml"
-        next
-      end
-
-      # No duplicate candidates
-      errors << "#{cid}: duplicate candidate selection" if used_cand_ids.include?(cid)
-      used_cand_ids << cid
-
-      # Cluster uniqueness
-      cluster = cand['cluster']
-      if cluster && !cluster.to_s.strip.empty?
-        errors << "#{cid}: cluster '#{cluster}' already used" if used_clusters.include?(cluster)
-        used_clusters << cluster
-      end
-
-      # Trim exists and is arrangement-safe
-      trim = (cand['trim_choices'] || []).find { |t| t['id'] == tid }
-      unless trim
-        errors << "#{cid}: trim_choice_id '#{tid}' not found"
-        next
-      end
-      errors << "#{cid}: trim '#{tid}' not mechanical_boundary_safe" unless trim['mechanical_boundary_safe']
-      errors << "#{cid}: trim '#{tid}' not content_preserved" unless trim['content_preserved']
-
-      # Exclusion validation
-      (seg['exclusion_choice_ids'] || []).each do |eid|
-        ex = (cand['exclusion_choices'] || []).find { |e| e['id'] == eid }
-        unless ex
-          errors << "#{cid}: exclusion '#{eid}' not found"
-          next
-        end
-        warnings << "[WARN] #{cid}: exclusion '#{eid}' not recommended" unless ex['recommended']
-      end
-
-      # Narrative role enum
-      unless VALID_NARRATIVE_ROLES.include?(seg['narrative_role'])
-        errors << "#{cid}: narrative_role '#{seg['narrative_role']}' not in enum"
-      end
-    end
-  end
-
-  # Must have at least one hook and one payoff
-  all_roles = (arrangement['chapters'] || []).flat_map { |ch| (ch['segments'] || []).map { |s| s['narrative_role'] } }
-  errors << 'arrangement must contain at least one hook' unless all_roles.include?('hook')
-  errors << 'arrangement must contain at least one payoff' unless all_roles.include?('payoff')
-
-  { errors: errors, warnings: warnings }
+  ArrangementValidator.validate(arrangement, candidates_data)
 end
 
 # ─── Main ─────────────────────────────────────────────────────────────────────

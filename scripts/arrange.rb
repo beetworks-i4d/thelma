@@ -1,8 +1,7 @@
 #!/usr/bin/env ruby
-# Phase 3 — Thesis-Driven Arrangement (Session 3 rework)
-# Reads discovery_pass.yaml (chosen thesis + clip_groups + throughlines) and
-# enriched segments_classified.yaml. Produces arrangement.yaml v2 with chapters,
-# throughline_honoring, and unused_segment_audit.
+# Phase 3 — Thesis-Driven Candidate Arrangement
+# Reads discovery_pass.yaml and editorial_candidates.yaml.
+# Produces arrangement.yaml v4 using candidate_id / trim_choice_id selections.
 #
 # Usage:
 #   ruby scripts/arrange.rb --library <name> [--profile <name>]
@@ -10,11 +9,11 @@
 #
 # Input:
 #   - discovery_pass.yaml (REQUIRED) — must contain selected_thesis
-#   - segments_classified.yaml (REQUIRED) — enriched segments
+#   - editorial_candidates.yaml (REQUIRED) — validated editorial candidates
 #   - library.yaml
 #   - Profile YAML
 #
-# Output: libraries/<name>/arrangement.yaml (v2)
+# Output: libraries/<name>/arrangement.yaml (v4)
 
 require 'yaml'
 require 'date'
@@ -23,6 +22,7 @@ require 'digest'
 require_relative 'load_profile'
 require_relative 'llm_client'
 require_relative 'library_resolver'
+require_relative 'arrangement_validator'
 
 SCRIPTS_DIR = File.dirname(__FILE__)
 ROOT_DIR = File.expand_path('..', SCRIPTS_DIR)
@@ -82,18 +82,14 @@ abort "PIPELINE ABORT: selected_thesis '#{selected_thesis_id}' not found in thes
 clip_groups  = discovery['clip_groups']  || []
 throughlines = discovery['throughlines'] || []
 
-# ─── Load segments_classified.yaml (REQUIRED) ───────────────────────────────
+# ─── Load editorial_candidates.yaml (REQUIRED) ──────────────────────────────
 
-segments_path = File.join(library_dir, 'segments_classified.yaml')
-abort "PIPELINE ABORT: segments_classified.yaml not found" unless File.exist?(segments_path)
+candidates_path = File.join(library_dir, 'editorial_candidates.yaml')
+abort "PIPELINE ABORT: editorial_candidates.yaml not found" unless File.exist?(candidates_path)
 
-segments_data = YAML.safe_load(File.read(segments_path), permitted_classes: [Date])
-segments = segments_data['segments'] || []
-abort "PIPELINE ABORT: No segments in segments_classified.yaml" if segments.empty?
-
-# Build lookup by ID for validation
-seg_by_id = {}
-segments.each { |s| seg_by_id[s['id']] = s }
+candidates_data = YAML.safe_load(File.read(candidates_path), permitted_classes: [Date])
+candidates = candidates_data['candidates'] || []
+abort "PIPELINE ABORT: No candidates in editorial_candidates.yaml" if candidates.empty?
 
 profile_name_resolved = profile_name || find_profile_match(library_name) || '_default'
 
@@ -101,7 +97,7 @@ profile_name_resolved = profile_name || find_profile_match(library_name) || '_de
 
 cache_parts = [
   Digest::SHA256.hexdigest(File.read(discovery_path)),
-  Digest::SHA256.hexdigest(File.read(segments_path)),
+  Digest::SHA256.hexdigest(File.read(candidates_path)),
   profile_name_resolved
 ]
 input_fingerprint = Digest::SHA256.hexdigest(cache_parts.join(':'))
@@ -121,16 +117,26 @@ $stderr.puts '=' * 60
 $stderr.puts "ARRANGEMENT — #{library_name}"
 $stderr.puts '=' * 60
 
-# Compact segments table
-segments_block = +""
-segments.each do |s|
-  dur = (s['e'].to_f - s['t'].to_f).round(1)
-  line = "#{s['id']} | #{s['source']} | #{s['t']}-#{s['e']} (#{dur}s)"
-  line << " | #{s['acoustic_pattern']}" if s['acoustic_pattern']
-  line << " | energy=#{s['audio_energy']}" if s['audio_energy']
-  line << " | pitch=#{s['audio_pitch_trend']}" if s['audio_pitch_trend']
-  line << "\n  #{s['text']}"
-  segments_block << line << "\n\n"
+# Compact candidate table
+candidates_block = +""
+candidates.each do |c|
+  candidates_block << "#{c['id']} | priority=#{c['candidate_priority']} | usability=#{c['usability']} | confidence=#{c['confidence']}\n"
+  candidates_block << "  text: #{c['text']}\n"
+  candidates_block << "  summary: #{c['summary']}\n" if c['summary']
+  candidates_block << "  distillation: #{c['distillation']}\n" if c['distillation']
+  candidates_block << "  suggested_roles: #{(c['suggested_narrative_roles'] || []).map { |r| r['role'] }.join(', ')}\n"
+  candidates_block << "  states: #{(c['states'] || []).join(', ')}\n"
+  candidates_block << "  durability: #{c['durability']}\n" if c['durability']
+  candidates_block << "  prosody: #{(c['prosody'] || {}).to_yaml.gsub(/^---\n/, '').lines.map { |l| '    ' + l }.join}"
+  candidates_block << "  trim_choices:\n"
+  (c['trim_choices'] || []).each do |t|
+    candidates_block << "    - #{t['id']} | safe=#{t['mechanical_boundary_safe']} | preserves_content=#{t['content_preserved']} | label=#{t['label']}\n"
+  end
+  candidates_block << "  exclusion_choices:\n"
+  (c['exclusion_choices'] || []).each do |e|
+    candidates_block << "    - #{e['id']} | type=#{e['type']} | recommended=#{e['recommended']} | reason=#{e['reason']}\n"
+  end
+  candidates_block << "\n"
 end
 
 $stderr.puts "  Thesis: #{selected_thesis_id} — #{chosen_thesis['logline'].to_s.strip[0..80]}"
@@ -174,14 +180,14 @@ prompt = <<~PROMPT
   ## Throughlines
   #{throughlines.to_yaml}
 
-  ## Enriched Segments
+  ## Editorial Candidates
 
-  #{segments_block}
+  #{candidates_block}
 
   ## Task
 
-  Produce arrangement.yaml v3 selecting and ordering segments (atoms) that serve the chosen thesis.
-  Each segment is an inviolate atom — select it by seg_id. Do NOT reason about timing within atoms.
+  Produce arrangement.yaml v4 selecting and ordering editorial candidates that serve the chosen thesis.
+  Each candidate is an editorial unit. Select by candidate_id, choose exactly one trim_choice_id, and choose zero or more exclusion_choice_ids.
 
   For each chapter:
   - Select segments that advance the thesis
@@ -209,8 +215,11 @@ prompt = <<~PROMPT
     - id: chapter_001
       title: "Chapter title"
       segments:
-        - seg_id: seg_NNN
-          clip_group_ref: cg_NNN       # if from a clip_group
+        - candidate_id: cand_NNN
+          trim_choice_id: trim_NNN
+          exclusion_choice_ids: []
+          narrative_role: hook
+          clip_group_ref: cg_NNN       # optional, if honoring a clip_group
           notes: "editorial note"       # optional
 
   throughline_honoring:
@@ -220,11 +229,11 @@ prompt = <<~PROMPT
       close_chapter: chapter_NNN
       notes: "within/outside distance_guidance"
 
-  unused_segment_audit:
-    cut_by_thesis: [seg_NNN, ...]
-    alternate_take_not_chosen: [seg_NNN, ...]
-    cut_for_pacing: [seg_NNN, ...]
-    bridge_dropped: [seg_NNN, ...]
+  unused_candidate_audit:
+    cut_by_thesis: [cand_NNN, ...]
+    alternate_take_not_chosen: [cand_NNN, ...]
+    cut_for_pacing: [cand_NNN, ...]
+    bridge_dropped: [cand_NNN, ...]
 PROMPT
 
 # Tone context goes to system message with prompt caching
@@ -274,65 +283,32 @@ end
 
 abort "PIPELINE ABORT: LLM response is not a Hash" unless result.is_a?(Hash)
 
-# ─── Validate ────────────────────────────────────────────────────────────────
-
-chapters = result['chapters'] || []
-abort "PIPELINE ABORT: No chapters in arrangement" if chapters.empty?
-
-# Validate segment ID references
-all_arranged_segs = []
-chapters.each do |ch|
-  (ch['segments'] || []).each do |seg_entry|
-    sid = seg_entry['seg_id']
-    unless seg_by_id[sid]
-      abort "PIPELINE ABORT: Arrangement references non-existent segment '#{sid}' — LLM hallucination"
-    end
-    all_arranged_segs << sid
-  end
-end
-
-# Check throughline honoring
-tl_honoring = result['throughline_honoring'] || []
-throughlines.each do |tl|
-  honor = tl_honoring.find { |h| h['throughline_id'] == tl['id'] }
-  if honor
-    # Check distance_guidance (warn, don't abort)
-    if tl['distance_guidance'] && honor['notes']
-      $stderr.puts "  Throughline #{tl['id']}: #{honor['notes']}"
-    end
-  else
-    $stderr.puts "  WARNING: Throughline #{tl['id']} not tracked in throughline_honoring"
-  end
-end
-
-# Check setup_payoff integrity (warn, don't abort)
-clip_groups.select { |cg| cg['type'] == 'setup_payoff' }.each do |cg|
-  cg_segs = cg['segments'] || []
-  in_cut = cg_segs.select { |sid| all_arranged_segs.include?(sid) }
-  if in_cut.size > 0 && in_cut.size < cg_segs.size
-    missing = cg_segs - in_cut
-    $stderr.puts "  WARNING: setup_payoff #{cg['id']} broken — #{missing.join(', ')} missing from cut"
-  end
-end
-
 # Enrich with metadata
-result['version']           = 3
+result['version']           = '4'
+result['branch']            = 'B'
 result['input_fingerprint'] = input_fingerprint
 result['generated_at']      = Time.now.strftime('%Y-%m-%dT%H:%M:%S%:z')
 result['selected_thesis']   = selected_thesis_id
 result['model']             = arrange_model
-result['time_domain']       = 'wav'
 
 # Ensure optional blocks exist
 result['arrangement_reasoning']  ||= ''
 result['throughline_honoring']   ||= []
-result['unused_segment_audit']   ||= {
+result['unused_candidate_audit']   ||= {
   'cut_by_thesis' => [], 'alternate_take_not_chosen' => [],
   'cut_for_pacing' => [], 'bridge_dropped' => []
 }
 
-total_segs = chapters.sum { |ch| (ch['segments'] || []).size }
-$stderr.puts "  Parsed: #{chapters.size} chapters, #{total_segs} segments arranged"
+validation = ArrangementValidator.validate(result, candidates_data, discovery_data: discovery)
+validation[:warnings].each { |w| $stderr.puts "  #{w}" }
+if validation[:errors].any?
+  validation[:errors].each { |e| $stderr.puts "  ERROR: #{e}" }
+  abort "PIPELINE ABORT: arrangement.yaml v4 validation failed"
+end
+
+chapters = result['chapters'] || []
+total_candidates = chapters.sum { |ch| (ch['segments'] || []).size }
+$stderr.puts "  Parsed: #{chapters.size} chapters, #{total_candidates} candidates arranged"
 
 # ─── Write output ────────────────────────────────────────────────────────────
 
@@ -356,9 +332,9 @@ unless skip_review
     $stderr.puts "    #{ch['id']}: #{ch['title']} (#{seg_count} segments)"
   end
 
-  unused = result['unused_segment_audit'] || {}
+  unused = result['unused_candidate_audit'] || {}
   unused_total = unused.values.flatten.size
-  $stderr.puts "\n  Unused segments: #{unused_total}"
+  $stderr.puts "\n  Unused candidates: #{unused_total}"
   $stderr.puts "    cut_by_thesis: #{(unused['cut_by_thesis'] || []).size}"
   $stderr.puts "    alternate_take_not_chosen: #{(unused['alternate_take_not_chosen'] || []).size}"
   $stderr.puts "    cut_for_pacing: #{(unused['cut_for_pacing'] || []).size}"
