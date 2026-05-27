@@ -1,0 +1,131 @@
+{
+  "candidates": [
+    {
+      "id": "cand_001",
+      "summary": "Working hard at your job enriches your boss; running something yourself is what makes you rich.",
+      "distillation": "job enriches boss running rich",
+      "usability": "fine",
+      "candidate_priority": "primary",
+      "suggested_narrative_roles": [
+        { "role": "claim", "confidence": "high" },
+        { "role": "hook", "confidence": "medium" }
+      ],
+      "states": ["aspiration", "competence"],
+      "durability": "identity",
+      "confidence": "high",
+      "content_preserved_trims": {
+        "trim_001": true,
+        "trim_002": false
+      },
+      "edit_notes": "Strong opening claim contrasting employment vs ownership. Tighter trim loses the setup."
+    },
+    {
+      "id": "cand_002",
+      "summary": "Reframes being told you ask too many questions as a sign you're meant for something different.",
+      "distillation": "questions weakness actually job description",
+      "usability": "fine",
+      "candidate_priority": "primary",
+      "suggested_narrative_roles": [
+        { "role": "evidence", "confidence": "high" },
+        { "role": "setup", "confidence": "medium" }
+      ],
+      "states": ["vindication", "curiosity"],
+      "durability": "mood",
+      "confidence": "high",
+      "content_preserved_trims": {
+        "trim_003": true,
+        "trim_004": false
+      },
+      "edit_notes": "Personal anecdote builds relatability. Tighter end cuts the payoff line."
+    },
+    {
+      "id": "cand_003",
+      "summary": "What got you in trouble at work is exactly what makes you dangerous on your own.",
+      "distillation": "trouble work dangerous your own",
+      "usability": "fine",
+      "candidate_priority": "primary",
+      "suggested_narrative_roles": [
+        { "role": "payoff", "confidence": "high" },
+        { "role": "claim", "confidence": "medium" }
+      ],
+      "states": ["vindication", "aspiration"],
+      "durability": "identity",
+      "confidence": "high",
+      "content_preserved_trims": {
+        "trim_005": true
+      },
+      "edit_notes": "Punchy reframe, strong hook potential. Emphatic delivery sells it."
+    },
+    {
+      "id": "cand_004",
+      "summary": "Conventional life advice was designed for a world that no longer exists, leaving people trapped at 40.",
+      "distillation": "advice right world doesnt exist",
+      "usability": "fine",
+      "candidate_priority": "secondary",
+      "suggested_narrative_roles": [
+        { "role": "evidence", "confidence": "high" },
+        { "role": "setup", "confidence": "medium" }
+      ],
+      "states": ["outrage", "fear"],
+      "durability": "mood",
+      "confidence": "medium",
+      "content_preserved_trims": {
+        "trim_006": true,
+        "trim_007": true
+      },
+      "edit_notes": "Long segment with strong narrative arc. Tighter start removes redundant opener."
+    },
+    {
+      "id": "cand_005",
+      "summary": "Saying you're not a business person is just giving yourself permission to stay stuck.",
+      "distillation": "not business person stay stuck",
+      "usability": "fine",
+      "candidate_priority": "primary",
+      "suggested_narrative_roles": [
+        { "role": "claim", "confidence": "high" }
+      ],
+      "states": ["vindication", "aspiration"],
+      "durability": "mood",
+      "confidence": "high",
+      "content_preserved_trims": {
+        "trim_008": true
+      },
+      "edit_notes": "Direct challenge to viewer's self-limiting belief. Rising pitch adds urgency."
+    },
+    {
+      "id": "cand_006",
+      "summary": "Transitional phrase pivoting to a direct question for the viewer.",
+      "distillation": "let me ask you something",
+      "usability": "fine",
+      "candidate_priority": "tertiary",
+      "suggested_narrative_roles": [
+        { "role": "transition", "confidence": "high" }
+      ],
+      "states": ["competence"],
+      "durability": "spike",
+      "confidence": "high",
+      "content_preserved_trims": {
+        "trim_009": true
+      },
+      "edit_notes": "Short transition. Works as a beat before the next question."
+    },
+    {
+      "id": "cand_007",
+      "summary": "Challenges the viewer's mental image of what a business person actually does.",
+      "distillation": "business person boring than picturing",
+      "usability": "fine",
+      "candidate_priority": "secondary",
+      "suggested_narrative_roles": [
+        { "role": "hook", "confidence": "medium" },
+        { "role": "aside", "confidence": "low" }
+      ],
+      "states": ["curiosity", "amusement"],
+      "durability": "spike",
+      "confidence": "medium",
+      "content_preserved_trims": {
+        "trim_010": true
+      },
+      "edit_notes": "Rhetorical question with humor. Demystifies entrepreneurship."
+    }
+  ]
+}

@@ -57,7 +57,7 @@ def run_phase_c_mutated
   end
 end
 
-GENERATED_FILES = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log].freeze
+GENERATED_FILES = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log semantic_labels_pending.json].freeze
 
 RSpec.describe 'candidate_builder Phase A' do
   let(:run) { run_phase_a }
@@ -481,6 +481,176 @@ RSpec.describe 'candidate_builder Phase B (mock)' do
 end
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Phase B — Pending Semantic Labeling (Session 7D)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+EMPHATIC_RANT_PENDING_DIR = File.expand_path('../fixtures/session6_probe_emphatic_rant', __dir__) unless defined?(EMPHATIC_RANT_PENDING_DIR)
+PENDING_GENERATED = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log semantic_labels_pending.json].freeze unless defined?(PENDING_GENERATED)
+
+def run_pending_no_response(dir)
+  # Remove response file to force pending request generation
+  resp = File.join(dir, 'semantic_labels_response.json')
+  FileUtils.rm_f(resp) if File.exist?(resp)
+  pending_path = File.join(dir, 'semantic_labels_pending.json')
+  FileUtils.rm_f(pending_path) if File.exist?(pending_path)
+  stdout, stderr, status = Open3.capture3('ruby', BUILDER_SCRIPT, '--fixture', dir, '--phase', 'ab', '--semantic-mode', 'pending')
+  { stdout: stdout, stderr: stderr, exit_code: status.exitstatus, pending_path: pending_path }
+end
+
+def run_pending_with_response(dir)
+  stdout, stderr, status = Open3.capture3('ruby', BUILDER_SCRIPT, '--fixture', dir, '--phase', 'abc', '--semantic-mode', 'pending')
+  editorial_path = File.join(dir, 'editorial_candidates.yaml')
+  {
+    stdout: stdout,
+    stderr: stderr,
+    exit_code: status.exitstatus,
+    editorial: File.exist?(editorial_path) ? YAML.safe_load(File.read(editorial_path), permitted_classes: [Date]) : nil
+  }
+end
+
+RSpec.describe 'candidate_builder Phase B (pending)' do
+  after(:all) do
+    PENDING_GENERATED.each do |f|
+      path = File.join(EMPHATIC_RANT_PENDING_DIR, f)
+      File.delete(path) if File.exist?(path)
+    end
+  end
+
+  describe 'pending request generation (no response file)' do
+    let(:run) do
+      # Temporarily hide the response file
+      resp = File.join(EMPHATIC_RANT_PENDING_DIR, 'semantic_labels_response.json')
+      had_resp = File.exist?(resp)
+      backup = had_resp ? File.read(resp) : nil
+      FileUtils.rm_f(resp) if had_resp
+      result = run_pending_no_response(EMPHATIC_RANT_PENDING_DIR)
+      File.write(resp, backup) if had_resp
+      result
+    end
+
+    it 'exits 0' do
+      expect(run[:exit_code]).to eq(0)
+    end
+
+    it 'writes semantic_labels_pending.json' do
+      run
+      expect(File.exist?(run[:pending_path])).to be true
+    end
+
+    it 'pending file is valid JSON' do
+      run
+      data = JSON.parse(File.read(run[:pending_path]))
+      expect(data).to be_a(Hash)
+    end
+
+    it 'pending file has correct structure' do
+      run
+      data = JSON.parse(File.read(run[:pending_path]))
+      expect(data).to have_key('prompt_version')
+      expect(data).to have_key('schema_version')
+      expect(data).to have_key('instructions')
+      expect(data).to have_key('constraints')
+      expect(data).to have_key('output_format')
+      expect(data).to have_key('candidates')
+    end
+
+    it 'pending candidates match substrate count' do
+      run
+      data = JSON.parse(File.read(run[:pending_path]))
+      expect(data['candidates'].size).to eq(7)
+    end
+
+    it 'pending candidates have text but no raw timestamps' do
+      run
+      data = JSON.parse(File.read(run[:pending_path]))
+      data['candidates'].each do |c|
+        expect(c).to have_key('text')
+        expect(c).to have_key('id')
+        expect(c).not_to have_key('t')
+        expect(c).not_to have_key('e')
+        expect(c).not_to have_key('segment_ids')
+        expect(c).not_to have_key('source')
+      end
+    end
+
+    it 'pending trims have keeps_percent but no raw in/out' do
+      run
+      data = JSON.parse(File.read(run[:pending_path]))
+      data['candidates'].each do |c|
+        c['trim_choices'].each do |tc|
+          expect(tc).to have_key('keeps_percent')
+          expect(tc).not_to have_key('in')
+          expect(tc).not_to have_key('out')
+        end
+      end
+    end
+
+    it 'does not write editorial_candidates.yaml' do
+      run
+      editorial = File.join(EMPHATIC_RANT_PENDING_DIR, 'editorial_candidates.yaml')
+      # editorial may exist from prior test runs; we check stderr instead
+      expect(run[:stderr]).to include('Pending semantic label request written')
+    end
+  end
+
+  describe 'response merge (with response file)' do
+    let(:run) { run_pending_with_response(EMPHATIC_RANT_PENDING_DIR) }
+    let(:candidates) { run[:editorial]['candidates'] }
+
+    it 'exits 0' do
+      expect(run[:exit_code]).to eq(0)
+    end
+
+    it 'produces editorial_candidates.yaml' do
+      expect(run[:editorial]).not_to be_nil
+    end
+
+    it 'preserves candidate count' do
+      expect(candidates.size).to eq(7)
+    end
+
+    it 'uses LLM summaries (not mock)' do
+      cand = candidates.find { |c| c['id'] == 'cand_003' }
+      expect(cand['summary']).to include('dangerous')
+    end
+
+    it 'every candidate has all Phase B fields' do
+      phase_b_fields = %w[summary distillation usability candidate_priority
+                          suggested_narrative_roles states durability confidence edit_notes]
+      candidates.each do |c|
+        phase_b_fields.each do |field|
+          expect(c).to have_key(field), "#{c['id']} missing '#{field}'"
+        end
+      end
+    end
+
+    it 'content_preserved is set on every trim from LLM response' do
+      candidates.each do |c|
+        c['trim_choices'].each do |tc|
+          expect(tc['content_preserved']).not_to be_nil, "#{c['id']} trim #{tc['id']} content_preserved nil"
+          expect(tc['content_preserved']).to be(true).or be(false)
+        end
+      end
+    end
+
+    it 'preserves substrate-authoritative fields' do
+      substrate = YAML.safe_load(File.read(File.join(EMPHATIC_RANT_PENDING_DIR, 'candidate_substrate.yaml')), permitted_classes: [Date])
+      phase_a_fields = %w[id source segment_ids t e text exclusion_choices cluster prosody]
+      candidates.each_with_index do |c, i|
+        sub = substrate['candidates'][i]
+        phase_a_fields.each do |field|
+          expect(c[field]).to eq(sub[field]), "#{c['id']}.#{field} changed after pending merge"
+        end
+      end
+    end
+
+    it 'passes Phase C validation' do
+      expect(run[:stderr]).to include('Phase C validation passed')
+    end
+  end
+end
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Phase B — Semantic Labeling Quality (Session 7C)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -490,7 +660,7 @@ LOW_ENERGY_DIR    = File.expand_path('../fixtures/session6_probe_low_energy_refl
 EXPLAINER_DIR     = File.expand_path('../fixtures/session6_probe_explainer_rapid', __dir__) unless defined?(EXPLAINER_DIR)
 REAL_PROBE_DIR    = File.expand_path('../fixtures/session6_real_probe', __dir__) unless defined?(REAL_PROBE_DIR)
 
-PROBE_GENERATED_FILES = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log].freeze unless defined?(PROBE_GENERATED_FILES)
+PROBE_GENERATED_FILES = %w[candidate_substrate.yaml editorial_candidates.yaml candidate_builder_warnings.log semantic_labels_pending.json].freeze unless defined?(PROBE_GENERATED_FILES)
 
 def run_probe_abc(dir)
   stdout, stderr, status = Open3.capture3('ruby', BUILDER_SCRIPT, '--fixture', dir, '--phase', 'abc')

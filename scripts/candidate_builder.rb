@@ -508,19 +508,25 @@ end
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
-library_name = nil
-fixture_dir  = nil
-phase        = 'a'
+library_name  = nil
+fixture_dir   = nil
+phase         = 'a'
+semantic_mode = 'mock'
 
 args = ARGV.dup
 while args.any?
   case args.first
-  when '--library'  then args.shift; library_name = args.shift
-  when '--fixture'  then args.shift; fixture_dir  = args.shift
-  when '--phase'    then args.shift; phase        = args.shift
+  when '--library'        then args.shift; library_name  = args.shift
+  when '--fixture'        then args.shift; fixture_dir   = args.shift
+  when '--phase'          then args.shift; phase         = args.shift
+  when '--semantic-mode'  then args.shift; semantic_mode = args.shift
   else
     abort "Unknown argument: #{args.first}"
   end
+end
+
+unless %w[mock pending].include?(semantic_mode)
+  abort "Invalid --semantic-mode: #{semantic_mode}. Use mock or pending."
 end
 
 phase = phase.downcase
@@ -541,6 +547,8 @@ if fixture_dir
   substrate_path  = File.join(fixture_dir, 'candidate_substrate.yaml')
   editorial_path  = File.join(fixture_dir, 'editorial_candidates.yaml')
   warnings_path   = File.join(fixture_dir, 'candidate_builder_warnings.log')
+  pending_path    = File.join(fixture_dir, 'semantic_labels_pending.json')
+  response_path   = File.join(fixture_dir, 'semantic_labels_response.json')
 else
   abort "Library mode not yet implemented. Use --fixture for now."
 end
@@ -884,13 +892,15 @@ if phase.include?('a')
   puts substrate_path
 end
 
-# ─── Phase B: Mock Semantic Labeling ──────────────────────────────────────────
+# ─── Phase B: Semantic Labeling ───────────────────────────────────────────────
 #
-# Deterministic mock that simulates LLM structure.
-# In production, this section would be replaced by the pending-file pattern
-# and an actual LLM call.
+# Two modes:
+#   mock    — deterministic heuristic labeling (no LLM, default)
+#   pending — pending-file LLM workflow:
+#             1. If no response file: write pending request, exit cleanly
+#             2. If response file exists: validate, merge with substrate, continue
 #
-# Hard rules enforced:
+# Hard rules (both modes):
 #   - No timestamps generated
 #   - No invented IDs
 #   - No substrate mutation (trim/exclusion structure unchanged)
@@ -903,46 +913,34 @@ if phase.include?('b')
   b_candidates = substrate['candidates'] || []
   abort "No candidates in substrate" if b_candidates.empty?
 
-  labeled = b_candidates.each_with_index.map do |c, ci|
+  # ── Mock labeling helper (used by both modes as primary or fallback) ──
+
+  mock_label_candidate = lambda do |c, ci|
     profile = c['prosody']['audio_profile']
     energy  = c['prosody']['energy']
     text    = c['text']
     duration = c['e'] - c['t']
 
-    # summary: most informative sentence, max 25 words
     sentences = text.split(/(?<=[.!?])\s+/)
     best_sentence = sentences.find { |s| text_matches_any?(s, CLAIM_PATTERNS + CONCLUSION_PATTERNS_B + REFRAME_PATTERNS_B) } || sentences.first || text
-    summary_words = best_sentence.split
-    summary = summary_words.first(25).join(' ')
+    summary = best_sentence.split.first(25).join(' ')
 
-    # distillation: 5 semantically distinctive content words
     content_tokens = tokenize(text)
     distinctive = content_tokens.reject { |w| %w[got get just really things like going way].include?(w) }
     distillation = (distinctive.any? ? distinctive : content_tokens).first(5).join(' ')
 
-    # usability from stumble_count
     stumbles = c['prosody']['stumble_count'] || 0
     usability = if stumbles > 2 then 'unusable'
                 elsif stumbles > 0 then 'marginal'
                 else 'fine'
                 end
 
-    # candidate_priority via multi-signal classifier
     priority = classify_priority(text, profile, energy, duration)
-
-    # states via multi-signal classifier
     states = classify_states(text, profile, energy, duration)
-
-    # durability via state + text signals
     durability = classify_durability(states, text)
-
-    # confidence via signal strength
     confidence = classify_confidence(text, profile, energy, duration, states, priority)
-
-    # suggested_narrative_roles via multi-signal classifier
     roles = classify_roles(text, profile, energy, duration, ci, b_candidates.size)
 
-    # content_preserved per trim_choice
     updated_trims = c['trim_choices'].map do |tc|
       tc = tc.dup
       if tc['label'] == 'full_clean'
@@ -957,28 +955,65 @@ if phase.include?('b')
 
     edit_notes = "Semantic labeling: #{profile}/#{energy}, #{states.join('+')}#{durability != 'spike' ? " [#{durability}]" : ''}"
 
-    # Build candidate in canonical schema field order
     {
-      'id'                       => c['id'],
-      'source'                   => c['source'],
-      'segment_ids'              => c['segment_ids'],
-      't'                        => c['t'],
-      'e'                        => c['e'],
-      'text'                     => c['text'],
-      'trim_choices'             => updated_trims,
-      'exclusion_choices'        => c['exclusion_choices'],
-      'summary'                  => summary,
-      'distillation'             => distillation,
-      'usability'                => usability,
-      'candidate_priority'       => priority,
-      'suggested_narrative_roles' => roles,
-      'states'                   => states,
-      'durability'               => durability,
-      'confidence'               => confidence,
-      'cluster'                  => c['cluster'],
-      'prosody'                  => c['prosody'],
-      'edit_notes'               => edit_notes
+      'id' => c['id'], 'source' => c['source'], 'segment_ids' => c['segment_ids'],
+      't' => c['t'], 'e' => c['e'], 'text' => c['text'],
+      'trim_choices' => updated_trims, 'exclusion_choices' => c['exclusion_choices'],
+      'summary' => summary, 'distillation' => distillation, 'usability' => usability,
+      'candidate_priority' => priority, 'suggested_narrative_roles' => roles,
+      'states' => states, 'durability' => durability, 'confidence' => confidence,
+      'cluster' => c['cluster'], 'prosody' => c['prosody'], 'edit_notes' => edit_notes
     }
+  end
+
+  # ── Pending mode ──
+
+  if semantic_mode == 'pending'
+    require_relative 'semantic_labeler'
+
+    if File.exist?(response_path)
+      # Response exists — validate and merge
+      $stderr.puts "Phase B: reading semantic_labels_response.json..."
+      response_data = JSON.parse(File.read(response_path))
+      response_labels = response_data.is_a?(Hash) ? response_data['candidates'] : response_data
+      response_labels ||= response_data
+
+      result = SemanticLabeler.validate_response(response_labels, b_candidates)
+
+      if result[:errors].any?
+        $stderr.puts "Phase B: semantic response validation FAILED:"
+        result[:errors].each { |e| $stderr.puts "  ERROR: #{e}" }
+        abort "Fix semantic_labels_response.json and rerun."
+      end
+
+      # Build mock labels as fallback for per-candidate merge
+      mock_labels = b_candidates.each_with_index.map { |c, ci| mock_label_candidate.call(c, ci) }
+      mock_by_id = mock_labels.each_with_object({}) { |m, h| h[m['id']] = m }
+      response_by_id = response_labels.each_with_object({}) { |l, h| h[l['id']] = l }
+
+      labeled = b_candidates.map do |c|
+        llm_label = response_by_id[c['id']]
+        mock_label = mock_by_id[c['id']]
+        SemanticLabeler.merge_labels(c, llm_label, mock_label)
+      end
+
+      label_mode = 'pending/llm'
+    else
+      # No response — write pending request and exit
+      request = SemanticLabeler.build_pending_request(b_candidates)
+      File.write(pending_path, JSON.pretty_generate(request))
+      $stderr.puts "semantic_labels_pending.json written: #{b_candidates.size} candidates"
+      $stderr.puts "Pending semantic label request written."
+      $stderr.puts "Fill #{response_path} and rerun --phase b --semantic-mode pending."
+      puts pending_path
+      exit 0
+    end
+
+  # ── Mock mode (default) ──
+
+  else
+    labeled = b_candidates.each_with_index.map { |c, ci| mock_label_candidate.call(c, ci) }
+    label_mode = 'mock'
   end
 
   editorial_result = {
@@ -990,7 +1025,7 @@ if phase.include?('b')
   }
 
   File.write(editorial_path, YAML.dump(editorial_result))
-  $stderr.puts "editorial_candidates.yaml written: #{labeled.size} candidates labeled (mock)"
+  $stderr.puts "editorial_candidates.yaml written: #{labeled.size} candidates labeled (#{label_mode})"
   puts editorial_path
 end
 
