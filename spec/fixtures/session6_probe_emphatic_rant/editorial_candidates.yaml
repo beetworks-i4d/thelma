@@ -2,7 +2,7 @@
 version: '1.2'
 input_fingerprint: 48c1cb37c640d1ec3eef4ded7be5168826637938a371ca460e965aec580f50c1
 generated_at: deterministic
-candidate_count: 6
+candidate_count: 7
 candidates:
 - id: cand_001
   source: Dylan Shorts 1.MP4
@@ -12,6 +12,14 @@ candidates:
   e: 104.08
   text: getting good at your job makes your boss's boss rich and getting good at and
     getting good at running something makes you rich.
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: emphatic
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 162
+    pitch_trend: falling
   trim_choices:
   - id: trim_001
     in: 98.02
@@ -25,10 +33,9 @@ candidates:
     label: tighter_start
     mechanical_boundary_safe: true
     content_preserved: false
-  exclusion_choices: []
-  summary: getting good at your job makes your boss's boss rich and getting good at
-    and getting good at running something makes you rich.
-  distillation: getting good job makes bosss
+  summary: Working hard at your job enriches your boss; running something yourself
+    is what makes you rich.
+  distillation: job enriches boss running rich
   usability: fine
   candidate_priority: primary
   suggested_narrative_roles:
@@ -37,18 +44,12 @@ candidates:
   - role: hook
     confidence: medium
   states:
-  - vindication
+  - aspiration
   - competence
-  durability: mood
+  durability: identity
   confidence: high
-  cluster:
-  prosody:
-    audio_profile: emphatic
-    energy: high
-    stumble_count: 0
-    max_pause_ms: 162
-    pitch_trend: falling
-  edit_notes: 'Mock labeling: emphatic/high'
+  edit_notes: Strong opening claim contrasting employment vs ownership. Tighter trim
+    loses the setup.
 - id: cand_002
   source: Dylan Shorts 1.MP4
   segment_ids:
@@ -59,6 +60,20 @@ candidates:
     that you can't just leave things alone because I have. And it took me way too
     long to realize that wasn't a weakness. That was basically a job description for
     something entirely different.
+  exclusion_choices:
+  - id: ex_001
+    start: 111.55
+    end: 114.18
+    type: pacing
+    reason: long_pause
+    recommended: true
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 190
+    pitch_trend: flat
   trim_choices:
   - id: trim_003
     in: 106.18
@@ -72,35 +87,22 @@ candidates:
     label: tighter_end
     mechanical_boundary_safe: true
     content_preserved: false
-  exclusion_choices:
-  - id: ex_001
-    start: 111.55
-    end: 114.18
-    type: pacing
-    reason: long_pause
-    recommended: true
-  summary: Have you been told you ask too many questions? You don't follow the process
-    that you can't just leave things alone because I have.
-  distillation: have told ask too many
+  summary: Reframes being told you ask too many questions as a sign you're meant for
+    something different.
+  distillation: questions weakness actually job description
   usability: fine
-  candidate_priority: secondary
+  candidate_priority: primary
   suggested_narrative_roles:
-  - role: aside
+  - role: evidence
+    confidence: high
+  - role: setup
     confidence: medium
-  - role: transition
-    confidence: low
   states:
-  - amusement
-  durability: spike
+  - vindication
+  - curiosity
+  durability: mood
   confidence: high
-  cluster:
-  prosody:
-    audio_profile: casual
-    energy: medium
-    stumble_count: 0
-    max_pause_ms: 190
-    pitch_trend: flat
-  edit_notes: 'Mock labeling: casual/medium'
+  edit_notes: Personal anecdote builds relatability. Tighter end cuts the payoff line.
 - id: cand_003
   source: Dylan Shorts 1.MP4
   segment_ids:
@@ -109,29 +111,7 @@ candidates:
   e: 132.27
   text: The stuff that got you in trouble at work is exactly what makes you dangerous
     on your own.
-  trim_choices:
-  - id: trim_005
-    in: 127.88
-    out: 132.27
-    label: full_clean
-    mechanical_boundary_safe: true
-    content_preserved: true
   exclusion_choices: []
-  summary: The stuff that got you in trouble at work is exactly what makes you dangerous
-    on your own.
-  distillation: stuff got trouble work exactly
-  usability: fine
-  candidate_priority: primary
-  suggested_narrative_roles:
-  - role: claim
-    confidence: high
-  - role: hook
-    confidence: medium
-  states:
-  - vindication
-  - competence
-  durability: mood
-  confidence: high
   cluster:
   prosody:
     audio_profile: emphatic
@@ -139,7 +119,29 @@ candidates:
     stumble_count: 0
     max_pause_ms: 464
     pitch_trend: flat
-  edit_notes: 'Mock labeling: emphatic/high'
+  trim_choices:
+  - id: trim_005
+    in: 127.88
+    out: 132.27
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  summary: What got you in trouble at work is exactly what makes you dangerous on
+    your own.
+  distillation: trouble work dangerous your own
+  usability: fine
+  candidate_priority: primary
+  suggested_narrative_roles:
+  - role: payoff
+    confidence: high
+  - role: claim
+    confidence: medium
+  states:
+  - vindication
+  - aspiration
+  durability: identity
+  confidence: high
+  edit_notes: Punchy reframe, strong hook potential. Emphatic delivery sells it.
 - id: cand_004
   source: Dylan Shorts 1.MP4
   segment_ids:
@@ -151,6 +153,20 @@ candidates:
     at 60. That advice made your parents feel safe giving it. It's also the reason
     a lot of people hit 40 with no way out and no idea how they got there. Their advice
     was right for a world that doesn't exist anymore.
+  exclusion_choices:
+  - id: ex_002
+    start: 147.36
+    end: 149.57
+    type: pacing
+    reason: long_pause
+    recommended: true
+  cluster:
+  prosody:
+    audio_profile: casual
+    energy: medium
+    stumble_count: 0
+    max_pause_ms: 329
+    pitch_trend: flat
   trim_choices:
   - id: trim_006
     in: 134.41
@@ -164,81 +180,96 @@ candidates:
     label: tighter_start
     mechanical_boundary_safe: true
     content_preserved: true
-  exclusion_choices:
-  - id: ex_002
-    start: 147.36
-    end: 149.57
-    type: pacing
-    reason: long_pause
-    recommended: true
-  summary: Nobody tells you this, but nobody tells you this growing up because the
-    people raising you don't know it either.
-  distillation: nobody tells nobody tells growing
+  summary: Conventional life advice was designed for a world that no longer exists,
+    leaving people trapped at 40.
+  distillation: advice right world doesnt exist
   usability: fine
   candidate_priority: secondary
   suggested_narrative_roles:
-  - role: aside
+  - role: evidence
+    confidence: high
+  - role: setup
     confidence: medium
-  - role: transition
-    confidence: low
   states:
-  - amusement
-  durability: spike
-  confidence: high
-  cluster:
-  prosody:
-    audio_profile: casual
-    energy: medium
-    stumble_count: 0
-    max_pause_ms: 329
-    pitch_trend: flat
-  edit_notes: 'Mock labeling: casual/medium'
+  - outrage
+  - fear
+  durability: mood
+  confidence: medium
+  edit_notes: Long segment with strong narrative arc. Tighter start removes redundant
+    opener.
 - id: cand_005
   source: Dylan Shorts 1.MP4
   segment_ids:
   - seg_009
-  - seg_010
   t: 159.73
-  e: 167.16
+  e: 165.4
   text: Every time you say, I'm not a business person, you're giving yourself permission
-    to stay exactly where you are now. But let me ask you something.
-  trim_choices:
-  - id: trim_008
-    in: 159.73
-    out: 167.16
-    label: full_clean
-    mechanical_boundary_safe: true
-    content_preserved: true
-  - id: trim_009
-    in: 159.73
-    out: 165.48
-    label: tighter_end
-    mechanical_boundary_safe: true
-    content_preserved: false
-  exclusion_choices: []
-  summary: Every time you say, I'm not a business person, you're giving yourself permission
     to stay exactly where you are now.
-  distillation: every time say im business
-  usability: fine
-  candidate_priority: secondary
-  suggested_narrative_roles:
-  - role: aside
-    confidence: medium
-  - role: transition
-    confidence: low
-  states:
-  - amusement
-  durability: spike
-  confidence: high
+  exclusion_choices: []
   cluster:
   prosody:
     audio_profile: casual
     energy: medium
     stumble_count: 0
     max_pause_ms: 80
-    pitch_trend: varied
-  edit_notes: 'Mock labeling: casual/medium'
+    pitch_trend: rising
+  trim_choices:
+  - id: trim_008
+    in: 159.73
+    out: 165.4
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  summary: Saying you're not a business person is just giving yourself permission
+    to stay stuck.
+  distillation: not business person stay stuck
+  usability: fine
+  candidate_priority: primary
+  suggested_narrative_roles:
+  - role: claim
+    confidence: high
+  states:
+  - vindication
+  - aspiration
+  durability: mood
+  confidence: high
+  edit_notes: Direct challenge to viewer's self-limiting belief. Rising pitch adds
+    urgency.
 - id: cand_006
+  source: Dylan Shorts 1.MP4
+  segment_ids:
+  - seg_010
+  t: 165.82
+  e: 167.16
+  text: But let me ask you something.
+  exclusion_choices: []
+  cluster:
+  prosody:
+    audio_profile: emphatic
+    energy: high
+    stumble_count: 0
+    max_pause_ms: 41
+    pitch_trend: falling
+  trim_choices:
+  - id: trim_009
+    in: 165.82
+    out: 167.16
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  summary: Transitional phrase pivoting to a direct question for the viewer.
+  distillation: let me ask you something
+  usability: fine
+  candidate_priority: tertiary
+  suggested_narrative_roles:
+  - role: transition
+    confidence: high
+  states:
+  - competence
+  durability: spike
+  confidence: high
+  edit_notes: Short transition. Works as a beat before the next question.
+- id: cand_007
   source: Dylan Shorts 1.MP4
   segment_ids:
   - seg_011
@@ -246,28 +277,7 @@ candidates:
   e: 181.09
   text: What do you actually think a business person does all day? Because I can tell
     you right now, it's a lot more boring than you're picturing.
-  trim_choices:
-  - id: trim_010
-    in: 174.75
-    out: 181.09
-    label: full_clean
-    mechanical_boundary_safe: true
-    content_preserved: true
   exclusion_choices: []
-  summary: What do you actually think a business person does all day? Because I can
-    tell you right now, it's a lot more boring than you're
-  distillation: what actually think business person
-  usability: fine
-  candidate_priority: secondary
-  suggested_narrative_roles:
-  - role: aside
-    confidence: medium
-  - role: transition
-    confidence: low
-  states:
-  - amusement
-  durability: spike
-  confidence: high
   cluster:
   prosody:
     audio_profile: casual
@@ -275,4 +285,26 @@ candidates:
     stumble_count: 0
     max_pause_ms: 60
     pitch_trend: falling
-  edit_notes: 'Mock labeling: casual/medium'
+  trim_choices:
+  - id: trim_010
+    in: 174.75
+    out: 181.09
+    label: full_clean
+    mechanical_boundary_safe: true
+    content_preserved: true
+  summary: Challenges the viewer's mental image of what a business person actually
+    does.
+  distillation: business person boring than picturing
+  usability: fine
+  candidate_priority: secondary
+  suggested_narrative_roles:
+  - role: hook
+    confidence: medium
+  - role: aside
+    confidence: low
+  states:
+  - curiosity
+  - amusement
+  durability: spike
+  confidence: medium
+  edit_notes: Rhetorical question with humor. Demystifies entrepreneurship.

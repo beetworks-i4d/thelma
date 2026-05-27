@@ -1,0 +1,52 @@
+---
+version: '4'
+branch: A
+selected_thesis:
+input_fingerprint: 29d350dc5ab8cda3c2f0c3c0855aceedf16d2117d7b0aba8e1451244c688c541
+generated_at: deterministic
+model: deterministic-mock
+arrangement_reasoning: Deterministic mock arrangement. Hook by prosody/priority score.
+  Remaining in source chronological order. Chapters split by energy/profile shifts
+  and source gaps.
+chapters:
+- id: chapter_001
+  title: Opening
+  segments:
+  - candidate_id: cand_003
+    trim_choice_id: trim_005
+    exclusion_choice_ids: []
+    narrative_role: hook
+  - candidate_id: cand_001
+    trim_choice_id: trim_001
+    exclusion_choice_ids: []
+    narrative_role: claim
+- id: chapter_002
+  title: Development
+  segments:
+  - candidate_id: cand_002
+    trim_choice_id: trim_003
+    exclusion_choice_ids:
+    - ex_001
+    narrative_role: claim
+- id: chapter_003
+  title: Resolution
+  segments:
+  - candidate_id: cand_004
+    trim_choice_id: trim_006
+    exclusion_choice_ids:
+    - ex_002
+    narrative_role: evidence
+  - candidate_id: cand_005
+    trim_choice_id: trim_008
+    exclusion_choice_ids: []
+    narrative_role: claim
+  - candidate_id: cand_007
+    trim_choice_id: trim_010
+    exclusion_choice_ids: []
+    narrative_role: payoff
+unused_candidate_audit:
+  cut_by_thesis: []
+  alternate_take_not_chosen: []
+  cut_for_pacing:
+  - cand_006
+  bridge_dropped: []
